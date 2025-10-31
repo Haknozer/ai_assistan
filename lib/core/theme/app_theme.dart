@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'app_colors.dart';
 
 class AppTheme {
   // Ana Renkler
-  static const Color primaryColor = Color(0xFF1976D2); // Mavi
-  static const Color secondaryColor = Color(0xFF03DAC6); // Cyan
-  static const Color errorColor = Color(0xFFB00020); // Kırmızı
-  static const Color warningColor = Color(0xFFFF9800); // Turuncu
-  static const Color successColor = Color(0xFF4CAF50); // Yeşil
+  static const Color primaryColor = AppColors.primaryColor;
+  static const Color secondaryColor = AppColors.secondaryColor;
+  static const Color errorColor = AppColors.errorColor;
+  static const Color warningColor = AppColors.warningColor;
+  static const Color successColor = AppColors.successColor;
 
   // Material 3 ColorScheme
   static const ColorScheme lightColorScheme = ColorScheme(
@@ -18,10 +19,10 @@ class AppTheme {
     onSecondary: Colors.black,
     error: errorColor,
     onError: Colors.white,
-    surface: Colors.white,
-    onSurface: Colors.black,
-    background: Color(0xFFF5F5F5),
-    onBackground: Colors.black,
+    surface: AppColors.surfaceColor,
+    onSurface: AppColors.primaryTextColor,
+    surfaceVariant: AppColors.backgroundColor,
+    onSurfaceVariant: AppColors.secondaryTextColor,
   );
 
   static const ColorScheme darkColorScheme = ColorScheme(
@@ -44,23 +45,27 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: lightColorScheme,
       brightness: Brightness.light,
+      scaffoldBackgroundColor: AppColors.backgroundColor,
 
       // AppBar Theme
       appBarTheme: const AppBarTheme(
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-        elevation: 2,
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.primaryTextColor,
+        elevation: 0,
         centerTitle: true,
-        systemOverlayStyle: SystemUiOverlayStyle.light,
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
       ),
 
       // Card Theme
       cardTheme: CardTheme(
-        elevation: 2,
+        color: AppColors.cardColor,
+        elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: AppColors.borderColor.withValues(alpha: 0.3)),
         ),
         clipBehavior: Clip.antiAlias,
+        shadowColor: Colors.transparent,
       ),
 
       // Elevated Button Theme

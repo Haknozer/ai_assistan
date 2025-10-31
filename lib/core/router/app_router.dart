@@ -12,26 +12,23 @@ import '../../presentation/screens/settings/settings_screen.dart';
 import '../../providers/user_provider.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
-  final userState = ref.watch(userNotifierProvider);
-
   return GoRouter(
     initialLocation: '/',
     debugLogDiagnostics: true,
-    redirect: (context, state) {
-      final isLoggedIn = userState.value != null;
-      final currentPath = state.uri.path;
-      final isAuthPage = currentPath == '/login' ||
-                         currentPath == '/register' ||
-                         currentPath == '/';
+    redirect: (context, state) async {
+      final userState = ref.read(userNotifierProvider);
 
-      // Eğer giriş yapmamışsa ve auth sayfasında değilse, login'e yönlendir
-      if (!isLoggedIn && !isAuthPage) {
-        return '/login';
-      }
+      // Splash screen için yönlendirme
+      if (state.uri.path == '/') {
+        // Veritabanının yüklenmesini bekle
+        await Future.delayed(const Duration(milliseconds: 500));
 
-      // Eğer giriş yapmışsa ve auth sayfasındaysa, ana sayfaya yönlendir
-      if (isLoggedIn && isAuthPage && currentPath != '/') {
-        return '/home';
+        final currentUser = userState.value;
+        if (currentUser != null) {
+          return '/home';
+        } else {
+          return '/login';
+        }
       }
 
       return null;

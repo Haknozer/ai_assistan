@@ -1,23 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'login_screen.dart';
 
-class RegisterScreen extends ConsumerStatefulWidget {
+class RegisterScreen extends ConsumerWidget {
   const RegisterScreen({super.key});
 
   @override
-  ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
-}
-
-class _RegisterScreenState extends ConsumerState<RegisterScreen> {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Kayıt Ol'),
-      ),
-      body: const Center(
-        child: Text('Register Screen - Geliştiriliyor'),
-      ),
-    );
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Register screen de login screen ile aynı arayüzü kullanacak
+    // LoginScreen'e yönlendiriyoruz
+    return const LoginScreen();
   }
 }

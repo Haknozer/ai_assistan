@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
-import '../../providers/user_provider.dart';
 import '../widgets/loading_widget.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -22,7 +20,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   void initState() {
     super.initState();
     _initializeAnimations();
-    _navigateToNextScreen();
+    // Router yönlendirmeyi handle ediyor, burada animasyon sadece gösterilecek
   }
 
   void _initializeAnimations() {
@@ -48,31 +46,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     ));
 
     _animationController.forward();
-  }
-
-  Future<void> _navigateToNextScreen() async {
-    // Veritabanını başlat ve kullanıcı durumunu bekle
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    // Kullanıcı durumunu kontrol et
-    final userState = ref.read(userNotifierProvider);
-
-    // 2 saniye bekle ve sonra yönlendir
-    await Future.delayed(const Duration(milliseconds: 1500));
-
-    if (mounted) {
-      if (userState.value != null) {
-        // Kullanıcı giriş yapmış, ana sayfaya git
-        if (context.mounted) {
-          context.go('/home');
-        }
-      } else {
-        // Kullanıcı giriş yapmamış, login sayfasına git
-        if (context.mounted) {
-          context.go('/login');
-        }
-      }
-    }
   }
 
   @override
