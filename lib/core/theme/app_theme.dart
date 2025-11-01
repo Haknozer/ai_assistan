@@ -21,7 +21,7 @@ class AppTheme {
     onError: Colors.white,
     surface: AppColors.surfaceColor,
     onSurface: AppColors.primaryTextColor,
-    surfaceVariant: AppColors.backgroundColor,
+    surfaceContainerHighest: AppColors.backgroundColor,
     onSurfaceVariant: AppColors.secondaryTextColor,
   );
 
@@ -35,8 +35,6 @@ class AppTheme {
     onError: Colors.black,
     surface: Color(0xFF121212),
     onSurface: Colors.white,
-    background: Color(0xFF121212),
-    onBackground: Colors.white,
   );
 
   // Light Theme
@@ -416,7 +414,7 @@ class AppTheme {
   // Shadow'lar
   static List<BoxShadow> get cardShadow => [
     BoxShadow(
-      color: Colors.black.withOpacity(0.1),
+      color: Colors.black.withValues(alpha: 0.1),
       blurRadius: 8,
       offset: const Offset(0, 2),
     ),
@@ -424,7 +422,7 @@ class AppTheme {
 
   static List<BoxShadow> get elevatedShadow => [
     BoxShadow(
-      color: Colors.black.withOpacity(0.2),
+      color: Colors.black.withValues(alpha: 0.2),
       blurRadius: 12,
       offset: const Offset(0, 4),
     ),

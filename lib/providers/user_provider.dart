@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../repositories/user_repository.dart';
-import '../models/user.dart';
+import '../models/user.dart' as app_user;
+import '../services/supabase_auth_service.dart';
 
 part 'user_provider.g.dart';
 
@@ -11,16 +13,32 @@ UserRepository userRepository(Ref ref) {
 }
 
 @riverpod
+SupabaseAuthService supabaseAuthService(Ref ref) {
+  return SupabaseAuthService();
+}
+
+@riverpod
 class UserNotifier extends _$UserNotifier {
   late UserRepository _userRepository;
+  late SupabaseAuthService _authService;
 
   @override
-  Future<User?> build() async {
+  Future<app_user.User?> build() async {
     _userRepository = ref.read(userRepositoryProvider);
-    return null;
+    _authService = ref.read(supabaseAuthServiceProvider);
+    // Supabase auth state değişikliklerini dinle
+    ref.listen(supabaseAuthStateProvider, (previous, next) {
+      if (next.value?.session != null) {
+        _syncUserFromSupabase();
+      } else {
+        state = const AsyncValue.data(null);
+      }
+    });
+
+    return _getCurrentUser();
   }
 
-  // Yeni kullanıcı kaydet
+  // Yeni kullanıcı kaydet (Supabase + Yerel)
   Future<void> registerUser({
     required String email,
     required String name,
@@ -31,27 +49,70 @@ class UserNotifier extends _$UserNotifier {
     state = const AsyncValue.loading();
 
     try {
-      final user = await _userRepository.createUser(
+      // Supabase ile kayıt yap
+      final response = await _authService.signUp(
         email: email,
-        name: name,
         password: password,
-        themePreference: themePreference,
-        language: language,
+        name: name,
       );
-      state = AsyncValue.data(user);
+
+      if (response.user != null) {
+        // Yerel veritabanına da kaydet
+        final localUser = await _userRepository.createUser(
+          email: email,
+          name: name,
+          password: '', // Supabase tarafından yönetiliyor
+          themePreference: themePreference,
+          language: language,
+        );
+
+        // Supabase'de profil oluştur
+        await _authService.upsertProfile(
+          response.user!.id,
+          {
+            'email': email,
+            'name': name,
+            'theme_preference': themePreference,
+            'language': language,
+            'created_at': DateTime.now().toIso8601String(),
+          },
+        );
+
+        state = AsyncValue.data(localUser);
+      }
     } catch (e, stack) {
       state = AsyncValue.error(e, stack);
     }
   }
 
-  // Giriş yap
+  // Giriş yap (Supabase + Yerel)
   Future<void> signIn(String email, String password) async {
     state = const AsyncValue.loading();
 
     try {
-      final user = await _userRepository.authenticate(email, password);
-      if (user != null) {
-        state = AsyncValue.data(user);
+      // Supabase ile giriş yap
+      final response = await _authService.signIn(
+        email: email,
+        password: password,
+      );
+
+      if (response.user != null) {
+        // Yerel veritabanında kullanıcı var mı kontrol et
+        app_user.User? localUser = await _userRepository.getUserByEmail(email);
+
+        if (localUser == null) {
+          // Yerelde yoksa yeni kayıt oluştur
+          final userName = response.user!.userMetadata?['name'] ?? 'Kullanıcı';
+          localUser = await _userRepository.createUser(
+            email: email,
+            name: userName,
+            password: '', // Supabase tarafından yönetiliyor
+            themePreference: 'system',
+            language: 'tr',
+          );
+        }
+
+        state = AsyncValue.data(localUser);
       } else {
         state = AsyncValue.error('E-posta veya şifre hatalı', StackTrace.current);
       }
@@ -60,13 +121,21 @@ class UserNotifier extends _$UserNotifier {
     }
   }
 
-  // Çıkış yap
-  void signOut() {
-    state = const AsyncValue.data(null);
+  // Çıkış yap (Supabase + Yerel)
+  Future<void> signOut() async {
+    try {
+      // Supabase'den çıkış yap
+      await _authService.signOut();
+
+      // Yerel state'i temizle
+      state = const AsyncValue.data(null);
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+    }
   }
 
   // Kullanıcı bilgilerini güncelle
-  Future<void> updateUser(User user) async {
+  Future<void> updateUser(app_user.User user) async {
     state = const AsyncValue.loading();
 
     try {
@@ -179,6 +248,46 @@ class UserNotifier extends _$UserNotifier {
       state = AsyncValue.data(state.value);
     }
   }
+
+  // Mevcut kullanıcıyı al
+  Future<app_user.User?> _getCurrentUser() async {
+    final supabaseUser = _authService.getCurrentUser();
+    if (supabaseUser == null) return null;
+
+    // Yerel veritabanında ara
+    final localUser = await _userRepository.getUserByEmail(supabaseUser.email!);
+    return localUser;
+  }
+
+  // Supabase'den kullanıcıyı senkronize et
+  Future<void> _syncUserFromSupabase() async {
+    try {
+      final supabaseUser = _authService.getCurrentUser();
+      if (supabaseUser == null) {
+        state = const AsyncValue.data(null);
+        return;
+      }
+
+      // Yerel veritabanında ara
+      app_user.User? localUser = await _userRepository.getUserByEmail(supabaseUser.email!);
+
+      if (localUser == null) {
+        // Yerelde yoksa oluştur
+        final userName = supabaseUser.userMetadata?['name'] ?? 'Kullanıcı';
+        localUser = await _userRepository.createUser(
+          email: supabaseUser.email!,
+          name: userName,
+          password: '',
+          themePreference: 'system',
+          language: 'tr',
+        );
+      }
+
+      state = AsyncValue.data(localUser);
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+    }
+  }
 }
 
 // Convenience provider'lar
@@ -189,7 +298,7 @@ bool isLoggedIn(Ref ref) {
 }
 
 @riverpod
-User? currentUser(Ref ref) {
+app_user.User? currentUser(Ref ref) {
   return ref.watch(userNotifierProvider).value;
 }
 
@@ -214,4 +323,11 @@ bool isUserLoading(Ref ref) {
 String? userError(Ref ref) {
   final error = ref.watch(userNotifierProvider).error;
   return error?.toString();
+}
+
+// Supabase auth state provider
+@riverpod
+Stream<AuthState> supabaseAuthState(Ref ref) {
+  final supabaseClient = Supabase.instance.client;
+  return supabaseClient.auth.onAuthStateChange;
 }

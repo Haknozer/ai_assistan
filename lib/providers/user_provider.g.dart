@@ -23,6 +23,25 @@ final userRepositoryProvider = AutoDisposeProvider<UserRepository>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef UserRepositoryRef = AutoDisposeProviderRef<UserRepository>;
+String _$supabaseAuthServiceHash() =>
+    r'9cab3279e172ba4030d6833daff0584702689100';
+
+/// See also [supabaseAuthService].
+@ProviderFor(supabaseAuthService)
+final supabaseAuthServiceProvider =
+    AutoDisposeProvider<SupabaseAuthService>.internal(
+  supabaseAuthService,
+  name: r'supabaseAuthServiceProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$supabaseAuthServiceHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef SupabaseAuthServiceRef = AutoDisposeProviderRef<SupabaseAuthService>;
 String _$isLoggedInHash() => r'685a804a5271d28e2cfe32b36069b866f8db25e3';
 
 /// See also [isLoggedIn].
@@ -39,11 +58,11 @@ final isLoggedInProvider = AutoDisposeProvider<bool>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef IsLoggedInRef = AutoDisposeProviderRef<bool>;
-String _$currentUserHash() => r'76b5f3d5af03bdd33c659308ba08b580cb3a9ade';
+String _$currentUserHash() => r'86d6ab8d67187b0b71aebdbb5fbf254a38c58e7b';
 
 /// See also [currentUser].
 @ProviderFor(currentUser)
-final currentUserProvider = AutoDisposeProvider<User?>.internal(
+final currentUserProvider = AutoDisposeProvider<app_user.User?>.internal(
   currentUser,
   name: r'currentUserProvider',
   debugGetCreateSourceHash:
@@ -54,7 +73,7 @@ final currentUserProvider = AutoDisposeProvider<User?>.internal(
 
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
-typedef CurrentUserRef = AutoDisposeProviderRef<User?>;
+typedef CurrentUserRef = AutoDisposeProviderRef<app_user.User?>;
 String _$userThemeHash() => r'd7d4dcca917d6dfb60f5e17613d1f7277cd8c17d';
 
 /// See also [userTheme].
@@ -120,12 +139,29 @@ final userErrorProvider = AutoDisposeProvider<String?>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef UserErrorRef = AutoDisposeProviderRef<String?>;
-String _$userNotifierHash() => r'39510894303e91cfa4eb9d23d62642b9af4ed31a';
+String _$supabaseAuthStateHash() => r'86df92005cbfa48db347335eff97406f82506a5e';
+
+/// See also [supabaseAuthState].
+@ProviderFor(supabaseAuthState)
+final supabaseAuthStateProvider = AutoDisposeStreamProvider<AuthState>.internal(
+  supabaseAuthState,
+  name: r'supabaseAuthStateProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$supabaseAuthStateHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef SupabaseAuthStateRef = AutoDisposeStreamProviderRef<AuthState>;
+String _$userNotifierHash() => r'f7a66472ba0c8d4e09148a2a74a0feb0be629d38';
 
 /// See also [UserNotifier].
 @ProviderFor(UserNotifier)
 final userNotifierProvider =
-    AutoDisposeAsyncNotifierProvider<UserNotifier, User?>.internal(
+    AutoDisposeAsyncNotifierProvider<UserNotifier, app_user.User?>.internal(
   UserNotifier.new,
   name: r'userNotifierProvider',
   debugGetCreateSourceHash:
@@ -134,6 +170,6 @@ final userNotifierProvider =
   allTransitiveDependencies: null,
 );
 
-typedef _$UserNotifier = AutoDisposeAsyncNotifier<User?>;
+typedef _$UserNotifier = AutoDisposeAsyncNotifier<app_user.User?>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

@@ -14,6 +14,7 @@ dependencies:
   http: ^1.1.0
   # Veritabanı
   sqflite: ^2.3.0
+  sqflite_common_ffi: ^2.3.0
   path: ^1.8.3
   path_provider: ^2.1.1
   # Şifreleme
@@ -26,6 +27,8 @@ dependencies:
   go_router: ^13.2.0
   # UI
   material_color_utilities: ^0.11.1
+  # Supabase
+  supabase_flutter: ^2.3.4
   # Yardımcı
   intl: ^0.18.1
   uuid: ^4.2.1

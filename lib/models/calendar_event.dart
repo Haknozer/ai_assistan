@@ -226,7 +226,7 @@ class CalendarEvent {
   }
 
   String get formattedTime {
-    return DateFormat('HH:mm').format(startTime) + ' - ' + DateFormat('HH:mm').format(endTime);
+    return '${DateFormat('HH:mm').format(startTime)} - ${DateFormat('HH:mm').format(endTime)}';
   }
 
   // Etkinlik süresi (dakika cinsinden)

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../providers/user_provider.dart';
 import '../../widgets/auth_header.dart';
 import '../../widgets/auth_form.dart';
@@ -14,8 +13,7 @@ class LoginScreen extends ConsumerStatefulWidget {
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends ConsumerState<LoginScreen>
-    with SingleTickerProviderStateMixin {
+class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -136,9 +134,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           },
         ),
       ),
-      bottomNavigationBar: SafeArea(
+      bottomNavigationBar: const SafeArea(
         child: Padding(
-          padding: const EdgeInsets.only(bottom: 16.0),
+          padding: EdgeInsets.only(bottom: 16.0),
           child: Text(
             '© 2025 AI Asistan. Tüm hakları saklıdır.',
             textAlign: TextAlign.center,
