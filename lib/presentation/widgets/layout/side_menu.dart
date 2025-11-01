@@ -48,12 +48,10 @@ class SideMenu extends ConsumerWidget {
           // User Profile Card
           _buildUserProfileCard(),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
 
           // Menu Items
-          Expanded(
-            child: _buildMenuItems(ref),
-          ),
+          _buildMenuItems(ref),
 
           // Bottom Section
           _buildBottomSection(ref),
@@ -64,36 +62,36 @@ class SideMenu extends ConsumerWidget {
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          SizedBox(height: 12),
+          SizedBox(height: 8),
 
           // App Title
           Text(
             'AI Asistan',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 22,
+              fontSize: 24,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.2,
             ),
           ),
 
-          SizedBox(height: 2),
+          SizedBox(height: 4),
 
           // Subtitle
           Text(
             'Kişisel Yönetim',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 13,
+              fontSize: 14,
               letterSpacing: 0.5,
             ),
           ),
 
-          SizedBox(height: 16),
+          SizedBox(height: 12),
         ],
       ),
     );
@@ -103,7 +101,7 @@ class SideMenu extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
@@ -119,13 +117,13 @@ class SideMenu extends ConsumerWidget {
               onTap: onProfileTap,
               child: CircleAvatarWithInitials(
                 initials: userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                radius: 24,
+                radius: 20,
                 backgroundColor: Colors.white,
                 textColor: AppColors.primaryColor,
               ),
             ),
 
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
 
             // User Info
             Expanded(
@@ -136,17 +134,17 @@ class SideMenu extends ConsumerWidget {
                     userName,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 14,
+                      fontSize: 15,
                       fontWeight: FontWeight.w600,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 1),
+                  const SizedBox(height: 2),
                   Text(
                     userEmail,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w400,
                     ),
                     overflow: TextOverflow.ellipsis,
@@ -187,7 +185,7 @@ class SideMenu extends ConsumerWidget {
             return GestureDetector(
               onTap: () => onMenuTap(itemIndex),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: isSelected ? Colors.white.withValues(alpha: 0.1) : Colors.transparent,
                   borderRadius: BorderRadius.circular(8),
@@ -205,12 +203,12 @@ class SideMenu extends ConsumerWidget {
                       color: Colors.white,
                       size: 20,
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 12),
                     Text(
                       item['label'] as String,
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 13,
+                        fontSize: 14,
                         fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                       ),
                     ),
@@ -238,7 +236,7 @@ class SideMenu extends ConsumerWidget {
     final themeState = ref.watch(themeProvider);
 
     return Padding(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       child: Column(
         children: [
           // Divider
@@ -247,7 +245,7 @@ class SideMenu extends ConsumerWidget {
             color: Colors.white.withValues(alpha: 0.2),
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
 
           // Karanlık/Aydınlık Mod Butonu
           GestureDetector(
@@ -255,7 +253,7 @@ class SideMenu extends ConsumerWidget {
               ref.read(themeProvider.notifier).toggleTheme();
             },
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
@@ -272,7 +270,7 @@ class SideMenu extends ConsumerWidget {
                     themeState.isDarkMode ? 'Açık Mod' : 'Karanlık Mod',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 14,
+                      fontSize: 15,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -281,7 +279,7 @@ class SideMenu extends ConsumerWidget {
             ),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
           // Logout Button
           GestureDetector(
@@ -289,7 +287,7 @@ class SideMenu extends ConsumerWidget {
               // TODO: Implement logout
             },
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
@@ -306,7 +304,7 @@ class SideMenu extends ConsumerWidget {
                     'Çıkış Yap',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 14,
+                      fontSize: 15,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -315,7 +313,7 @@ class SideMenu extends ConsumerWidget {
             ),
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
         ],
       ),
     );

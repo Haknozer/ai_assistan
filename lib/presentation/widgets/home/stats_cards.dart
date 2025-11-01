@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../../core/theme/app_colors.dart';
 
 class StatsCards extends StatelessWidget {
   const StatsCards({super.key});
@@ -8,43 +7,70 @@ class StatsCards extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        int crossAxisCount = constraints.maxWidth > 600 ? 4 : 2;
+        int crossAxisCount;
+        double childAspectRatio;
+        double mainAxisSpacing;
+        double crossAxisSpacing;
+
+        if (constraints.maxWidth > 1200) {
+          // Large Desktop
+          crossAxisCount = 4;
+          childAspectRatio = 1.4;
+          mainAxisSpacing = 16;
+          crossAxisSpacing = 16;
+        } else if (constraints.maxWidth > 600) {
+          // Small Desktop / Tablet
+          crossAxisCount = 2;
+          childAspectRatio = 1.3;
+          mainAxisSpacing = 14;
+          crossAxisSpacing = 14;
+        } else {
+          // Mobile
+          crossAxisCount = 1;
+          childAspectRatio = 2.5;
+          mainAxisSpacing = 12;
+          crossAxisSpacing = 0;
+        }
 
         return GridView.count(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           crossAxisCount: crossAxisCount,
-          childAspectRatio: constraints.maxWidth > 600 ? 1.4 : 1.2,
-          mainAxisSpacing: 16,
-          crossAxisSpacing: 16,
+          childAspectRatio: childAspectRatio,
+          mainAxisSpacing: mainAxisSpacing,
+          crossAxisSpacing: crossAxisSpacing,
           children: [
-            _buildStatCard(
+            _buildDualStatCard(
               context,
-              'Bugünkü Görevler',
-              '5',
-              Icons.task_outlined,
+              'Bekleyen Görevler',
+              '3',
+              '24 Tamamlandı',
+              Icons.pending_actions_outlined,
               Colors.orange,
             ),
-            _buildStatCard(
+            _buildDualStatCard(
               context,
-              'Tamamlanan',
-              '12',
-              Icons.check_circle_outline,
-              Colors.green,
-            ),
-            _buildStatCard(
-              context,
-              'Etkinlikler',
-              '3',
-              Icons.event_outlined,
+              'Bugünkü Toplantılar',
+              '2',
+              '1 Tamamlandı',
+              Icons.groups_outlined,
               Colors.blue,
             ),
-            _buildStatCard(
+            _buildDualStatCard(
               context,
-              'E-postalar',
+              'Okunmamış E-postalar',
               '8',
-              Icons.email_outlined,
+              '15 Okundu',
+              Icons.mark_email_unread_outlined,
               Colors.purple,
+            ),
+            _buildDualStatCard(
+              context,
+              'Verimlilik Skoru',
+              '85%',
+              '%12 Artış',
+              Icons.trending_up_outlined,
+              Colors.green,
             ),
           ],
         );
@@ -52,62 +78,104 @@ class StatsCards extends StatelessWidget {
     );
   }
 
-  Widget _buildStatCard(
+  Widget _buildDualStatCard(
     BuildContext context,
     String title,
-    String value,
+    String mainValue,
+    String subValue,
     IconData icon,
     Color color,
   ) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-        border: Border.all(
-          color: color.withValues(alpha: 0.2),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 400;
+
+        // Responsive font scaling based on screen width
+        final screenWidth = MediaQuery.of(context).size.width;
+        final scaleFactor = (screenWidth / 1200).clamp(0.7, 1.2);
+
+        // Calculate responsive font sizes
+        final titleFontSize = ((13 * scaleFactor).clamp(9, 15)).toDouble();
+        final mainValueFontSize = ((28 * scaleFactor).clamp(18, 36)).toDouble();
+        final subValueFontSize = ((12 * scaleFactor).clamp(9, 14)).toDouble();
+        final iconSize = ((18 * scaleFactor).clamp(14, 22)).toDouble();
+
+        return Container(
+          padding: EdgeInsets.all(isMobile ? 16 : 20),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(isMobile ? 12 : 16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+            border: Border.all(
+              color: color.withValues(alpha: 0.2),
+              width: 1,
             ),
-            child: Icon(
-              icon,
-              color: color,
-              size: 24,
-            ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: AppColors.primaryTextColor,
-                  fontWeight: FontWeight.bold,
-                ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w500,
+                            fontSize: titleFontSize,
+                          ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  SizedBox(width: isMobile ? 8 : 12),
+                  Container(
+                    padding: EdgeInsets.all(isMobile ? 8 : 10),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(isMobile ? 8 : 10),
+                    ),
+                    child: Icon(
+                      icon,
+                      color: color,
+                      size: iconSize,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: isMobile ? 12 : 16),
+              Text(
+                mainValue,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontWeight: FontWeight.bold,
+                      fontSize: mainValueFontSize,
+                    ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              SizedBox(height: isMobile ? 4 : 6),
+              Text(
+                subValue,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: color,
+                      fontWeight: FontWeight.w500,
+                      fontSize: subValueFontSize,
+                    ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
-          const SizedBox(height: 2),
-          Text(
-            title,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.secondaryTextColor,
-                ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

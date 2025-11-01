@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../providers/user_provider.dart';
-import '../../../models/user.dart' as app_user;
 import '../../../utils/responsive_utils.dart';
-import '../../widgets/layout/side_menu.dart';
-import '../../widgets/layout/bottom_navigation.dart';
-import '../../widgets/layout/mobile_app_bar.dart';
+import '../../widgets/home/desktop_layout.dart';
+import '../../widgets/home/mobile_layout.dart';
+import '../../widgets/home/loading_widget.dart';
 import 'dashboard_page.dart';
 import '../tasks/tasks_screen.dart';
 import '../calendar/calendar_screen.dart';
@@ -40,11 +39,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final currentUser = ref.watch(currentUserProvider);
 
     if (currentUser == null) {
-      return const _LoadingWidget();
+      return const LoadingWidget();
     }
 
     return ResponsiveUtils.isDesktop(context)
-        ? _DesktopLayout(
+        ? DesktopLayout(
             currentUser: currentUser,
             selectedIndex: _selectedIndex,
             pages: _pages,
@@ -56,7 +55,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             },
             onProfileTap: _handleProfileTap,
           )
-        : _MobileLayout(
+        : MobileLayout(
             currentUser: currentUser,
             selectedIndex: _selectedIndex,
             pages: _pages,
@@ -120,145 +119,5 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         );
         break;
     }
-  }
-}
-
-// Loading Widget
-class _LoadingWidget extends StatelessWidget {
-  const _LoadingWidget();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: CircularProgressIndicator(),
-      ),
-    );
-  }
-}
-
-// Desktop Layout Widget
-class _DesktopLayout extends StatelessWidget {
-  final app_user.User currentUser;
-  final int selectedIndex;
-  final List<Widget> pages;
-  final Function(int) onMenuTap;
-  final VoidCallback onProfileTap;
-
-  const _DesktopLayout({
-    required this.currentUser,
-    required this.selectedIndex,
-    required this.pages,
-    required this.onMenuTap,
-    required this.onProfileTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: Row(
-        children: [
-          // Fixed Side Menu (Desktop)
-          SizedBox(
-            width: 280,
-            child: SideMenu(
-              userName: currentUser.name,
-              userEmail: currentUser.email,
-              selectedIndex: selectedIndex,
-              onMenuTap: onMenuTap,
-              onProfileTap: onProfileTap,
-            ),
-          ),
-          // Main Content Area
-          Expanded(
-            child: IndexedStack(
-              index: selectedIndex,
-              children: pages,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// Mobile Layout Widget
-class _MobileLayout extends StatelessWidget {
-  final app_user.User currentUser;
-  final int selectedIndex;
-  final List<Widget> pages;
-  final Function(int) onMenuTap;
-  final VoidCallback onProfileTap;
-  final VoidCallback onNotificationsPressed;
-
-  const _MobileLayout({
-    required this.currentUser,
-    required this.selectedIndex,
-    required this.pages,
-    required this.onMenuTap,
-    required this.onProfileTap,
-    required this.onNotificationsPressed,
-  });
-
-  String _getAppBarTitle(int index) {
-    switch (index) {
-      case 0:
-        return 'Ana Sayfa';
-      case 1:
-        return 'Birleşik Mesajlar';
-      case 2:
-        return 'Görevler';
-      case 3:
-        return 'Takvim';
-      case 4:
-        return 'E-Posta';
-      case 5:
-        return 'Analitik';
-      case 6:
-        return 'AI Asistan';
-      case 7:
-        return 'Komut Paleti';
-      default:
-        return 'AI Asistan';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: IndexedStack(
-        index: selectedIndex,
-        children: pages,
-      ),
-      appBar: MobileAppBar(
-        title: _getAppBarTitle(selectedIndex),
-        onMenuPressed: () {
-          Scaffold.of(context).openDrawer();
-        },
-        onNotificationsPressed: onNotificationsPressed,
-      ),
-      drawer: SizedBox(
-        width: 280,
-        child: SideMenu(
-          userName: currentUser.name,
-          userEmail: currentUser.email,
-          selectedIndex: selectedIndex,
-          onMenuTap: (index) {
-            onMenuTap(index);
-            Navigator.pop(context); // Close drawer
-          },
-          onProfileTap: () {
-            Navigator.pop(context); // Close drawer
-            onProfileTap();
-          },
-        ),
-      ),
-      bottomNavigationBar: BottomNavigation(
-        selectedIndex: selectedIndex,
-        onTap: onMenuTap,
-      ),
-    );
   }
 }
