@@ -156,7 +156,7 @@ final supabaseAuthStateProvider = AutoDisposeStreamProvider<AuthState>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef SupabaseAuthStateRef = AutoDisposeStreamProviderRef<AuthState>;
-String _$userNotifierHash() => r'f7a66472ba0c8d4e09148a2a74a0feb0be629d38';
+String _$userNotifierHash() => r'4a34f98d15e685a66ddf9a4c8c9b1b573ba5bb9f';
 
 /// See also [UserNotifier].
 @ProviderFor(UserNotifier)

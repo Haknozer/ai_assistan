@@ -1,14 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class CalendarScreen extends ConsumerStatefulWidget {
+class CalendarScreen extends StatelessWidget {
   const CalendarScreen({super.key});
 
-  @override
-  ConsumerState<CalendarScreen> createState() => _CalendarScreenState();
-}
-
-class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -16,7 +10,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         title: const Text('Takvim'),
       ),
       body: const Center(
-        child: Text('Takvim - Geliştiriliyor'),
+        child: Text('Takvim sayfası - Geliştiriliyor'),
       ),
     );
   }
