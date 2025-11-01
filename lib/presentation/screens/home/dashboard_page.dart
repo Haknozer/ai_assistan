@@ -26,7 +26,7 @@ class DashboardPage extends ConsumerWidget {
     final padding = ResponsiveUtils.getResponsivePadding(context);
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: padding,

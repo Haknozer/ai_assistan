@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../widgets/circle_avatar_with_initials.dart';
+import '../../../../providers/theme_provider.dart';
 
-class SideMenu extends StatelessWidget {
+class SideMenu extends ConsumerWidget {
   final String userName;
   final String userEmail;
   final int selectedIndex;
@@ -19,7 +21,7 @@ class SideMenu extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -50,11 +52,11 @@ class SideMenu extends StatelessWidget {
 
           // Menu Items
           Expanded(
-            child: _buildMenuItems(),
+            child: _buildMenuItems(ref),
           ),
 
           // Bottom Section
-          _buildBottomSection(),
+          _buildBottomSection(ref),
         ],
       ),
     );
@@ -152,28 +154,13 @@ class SideMenu extends StatelessWidget {
                 ],
               ),
             ),
-
-            // Settings Icon
-            IconButton(
-              onPressed: () => onMenuTap(7),
-              icon: const Icon(
-                Icons.settings,
-                color: Colors.white,
-                size: 18,
-              ),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(
-                minWidth: 28,
-                minHeight: 28,
-              ),
-            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildMenuItems() {
+  Widget _buildMenuItems(WidgetRef ref) {
     final menuItems = [
       {'icon': Icons.dashboard_outlined, 'label': 'Ana Sayfa', 'index': 0},
       {'icon': Icons.mark_email_unread_outlined, 'label': 'Birleşik Mesajlar', 'index': 1},
@@ -183,7 +170,6 @@ class SideMenu extends StatelessWidget {
       {'icon': Icons.analytics_outlined, 'label': 'Analitik', 'index': 5},
       {'icon': Icons.smart_toy_outlined, 'label': 'AI Asistan', 'index': 6},
       {'icon': Icons.search, 'label': 'Komut Paleti', 'index': 7},
-      {'icon': Icons.dark_mode_outlined, 'label': 'Karanlık Mod', 'index': 8},
     ];
 
     return Expanded(
@@ -195,10 +181,11 @@ class SideMenu extends StatelessWidget {
           separatorBuilder: (context, index) => const SizedBox(height: 2),
           itemBuilder: (context, index) {
             final item = menuItems[index];
-            final isSelected = selectedIndex == item['index'];
+            final itemIndex = item['index'] as int;
+            final isSelected = selectedIndex == itemIndex;
 
             return GestureDetector(
-              onTap: () => onMenuTap(item['index'] as int),
+              onTap: () => onMenuTap(itemIndex),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
@@ -247,7 +234,9 @@ class SideMenu extends StatelessWidget {
     );
   }
 
-  Widget _buildBottomSection() {
+  Widget _buildBottomSection(WidgetRef ref) {
+    final themeState = ref.watch(themeProvider);
+
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -259,6 +248,40 @@ class SideMenu extends StatelessWidget {
           ),
 
           const SizedBox(height: 16),
+
+          // Karanlık/Aydınlık Mod Butonu
+          GestureDetector(
+            onTap: () {
+              ref.read(themeProvider.notifier).toggleTheme();
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    themeState.isDarkMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    themeState.isDarkMode ? 'Açık Mod' : 'Karanlık Mod',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
 
           // Logout Button
           GestureDetector(

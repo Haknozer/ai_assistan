@@ -6,7 +6,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 import 'core/database/database_service.dart';
-import 'providers/user_provider.dart';
+import 'providers/theme_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,29 +43,15 @@ class AIAssistantApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final userTheme = ref.watch(userThemeProvider);
+    final userTheme = ref.watch(themeProvider);
     final router = ref.watch(routerProvider);
-    final systemBrightness = MediaQuery.of(context).platformBrightness;
-
-    // Tema kararını belirle
-    ThemeMode themeMode;
-    switch (userTheme) {
-      case 'light':
-        themeMode = ThemeMode.light;
-        break;
-      case 'dark':
-        themeMode = ThemeMode.dark;
-        break;
-      default: // system
-        themeMode = systemBrightness == Brightness.dark ? ThemeMode.dark : ThemeMode.light;
-    }
 
     return MaterialApp.router(
       title: 'AI Asistan',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: themeMode,
+      themeMode: userTheme.themeMode,
       routerConfig: router,
     );
   }

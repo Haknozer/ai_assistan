@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../providers/user_provider.dart';
 import '../../../models/user.dart' as app_user;
 import '../../../utils/responsive_utils.dart';
@@ -13,7 +12,6 @@ import '../tasks/tasks_screen.dart';
 import '../calendar/calendar_screen.dart';
 import '../email/email_screen.dart';
 import '../analytics/analytics_screen.dart';
-import '../settings/settings_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -33,9 +31,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     const EmailScreen(),
     const AnalyticsScreen(),
     Container(), // AI Asistan - TODO: Create page
-    const SettingsScreen(),
     Container(), // Komut Paleti - TODO: Create page
-    Container(), // Karanlık Mod - TODO: Create page
+    // Karanlık Mod bir sayfa değil, sadece toggle işlemi yapılıyor
   ];
 
   @override
@@ -86,7 +83,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  void _handleNavigation(int index) {
+  void _handleNavigation(int index) async {
     // Navigate to the respective page if not home
     switch (index) {
       case 0:
@@ -120,12 +117,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         // Komut Paleti - TODO: Create route
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Komut Paleti geliştiriliyor...')),
-        );
-        break;
-      case 8:
-        // Karanlık Mod - TODO: Toggle dark mode
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Karanlık Mod geliştiriliyor...')),
         );
         break;
     }
@@ -165,7 +156,7 @@ class _DesktopLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Row(
         children: [
           // Fixed Side Menu (Desktop)
@@ -228,8 +219,6 @@ class _MobileLayout extends StatelessWidget {
         return 'AI Asistan';
       case 7:
         return 'Komut Paleti';
-      case 8:
-        return 'Karanlık Mod';
       default:
         return 'AI Asistan';
     }
@@ -238,7 +227,7 @@ class _MobileLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: IndexedStack(
         index: selectedIndex,
         children: pages,

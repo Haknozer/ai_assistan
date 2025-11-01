@@ -33,7 +33,7 @@ class AppTheme {
     onSecondary: Colors.black,
     error: Color(0xFFCF6679),
     onError: Colors.black,
-    surface: Color(0xFF121212),
+    surface: Color(0xFF1C1B1F),
     onSurface: Colors.white,
   );
 
@@ -43,7 +43,7 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: lightColorScheme,
       brightness: Brightness.light,
-      scaffoldBackgroundColor: AppColors.backgroundColor,
+      scaffoldBackgroundColor: AppColors.lightBackgroundColor,
 
       // AppBar Theme
       appBarTheme: const AppBarTheme(
@@ -211,6 +211,7 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: darkColorScheme,
       brightness: Brightness.dark,
+      scaffoldBackgroundColor: AppColors.darkBackgroundColor,
 
       // AppBar Theme
       appBarTheme: const AppBarTheme(
@@ -413,18 +414,18 @@ class AppTheme {
 
   // Shadow'lar
   static List<BoxShadow> get cardShadow => [
-    BoxShadow(
-      color: Colors.black.withValues(alpha: 0.1),
-      blurRadius: 8,
-      offset: const Offset(0, 2),
-    ),
-  ];
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.1),
+          blurRadius: 8,
+          offset: const Offset(0, 2),
+        ),
+      ];
 
   static List<BoxShadow> get elevatedShadow => [
-    BoxShadow(
-      color: Colors.black.withValues(alpha: 0.2),
-      blurRadius: 12,
-      offset: const Offset(0, 4),
-    ),
-  ];
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.2),
+          blurRadius: 12,
+          offset: const Offset(0, 4),
+        ),
+      ];
 }
