@@ -111,67 +111,167 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: Row(
-        children: [
-          // Sol Menü
-          SizedBox(
-            width: 280,
-            child: SideMenu(
-              userName: currentUser.name,
-              userEmail: currentUser.email,
-              selectedIndex: _selectedMenuIndex,
-              onMenuTap: _handleMenuTap,
-              onProfileTap: _handleProfileTap,
-            ),
+      body: _buildResponsiveLayout(currentUser, padding, isDesktop),
+    );
+  }
+
+  Widget _buildResponsiveLayout(dynamic currentUser, EdgeInsets padding, bool isDesktop) {
+    if (isDesktop) {
+      return _buildDesktopLayout(currentUser, padding);
+    } else {
+      return _buildMobileLayout(currentUser, padding);
+    }
+  }
+
+  // Desktop Layout - Sol menü + içerik
+  Widget _buildDesktopLayout(dynamic currentUser, EdgeInsets padding) {
+    return Row(
+      children: [
+        // Sol Menü
+        SizedBox(
+          width: 280,
+          child: SideMenu(
+            userName: currentUser.name,
+            userEmail: currentUser.email,
+            selectedIndex: _selectedMenuIndex,
+            onMenuTap: _handleMenuTap,
+            onProfileTap: _handleProfileTap,
           ),
-          // Ana İçerik Alanı
-          Expanded(
-            child: SafeArea(
-              child: Padding(
-                padding: padding,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Sayfa Başlığı ve Görev Ekle Butonu
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 24),
-                      child: Row(
-                        children: [
-                          // Sayfa Başlığı
-                          _buildPageHeader(),
-                          const Spacer(),
-                          // Görev Ekle Butonu
-                          ElevatedButton.icon(
-                            onPressed: _showAddTaskDialog,
-                            icon: const Icon(Icons.add_task),
-                            label: const Text('Görev Ekle'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.primaryColor,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
+        ),
+        // Ana İçerik Alanı
+        Expanded(
+          child: SafeArea(
+            child: Padding(
+              padding: padding,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Sayfa Başlığı ve Görev Ekle Butonu
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 24),
+                    child: Row(
+                      children: [
+                        // Sayfa Başlığı
+                        _buildPageHeader(),
+                        const Spacer(),
+                        // Görev Ekle Butonu
+                        ElevatedButton.icon(
+                          onPressed: _showAddTaskDialog,
+                          icon: const Icon(Icons.add_task),
+                          label: const Text('Görev Ekle'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
+                  ),
 
-                    // Arama ve Filtreleme
-                    _buildSearchAndFilterSection(),
-                    const SizedBox(height: 24),
+                  // Arama ve Filtreleme
+                  _buildSearchAndFilterSection(isDesktop: true),
+                  const SizedBox(height: 24),
 
-                    // Kanban Board
+                  // Kanban Board
+                  Expanded(
+                    child: _buildKanbanBoard(isDesktop: true),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Mobile Layout - AppBar + Drawer + içerik
+  Widget _buildMobileLayout(dynamic currentUser, EdgeInsets padding) {
+    return Scaffold(
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Mobil AppBar
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                border: Border(
+                  bottom: BorderSide(
+                    color: AppColors.getBorderColor(context),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  // Menu button
+                  IconButton(
+                    onPressed: () {
+                      Scaffold.of(context).openDrawer();
+                    },
+                    icon: const Icon(Icons.menu),
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  const SizedBox(width: 8),
+                  // Sayfa Başlığı
+                  Expanded(
+                    child: _buildPageHeader(),
+                  ),
+                  // Görev Ekle Butonu (Küçük)
+                  IconButton.filled(
+                    onPressed: _showAddTaskDialog,
+                    icon: const Icon(Icons.add),
+                    style: IconButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(40, 40),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Mobil İçerik
+            Expanded(
+              child: Padding(
+                padding: padding.copyWith(top: 16),
+                child: Column(
+                  children: [
+                    // Arama ve Filtreleme (Mobil)
+                    _buildSearchAndFilterSection(isDesktop: false),
+                    const SizedBox(height: 16),
+
+                    // Kanban Board (Mobil)
                     Expanded(
-                      child: _buildKanbanBoard(isDesktop),
+                      child: _buildKanbanBoard(isDesktop: false),
                     ),
                   ],
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
+      ),
+      drawer: Drawer(
+        width: 280,
+        child: SideMenu(
+          userName: currentUser.name,
+          userEmail: currentUser.email,
+          selectedIndex: _selectedMenuIndex,
+          onMenuTap: (index) {
+            Navigator.pop(context); // Drawer'ı kapat
+            _handleMenuTap(index);
+          },
+          onProfileTap: () {
+            Navigator.pop(context); // Drawer'ı kapat
+            _handleProfileTap();
+          },
+        ),
       ),
     );
   }
@@ -197,13 +297,90 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     );
   }
 
-  Widget _buildSearchAndFilterSection() {
-    return Row(
-      children: [
-        // Arama Alanı
-        Expanded(
-          flex: 2,
-          child: TextField(
+  Widget _buildSearchAndFilterSection({required bool isDesktop}) {
+    if (isDesktop) {
+      // Desktop Layout - Yatay
+      return Row(
+        children: [
+          // Arama Alanı
+          Expanded(
+            flex: 2,
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Görev arama...',
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: AppColors.getCardColor(context),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: AppColors.getBorderColor(context),
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: AppColors.getBorderColor(context),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(
+                    color: AppTheme.primaryColor,
+                    width: 2,
+                  ),
+                ),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
+              },
+            ),
+          ),
+          const SizedBox(width: 16),
+
+          // Filtreleme Butonları
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: TaskFilter.values.map((filter) {
+                  final isSelected = _currentFilter == filter;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      label: Text(filter.displayName),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        setState(() {
+                          _currentFilter = filter;
+                        });
+                      },
+                      backgroundColor: AppColors.getCardColor(context),
+                      selectedColor: AppTheme.primaryColor.withValues(alpha: 0.2),
+                      checkmarkColor: AppTheme.primaryColor,
+                      labelStyle: TextStyle(
+                        color: isSelected ? AppTheme.primaryColor : AppColors.getPrimaryTextColor(context),
+                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                      side: BorderSide(
+                        color: isSelected ? AppTheme.primaryColor : AppColors.getBorderColor(context),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ],
+      );
+    } else {
+      // Mobile Layout - Dikey
+      return Column(
+        children: [
+          // Arama Alanı
+          TextField(
             decoration: InputDecoration(
               hintText: 'Görev arama...',
               prefixIcon: const Icon(Icons.search),
@@ -235,12 +412,10 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
               });
             },
           ),
-        ),
-        const SizedBox(width: 16),
+          const SizedBox(height: 12),
 
-        // Filtreleme Butonları
-        Expanded(
-          child: SingleChildScrollView(
+          // Filtreleme Butonları
+          SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: TaskFilter.values.map((filter) {
@@ -270,12 +445,12 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
               }).toList(),
             ),
           ),
-        ),
-      ],
-    );
+        ],
+      );
+    }
   }
 
-  Widget _buildKanbanBoard(bool isDesktop) {
+  Widget _buildKanbanBoard({required bool isDesktop}) {
     final tasksByStatus = _tasksByStatus;
 
     if (isDesktop) {
@@ -293,22 +468,17 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
         }).toList(),
       );
     } else {
-      // Mobil görünüm - Dikey kartlar
-      return SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: TaskStatus.values.map((status) {
-            final tasks = tasksByStatus[status] ?? [];
-            return SizedBox(
-              width: MediaQuery.of(context).size.width * 0.9,
-              child: Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: _buildKanbanColumn(status, tasks),
-              ),
-            );
-          }).toList(),
-        ),
+      // Mobil görünümü - Dikey sütunlar
+      return Column(
+        children: TaskStatus.values.map((status) {
+          final tasks = tasksByStatus[status] ?? [];
+          return Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _buildKanbanColumn(status, tasks),
+            ),
+          );
+        }).toList(),
       );
     }
   }
