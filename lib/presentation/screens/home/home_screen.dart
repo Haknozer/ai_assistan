@@ -11,6 +11,7 @@ import '../tasks/tasks_screen.dart';
 import '../calendar/calendar_screen.dart';
 import '../email/email_screen.dart';
 import '../analytics/analytics_screen.dart';
+import '../messages/unified_messages_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -24,7 +25,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   final List<Widget> _pages = [
     const DashboardPage(),
-    Container(), // Birleşik Mesajlar - TODO: Create page
+    const UnifiedMessagesScreen(), // Birleşik Mesajlar
     const TasksScreen(),
     const CalendarScreen(),
     const EmailScreen(),
