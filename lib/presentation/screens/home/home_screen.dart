@@ -90,10 +90,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         // Already on home
         break;
       case 1:
-        // Birleşik Mesajlar - TODO: Create route
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Birleşik Mesajlar geliştiriliyor...')),
-        );
+        // Birleşik Mesajlar
+        context.go('/messages');
         break;
       case 2:
         context.go('/tasks');

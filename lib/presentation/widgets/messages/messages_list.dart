@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/message_model.dart';
+import '../../screens/messages/models/message_model.dart';
 import 'message_card.dart';
 
 /// Mesajlar listesi widget'ı - Tüm mesajları gösterir
@@ -75,4 +75,3 @@ class MessagesList extends StatelessWidget {
     );
   }
 }
-

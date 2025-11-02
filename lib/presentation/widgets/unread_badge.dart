@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 
-/// Okunmamış mesaj sayısı badge widget'ı
+/// Okunmamış mesaj/bildirim sayısı badge widget'ı
+/// Herhangi bir ekranda kullanılabilir ortak widget
 class UnreadBadge extends StatelessWidget {
   final int count;
+  final String? label;
 
   const UnreadBadge({
     super.key,
     required this.count,
+    this.label,
   });
 
   @override
@@ -36,7 +39,7 @@ class UnreadBadge extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(
-            '$count Okunmamış Mesaj',
+            label ?? '$count Okunmamış Mesaj',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Colors.red.shade700,
                   fontWeight: FontWeight.w600,
@@ -48,4 +51,3 @@ class UnreadBadge extends StatelessWidget {
     );
   }
 }
-

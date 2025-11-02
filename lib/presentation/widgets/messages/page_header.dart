@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'unread_badge.dart';
+import '../unread_badge.dart';
 
 /// Sayfa başlığı widget'ı
 class PageHeader extends StatelessWidget {
@@ -41,4 +41,3 @@ class PageHeader extends StatelessWidget {
     );
   }
 }
-

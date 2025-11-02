@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../models/message_model.dart';
-import 'user_avatar.dart';
+import '../../screens/messages/models/message_model.dart';
+import '../circle_avatar_with_initials.dart';
 
 /// Mesaj detay başlığı - Gönderen bilgileri ve avatar
 class MessageDetailHeader extends StatelessWidget {
@@ -17,11 +17,11 @@ class MessageDetailHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Avatar
-        UserAvatar(
-          name: message.sender,
-          color: message.color,
-          size: 56,
-          fontSize: 20,
+        CircleAvatarWithInitials(
+          initials: message.getInitials(),
+          radius: 28,
+          backgroundColor: message.color,
+          textColor: Colors.white,
         ),
         const SizedBox(width: 16),
         // İsim ve Platform
@@ -68,4 +68,3 @@ class MessageDetailHeader extends StatelessWidget {
     );
   }
 }
-

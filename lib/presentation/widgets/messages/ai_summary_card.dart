@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/message_model.dart';
+import '../../screens/messages/models/message_model.dart';
 
 /// AI özeti kartı widget'ı
 class AiSummaryCard extends StatelessWidget {
@@ -63,4 +63,3 @@ class AiSummaryCard extends StatelessWidget {
     );
   }
 }
-

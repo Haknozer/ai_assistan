@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/message_model.dart';
+import '../../screens/messages/models/message_model.dart';
 import 'message_detail_header.dart';
 import 'message_detail_content.dart';
 import 'ai_summary_card.dart';
@@ -65,4 +65,3 @@ class MessageDetailPanel extends StatelessWidget {
     );
   }
 }
-

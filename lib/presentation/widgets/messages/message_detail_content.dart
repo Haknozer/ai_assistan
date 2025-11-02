@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/message_model.dart';
+import '../../screens/messages/models/message_model.dart';
 
 /// Mesaj detay içeriği - Konu ve mesaj içeriği
 class MessageDetailContent extends StatelessWidget {
@@ -49,4 +49,3 @@ class MessageDetailContent extends StatelessWidget {
     );
   }
 }
-

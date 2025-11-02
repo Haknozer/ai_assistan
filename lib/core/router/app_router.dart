@@ -8,6 +8,7 @@ import '../../presentation/screens/home/home_screen.dart';
 import '../../presentation/screens/tasks/tasks_screen.dart';
 import '../../presentation/screens/calendar/calendar_screen.dart';
 import '../../presentation/screens/email/email_screen.dart';
+import '../../presentation/screens/messages/unified_messages_screen.dart';
 import '../../presentation/screens/settings/settings_screen.dart';
 import '../../providers/user_provider.dart';
 
@@ -78,6 +79,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/email',
         name: 'email',
         builder: (context, state) => const EmailScreen(),
+      ),
+
+      // Messages Routes
+      GoRoute(
+        path: '/messages',
+        name: 'messages',
+        builder: (context, state) => const UnifiedMessagesScreen(),
       ),
 
       // Settings Routes
