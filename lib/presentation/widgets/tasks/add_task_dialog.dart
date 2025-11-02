@@ -52,7 +52,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
       },
     );
 
-    if (picked != null) {
+    if (picked != null && mounted) {
       final TimeOfDay? timePicked = await showTimePicker(
         context: context,
         initialTime: TimeOfDay.now(),
@@ -68,7 +68,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
         },
       );
 
-      if (timePicked != null) {
+      if (timePicked != null && mounted) {
         setState(() {
           _selectedDueDate = DateTime(
             picked.year,
@@ -91,9 +91,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
       id: DateTime.now().millisecondsSinceEpoch,
       userId: 1,
       title: _titleController.text.trim(),
-      description: _descriptionController.text.trim().isEmpty
-          ? null
-          : _descriptionController.text.trim(),
+      description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
       status: _selectedStatus,
       priority: _selectedPriority,
       dueDate: _selectedDueDate,
@@ -261,19 +259,14 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                     setState(() => _selectedPriority = priority);
                   },
                   backgroundColor: AppColors.getCardColor(context),
-                  selectedColor:
-                      TaskUtils.getPriorityColor(priority).withValues(alpha: 0.2),
+                  selectedColor: TaskUtils.getPriorityColor(priority).withValues(alpha: 0.2),
                   checkmarkColor: TaskUtils.getPriorityColor(priority),
                   labelStyle: TextStyle(
-                    color: isSelected
-                        ? TaskUtils.getPriorityColor(priority)
-                        : AppColors.getPrimaryTextColor(context),
+                    color: isSelected ? TaskUtils.getPriorityColor(priority) : AppColors.getPrimaryTextColor(context),
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                   ),
                   side: BorderSide(
-                    color: isSelected
-                        ? TaskUtils.getPriorityColor(priority)
-                        : AppColors.getBorderColor(context),
+                    color: isSelected ? TaskUtils.getPriorityColor(priority) : AppColors.getBorderColor(context),
                   ),
                 ),
               ),
@@ -349,18 +342,13 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                 const Icon(Icons.calendar_today, color: AppTheme.primaryColor),
                 const SizedBox(width: 12),
                 Text(
-                  _selectedDueDate != null
-                      ? TaskUtils.formatDateTime(_selectedDueDate!)
-                      : 'Tarih seçin...',
+                  _selectedDueDate != null ? TaskUtils.formatDateTime(_selectedDueDate!) : 'Tarih seçin...',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: _selectedDueDate != null
-                            ? Theme.of(context).colorScheme.onSurface
-                            : Colors.grey,
+                        color: _selectedDueDate != null ? Theme.of(context).colorScheme.onSurface : Colors.grey,
                       ),
                 ),
                 const Spacer(),
-                Icon(Icons.arrow_drop_down,
-                    color: AppColors.getBorderColor(context)),
+                Icon(Icons.arrow_drop_down, color: AppColors.getBorderColor(context)),
               ],
             ),
           ),
@@ -410,4 +398,3 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
     );
   }
 }
-

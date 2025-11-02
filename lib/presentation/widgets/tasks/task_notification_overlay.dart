@@ -181,4 +181,3 @@ class TaskNotificationOverlay {
     Future.delayed(const Duration(seconds: 4), () => overlayEntry.remove());
   }
 }
-

@@ -95,7 +95,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const SettingsScreen(),
       ),
     ],
-
     errorBuilder: (context, state) => Scaffold(
       body: Center(
         child: Column(

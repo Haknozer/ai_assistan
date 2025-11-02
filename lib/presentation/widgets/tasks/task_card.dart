@@ -1,3 +1,4 @@
+import 'package:ai_asisstan/presentation/screens/tasks/utils/task_utils.dart';
 import 'package:flutter/material.dart';
 import '../../../models/task.dart';
 import '../../../core/theme/app_theme.dart';
@@ -116,9 +117,8 @@ class _TaskCardContent extends StatelessWidget {
                   task.title,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: isDragging
-                            ? Colors.grey.withValues(alpha: 0.7)
-                            : Theme.of(context).colorScheme.onSurface,
+                        color:
+                            isDragging ? Colors.grey.withValues(alpha: 0.7) : Theme.of(context).colorScheme.onSurface,
                       ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -127,15 +127,13 @@ class _TaskCardContent extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: TaskUtils.getPriorityColor(task.priority)
-                      .withValues(alpha: isDragging ? 0.1 : 0.2),
+                  color: TaskUtils.getPriorityColor(task.priority).withValues(alpha: isDragging ? 0.1 : 0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   task.priority.displayName,
                   style: TextStyle(
-                    color: TaskUtils.getPriorityColor(task.priority)
-                        .withValues(alpha: isDragging ? 0.5 : 1),
+                    color: TaskUtils.getPriorityColor(task.priority).withValues(alpha: isDragging ? 0.5 : 1),
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
                   ),
@@ -178,9 +176,7 @@ class _TaskCardContent extends StatelessWidget {
                         color: isDragging
                             ? Colors.grey.withValues(alpha: 0.5)
                             : (task.isOverdue ? AppTheme.errorColor : Colors.grey),
-                        fontWeight: task.isOverdue && !isDragging
-                            ? FontWeight.w600
-                            : FontWeight.normal,
+                        fontWeight: task.isOverdue && !isDragging ? FontWeight.w600 : FontWeight.normal,
                       ),
                 ),
               ],
@@ -191,4 +187,3 @@ class _TaskCardContent extends StatelessWidget {
     );
   }
 }
-

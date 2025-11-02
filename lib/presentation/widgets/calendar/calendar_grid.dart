@@ -76,7 +76,7 @@ class CalendarGrid extends StatelessWidget {
     final previousMonthDays = firstWeekday - 1;
 
     // Toplam gösterilecek gün sayısı (6 hafta * 7 gün = 42)
-    final totalCells = 42;
+    const totalCells = 42;
 
     return GridView.builder(
       padding: const EdgeInsets.all(8),
@@ -104,8 +104,7 @@ class CalendarGrid extends StatelessWidget {
         } else {
           // Sonraki ayın günleri
           final day = index - previousMonthDays - daysInMonth + 1;
-          final nextMonth =
-              DateTime(currentMonth.year, currentMonth.month + 1, day);
+          final nextMonth = DateTime(currentMonth.year, currentMonth.month + 1, day);
           cellDate = nextMonth;
           isCurrentMonth = false;
         }
@@ -126,4 +125,3 @@ class CalendarGrid extends StatelessWidget {
     );
   }
 }
-

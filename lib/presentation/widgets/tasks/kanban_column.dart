@@ -47,8 +47,7 @@ class _KanbanColumnState extends State<KanbanColumn> {
             boxShadow: isHovering
                 ? [
                     BoxShadow(
-                      color: TaskUtils.getStatusColor(widget.status)
-                          .withValues(alpha: 0.2),
+                      color: TaskUtils.getStatusColor(widget.status).withValues(alpha: 0.2),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -154,13 +153,9 @@ class _KanbanColumnState extends State<KanbanColumn> {
           ),
           const SizedBox(height: 8),
           Text(
-            isHovering
-                ? 'Görevi buraya bırakın'
-                : 'Bu kategoride görev bulunmuyor',
+            isHovering ? 'Görevi buraya bırakın' : 'Bu kategoride görev bulunmuyor',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: isHovering
-                      ? TaskUtils.getStatusColor(widget.status).withValues(alpha: 0.8)
-                      : Colors.grey,
+                  color: isHovering ? TaskUtils.getStatusColor(widget.status).withValues(alpha: 0.8) : Colors.grey,
                   fontWeight: isHovering ? FontWeight.w600 : FontWeight.normal,
                 ),
           ),
@@ -177,4 +172,3 @@ class _KanbanColumnState extends State<KanbanColumn> {
     );
   }
 }
-

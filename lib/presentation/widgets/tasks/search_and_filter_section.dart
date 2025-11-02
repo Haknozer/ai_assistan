@@ -108,4 +108,3 @@ class SearchAndFilterSection extends StatelessWidget {
     );
   }
 }
-

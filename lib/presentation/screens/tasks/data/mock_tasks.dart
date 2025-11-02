@@ -1,4 +1,4 @@
-import '../../../../models/task.dart';
+import '../../../../../models/task.dart';
 
 /// Mock görev verileri - Test ve geliştirme için
 class MockTasks {
@@ -47,4 +47,3 @@ class MockTasks {
     };
   }
 }
-
