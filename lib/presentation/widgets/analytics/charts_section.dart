@@ -15,7 +15,7 @@ class ChartsSection extends StatelessWidget {
         // Responsive breakpoints for charts
         if (constraints.maxWidth > 1200) {
           // Desktop - 2x2 grid
-          return Column(
+          return const Column(
             children: [
               // First row - Weekly Task Chart and Email Chart
               Row(
@@ -23,35 +23,35 @@ class ChartsSection extends StatelessWidget {
                   Expanded(
                     flex: 1,
                     child: Padding(
-                      padding: const EdgeInsets.only(right: 12),
-                      child: const WeeklyTaskChart(),
+                      padding: EdgeInsets.only(right: 12),
+                      child: WeeklyTaskChart(),
                     ),
                   ),
                   Expanded(
                     flex: 1,
                     child: Padding(
-                      padding: const EdgeInsets.only(left: 12),
-                      child: const EmailDistributionChart(),
+                      padding: EdgeInsets.only(left: 12),
+                      child: EmailDistributionChart(),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: 24),
               // Second row
               Row(
                 children: [
                   Expanded(
                     flex: 1,
                     child: Padding(
-                      padding: const EdgeInsets.only(right: 12),
-                      child: const MonthlyMeetingTrendChart(),
+                      padding: EdgeInsets.only(right: 12),
+                      child: MonthlyMeetingTrendChart(),
                     ),
                   ),
                   Expanded(
                     flex: 1,
                     child: Padding(
-                      padding: const EdgeInsets.only(left: 12),
-                      child: const PriorityTaskChart(),
+                      padding: EdgeInsets.only(left: 12),
+                      child: PriorityTaskChart(),
                     ),
                   ),
                 ],
@@ -60,28 +60,28 @@ class ChartsSection extends StatelessWidget {
           );
         } else if (constraints.maxWidth > 600) {
           // Tablet - 1x2 grid (vertical)
-          return Column(
+          return const Column(
             children: [
-              const WeeklyTaskChart(),
-              const SizedBox(height: 16),
-              const EmailDistributionChart(),
-              const SizedBox(height: 16),
-              const MonthlyMeetingTrendChart(),
-              const SizedBox(height: 16),
-              const PriorityTaskChart(),
+              WeeklyTaskChart(),
+              SizedBox(height: 16),
+              EmailDistributionChart(),
+              SizedBox(height: 16),
+              MonthlyMeetingTrendChart(),
+              SizedBox(height: 16),
+              PriorityTaskChart(),
             ],
           );
         } else {
           // Mobile - Single column
-          return Column(
+          return const Column(
             children: [
-              const WeeklyTaskChart(),
-              const SizedBox(height: 16),
-              const EmailDistributionChart(),
-              const SizedBox(height: 16),
-              const MonthlyMeetingTrendChart(),
-              const SizedBox(height: 16),
-              const PriorityTaskChart(),
+              WeeklyTaskChart(),
+              SizedBox(height: 16),
+              EmailDistributionChart(),
+              SizedBox(height: 16),
+              MonthlyMeetingTrendChart(),
+              SizedBox(height: 16),
+              PriorityTaskChart(),
             ],
           );
         }
@@ -89,4 +89,3 @@ class ChartsSection extends StatelessWidget {
     );
   }
 }
-

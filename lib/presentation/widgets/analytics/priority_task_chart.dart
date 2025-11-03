@@ -78,7 +78,7 @@ class PriorityTaskChart extends StatelessWidget {
     return List.generate(4, (index) {
       final value = priorityData[index];
       final color = _getPriorityColor(index);
-      final percentage = _getPercentage(index);
+      _getPercentage(index);
 
       return PieChartSectionData(
         color: color,
@@ -151,10 +151,5 @@ class PriorityTaskChart extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  String _getPriorityName(int index) {
-    const priorities = ['Kritik', 'Yüksek', 'Orta', 'Düşük'];
-    return priorities[index];
   }
 }

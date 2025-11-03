@@ -107,11 +107,6 @@ class EmailDistributionChart extends StatelessWidget {
     return (emailData[index] / total * 100).roundToDouble();
   }
 
-  String _getEmailCategory(int index) {
-    const categories = ['Önemli', 'İş', 'Kişisel', 'Promosyon'];
-    return categories[index];
-  }
-
   Widget _buildLegend(BuildContext context) {
     return Wrap(
       spacing: 16,
