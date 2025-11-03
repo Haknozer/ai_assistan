@@ -67,23 +67,28 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           child: SafeArea(
             child: Padding(
               padding: padding,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Sayfa Başlığı ve PDF İndir Butonu
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 24),
-                    child: AnalyticsPageHeader(
-                      onDownloadPDF: _downloadPDFReport,
-                      isDesktop: true,
+              child: CustomScrollView(
+                slivers: [
+                  // Floating Header - kaybolan/görünen
+                  SliverPersistentHeader(
+                    pinned: false,
+                    floating: true,
+                    delegate: _SliverAppBarDelegate(
+                      child: Container(
+                        color: Theme.of(context).scaffoldBackgroundColor,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 24),
+                          child: AnalyticsPageHeader(
+                            onDownloadPDF: _downloadPDFReport,
+                            isDesktop: true,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-
-                  // Analitik İçeriği
-                  Expanded(
-                    child: SingleChildScrollView(
-                      child: _buildAnalyticsContent(),
-                    ),
+                  // Content
+                  SliverToBoxAdapter(
+                    child: _buildAnalyticsContent(),
                   ),
                 ],
               ),
@@ -200,5 +205,27 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       ),
     );
     // TODO: Gerçek PDF indirme işlemi
+  }
+}
+
+class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
+  final Widget child;
+
+  _SliverAppBarDelegate({required this.child});
+
+  @override
+  double get minExtent => 120;
+
+  @override
+  double get maxExtent => 120;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return child;
+  }
+
+  @override
+  bool shouldRebuild(covariant _SliverAppBarDelegate oldDelegate) {
+    return false;
   }
 }
