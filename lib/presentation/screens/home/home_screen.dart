@@ -106,10 +106,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         context.go('/analytics');
         break;
       case 6:
-        // AI Asistan - TODO: Create route
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('AI Asistan geliştiriliyor...')),
-        );
+        context.go('/ai-assistant');
         break;
       case 7:
         // Komut Paleti - TODO: Create route

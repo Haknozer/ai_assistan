@@ -10,6 +10,7 @@ import '../../presentation/screens/calendar/calendar_screen.dart';
 import '../../presentation/screens/email/email_screen.dart';
 import '../../presentation/screens/messages/unified_messages_screen.dart';
 import '../../presentation/screens/analytics/analytics_screen.dart';
+import '../../presentation/screens/ai_assistant/ai_assistant_screen.dart';
 import '../../presentation/screens/settings/settings_screen.dart';
 import '../../providers/user_provider.dart';
 
@@ -94,6 +95,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/analytics',
         name: 'analytics',
         builder: (context, state) => const AnalyticsScreen(),
+      ),
+
+      // AI Assistant Routes
+      GoRoute(
+        path: '/ai-assistant',
+        name: 'ai-assistant',
+        builder: (context, state) => const AIAssistantScreen(),
       ),
 
       // Settings Routes

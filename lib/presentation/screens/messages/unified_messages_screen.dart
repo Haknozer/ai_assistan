@@ -210,9 +210,7 @@ class _UnifiedMessagesScreenState extends ConsumerState<UnifiedMessagesScreen> {
         context.go('/analytics');
         break;
       case 6: // AI Asistan
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('AI Asistan geliştiriliyor...')),
-        );
+        context.go('/ai-assistant');
         break;
       case 7: // Komut Paleti
         ScaffoldMessenger.of(context).showSnackBar(

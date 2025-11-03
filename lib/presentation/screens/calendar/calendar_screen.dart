@@ -290,9 +290,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         context.go('/analytics');
         break;
       case 6:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('AI Asistan geliştiriliyor...')),
-        );
+        context.go('/ai-assistant');
         break;
       case 7:
         ScaffoldMessenger.of(context).showSnackBar(
