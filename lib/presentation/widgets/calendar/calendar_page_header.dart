@@ -66,7 +66,7 @@ class CalendarPageHeader extends StatelessWidget {
         Text(
           'Etkinliklerinizi planlayın ve yönetin',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
               ),
         ),
       ],

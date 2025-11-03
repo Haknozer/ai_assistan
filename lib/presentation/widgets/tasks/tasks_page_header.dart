@@ -66,7 +66,7 @@ class TasksPageHeader extends StatelessWidget {
         Text(
           'Görevlerinizi oluşturun, düzenleyin ve takip edin',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
               ),
         ),
       ],

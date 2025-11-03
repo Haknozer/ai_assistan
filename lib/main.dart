@@ -24,7 +24,7 @@ Future<void> main() async {
     debug: true,
   );
 
-  // Veritabanını başlat
+  // Veritabanını başlatH
   try {
     await DatabaseService.instance.database;
   } catch (e) {
