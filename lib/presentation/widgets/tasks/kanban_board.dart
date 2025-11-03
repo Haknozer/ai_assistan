@@ -5,13 +5,13 @@ import 'kanban_column.dart';
 /// Kanban panosu widget'ı - Tüm görev sütunlarını içerir
 class KanbanBoard extends StatelessWidget {
   final Map<TaskStatus, List<Task>> tasksByStatus;
-  final Function(Task, TaskStatus) onTaskMoved;
+  final Function(Task, TaskStatus) onTaskStatusChanged;
   final bool isDesktop;
 
   const KanbanBoard({
     super.key,
     required this.tasksByStatus,
-    required this.onTaskMoved,
+    required this.onTaskStatusChanged,
     this.isDesktop = true,
   });
 
@@ -29,7 +29,7 @@ class KanbanBoard extends StatelessWidget {
               child: KanbanColumn(
                 status: status,
                 tasks: tasks,
-                onTaskMoved: onTaskMoved,
+                onTaskMoved: onTaskStatusChanged,
               ),
             ),
           );
@@ -46,7 +46,7 @@ class KanbanBoard extends StatelessWidget {
               child: KanbanColumn(
                 status: status,
                 tasks: tasks,
-                onTaskMoved: onTaskMoved,
+                onTaskMoved: onTaskStatusChanged,
               ),
             ),
           );

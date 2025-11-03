@@ -1,212 +1,230 @@
-# Tasks Screen - Widget Yapısı
+# Tasks Screen Modülü
 
-Bu modül, görev yönetimi ekranı için profesyonel bir şekilde organize edilmiş widget yapısını içerir.
+Görev yönetimi ekranı - Kanban board ile görevlerinizi yönetin.
 
-## 📁 Dosya Yapısı
-
-```
-lib/presentation/
-├── screens/tasks/
-│   ├── tasks_screen.dart           # Ana ekran (269 satır - 1553'ten!)
-│   ├── data/
-│   │   └── mock_tasks.dart          # Test verileri
-│   └── utils/
-│       ├── task_filter.dart         # Filtreleme enum'u
-│       └── task_utils.dart          # Yardımcı fonksiyonlar
-└── widgets/tasks/                   # Görev widget'ları
-    ├── tasks_page_header.dart       # Sayfa başlığı + görev ekle butonu
-    ├── search_and_filter_section.dart # Arama ve filtreleme
-    ├── kanban_board.dart            # Kanban panosu container
-    ├── kanban_column.dart           # Kanban sütunu (drag & drop)
-    ├── task_card.dart               # Sürüklenebilir görev kartı
-    ├── add_task_dialog.dart         # Görev ekleme dialog'u
-    └── task_notification_overlay.dart # Bildirim overlay'i
-```
-
-## 🏗️ Mimari Yapı
-
-### 1. **Data Katmanı**
-- `MockTasks`: Mock görev verileri ve yardımcı metodlar
-  - `tasks`: Liste görevler
-  - `groupByStatus()`: Duruma göre gruplama
-
-### 2. **Utils Katmanı**
-- `TaskFilter`: Filtreleme enum'u (Tümü, Yapılacak, Devam Ediyor, Yapıldı)
-- `TaskUtils`: Yardımcı fonksiyonlar
-  - `getStatusColor()`: Durum rengi
-  - `getStatusIcon()`: Durum ikonu
-  - `getPriorityColor()`: Öncelik rengi
-  - `formatDateTime()`: Tarih formatlama
-
-### 3. **Widget Katmanı**
-
-#### Ana Layout Widget'ları
-- **TasksPageHeader**: Sayfa başlığı + görev ekle butonu
-  - Desktop: Geniş başlık + text butonu
-  - Mobile: Kompakt başlık + icon butonu
-
-- **SearchAndFilterSection**: Arama + filtreleme chip'leri
-  - Desktop: Yatay layout (arama %66, filtreler %33)
-  - Mobile: Dikey layout
-
-#### Kanban Widget'ları
-- **KanbanBoard**: Ana kanban panosu container
-  - Desktop: Yatay sütunlar
-  - Mobile: Dikey sütunlar
-  - Drag & drop destekli
-
-- **KanbanColumn**: Tek sütun (Yapılacak, Devam Ediyor, Yapıldı)
-  - DragTarget özellikli
-  - Hover efektleri
-  - Boş durum göstergesi
-
-- **TaskCard**: Sürüklenebilir görev kartı
-  - Draggable özellikli
-  - Feedback ve childWhenDragging
-  - Öncelik badge'i
-  - Son tarih göstergesi
-
-#### Dialog Widget'ları
-- **AddTaskDialog**: Görev ekleme formu
-  - Başlık, açıklama alanları
-  - Öncelik seçici (chip'ler)
-  - Durum dropdown'u
-  - Tarih/saat seçici
-  - Form validasyonu
-
-#### Bildirim Widget'ı
-- **TaskNotificationOverlay**: Toast bildirimleri
-  - Görev ekleme bildirimi
-  - Görev durumu güncelleme bildirimi
-  - Otomatik kapanma (4 saniye)
-  - Manuel kapatma butonu
-
-## 📊 Kod Metrikleri
-
-| Metrik | Önce | Sonra | İyileştirme |
-|--------|------|-------|-------------|
-| **Ana Dosya** | 1553 satır | 269 satır | ✅ **83% azalma** |
-| **Dosya Sayısı** | 1 | 11 | ✅ Modüler |
-| **Ortalama Satır/Dosya** | 1553 | ~245 | ✅ Okunabilir |
-| **Linter Hatası** | 0 | 0 | ✅ Temiz |
-
-## 🎯 Özellikler
-
-### ✅ Eklenen İyileştirmeler
-1. **Modüler Yapı**: Her widget ayrı dosyada
-2. **Utility Fonksiyonlar**: Tekrar eden kod yok
-3. **Enum Ayrımı**: TaskFilter ayrı dosyada
-4. **Mock Data Ayrımı**: Veri yönetimi kolaylaştı
-5. **Widget Hierarchy**: Alt widget'lar ile temiz yapı
-6. **Drag & Drop**: Görevleri sütunlar arası taşı
-7. **Responsive**: Desktop ve mobile uyumlu
-8. **Bildirimler**: Overlay bildirimleri
-9. **Form Validation**: Görev ekleme validasyonu
-10. **Theme-Aware**: Dark mode uyumlu
-
-### 🚀 Kullanım
-
-```dart
-// Ana Ekran
-TasksScreen()
-
-// Widget'ları Tek Tek Kullanma
-TasksPageHeader(
-  onAddTask: () {},
-  isDesktop: true,
-)
-
-SearchAndFilterSection(
-  onSearchChanged: (query) {},
-  currentFilter: TaskFilter.all,
-  onFilterChanged: (filter) {},
-  isDesktop: true,
-)
-
-KanbanBoard(
-  tasksByStatus: groupedTasks,
-  onTaskMoved: (task, status) {},
-  isDesktop: true,
-)
-```
-
-## 🔄 Genişletme Önerileri
-
-1. **State Management**: Riverpod ile görev yönetimi
-2. **API Entegrasyonu**: Backend bağlantısı
-3. **Offline Support**: Yerel veritabanı (Hive/Drift)
-4. **Task Details**: Görev detay sayfası
-5. **Subtasks**: Alt görevler
-6. **Task Assignment**: Kullanıcı ataması
-7. **Due Date Notifications**: Hatırlatıcılar
-8. **Task Categories**: Kategori yönetimi
-9. **Attachments**: Dosya ekleme
-10. **Comments**: Görev yorumları
-
-## 📝 Widget İlişkileri
+## 📂 Klasör Yapısı
 
 ```
-TasksScreen
-├── TasksPageHeader
-├── SearchAndFilterSection
-│   └── FilterChip (TaskFilter)
-└── KanbanBoard
-    └── KanbanColumn (x3)
-        ├── TaskCard (xN)
-        │   └── Draggable<Task>
-        └── DragTarget<Task>
-
-AddTaskDialog
-├── Form Fields
-├── Priority Selector (FilterChip)
-├── Status Dropdown
-└── Date/Time Picker
-
-TaskNotificationOverlay
-└── OverlayEntry (Toast)
+tasks/
+├── tasks_screen.dart          # Ana görevler ekranı (300 satır)
+├── data/
+│   └── mock_tasks.dart        # Mock görev verileri
+├── utils/
+│   ├── task_filter.dart       # Görev filtreleme enum'u
+│   └── task_utils.dart        # Görev yardımcı fonksiyonları
+└── README.md                  # Bu dosya
 ```
 
-## 🎨 Tasarım Kararları
+## 🎨 Widget Yapısı
 
-### Renkler
-- **Pending**: Turuncu (Yapılacak)
-- **In Progress**: Mavi (Devam Ediyor)
-- **Completed**: Yeşil (Yapıldı)
-- **Urgent Priority**: Koyu Kırmızı
-- **High Priority**: Kırmızı
-- **Medium Priority**: Turuncu
-- **Low Priority**: Yeşil
+### Widgets (lib/presentation/widgets/tasks/)
+- `tasks_page_header.dart` - Sayfa başlığı ve "Görev Ekle" butonu
+- `search_and_filter_section.dart` - Arama ve filtre chip'leri
+- `kanban_board.dart` - Ana Kanban panosu container'ı
+- `kanban_column.dart` - Her durum için sütun (Yapılacak, Devam Ediyor, Tamamlandı)
+- `task_card.dart` - Tek bir görev kartı (sürüklenebilir)
+- `add_task_dialog.dart` - Görev ekleme dialog'u
+- `task_notification_overlay.dart` - Toast-style bildirimler
+
+## 🔧 Utilities
+
+### TaskUtils (task_utils.dart)
+- `getStatusColor()` - Görev durumu rengi (pending/inProgress/completed/cancelled)
+- `getStatusIcon()` - Görev durumu ikonu
+- `getPriorityColor()` - Öncelik derecesi rengi (urgent/high/medium/low)
+
+### TaskFilter (task_filter.dart)
+- Enum: `all`, `pending`, `inProgress`, `completed`
+- Her filtre için displayName
+
+### MockTasks (mock_tasks.dart)
+- `tasks` - Mock görev listesi
+- `groupByStatus()` - Görevleri duruma göre grupla
+
+## 📊 Özellikler
+
+### Görev Yönetimi
+- ✅ Kanban board görünümü (Yapılacak / Devam Ediyor / Tamamlandı)
+- ✅ Drag & Drop görev taşıma
+- ✅ Görev arama (başlık ve açıklama)
+- ✅ Görev filtreleme (Tümü, Yapılacak, Devam Ediyor, Tamamlandı)
+- ✅ Yeni görev ekleme
+- ✅ Öncelik seçimi (Acil, Yüksek, Orta, Düşük)
+- ✅ Son tarih seçimi (tarih + saat)
+- ✅ Durum seçimi
+- ✅ Gecikmiş görev uyarıları (kırmızı)
+- ✅ Gerçek zamanlı bildirimler (toast)
+
+### Responsive Tasarım
+- **Desktop**: Sol menü + yatay Kanban sütunları
+- **Mobile**: Drawer menü + dikey Kanban sütunları
 
 ### Drag & Drop
-- **Feedback**: 250px genişlik, yüksek elevation
-- **ChildWhenDragging**: %10 opacity, kesikli border
-- **Hover State**: Border genişletme, gölge efekti
-- **Empty Column**: Hover'da büyüyen ikon
+- Görevleri sürükleyip bırakarak durumlarını değiştirme
+- Hover efektleri
+- Görsel geri bildirim (opacity, border, shadow)
+- Boş sütunlar için "buraya bırakın" mesajı
 
-### Responsive
-- **Desktop**: Yatay Kanban board, geniş arama, text butonlar
-- **Mobile**: Dikey Kanban board, kompakt UI, icon butonlar
+### Dialog'lar
+- **Add Task Dialog**: Yeni görev oluşturma
+  - Başlık (zorunlu)
+  - Açıklama (opsiyonel)
+  - Öncelik seçimi (chip'ler)
+  - Durum seçimi (dropdown)
+  - Son tarih seçimi (date + time picker)
 
-## 🔧 Önemli Notlar
+### Bildirimler
+- **Task Update Notification**: Görev durumu değiştiğinde
+- **Task Added Notification**: Yeni görev eklendiğinde
+- Otomatik kapanma (4 saniye)
+- Manuel kapatma (X butonu)
+- Renk kodlu (durum/başarı rengine göre)
 
-1. **Task Model**: `models/task.dart` kullanılıyor
-2. **Theme System**: AppTheme ve AppColors kullanıyor
-3. **Riverpod**: User provider entegrasyonu var
-4. **Go Router**: Navigasyon için kullanılıyor
-5. **Responsive Utils**: Ekran boyutu kontrolü
+## 🎯 Ana Fonksiyonlar
 
-## ⚡ Performans
+### TasksScreen
+- `_filteredTasks` - Filtrelenmiş ve aranmış görev listesi
+- `_tasksByStatus` - Duruma göre gruplandırılmış görevler
+- `_updateTaskStatus()` - Görev durumunu güncelle (drag & drop için)
+- `_showAddTaskDialog()` - Görev ekleme dialog'unu göster
+- `_showTaskUpdateNotification()` - Durum değişikliği bildirimi
+- `_showTaskAddedNotification()` - Görev ekleme bildirimi
 
-- **Widget const**: Mümkün olduğunca const constructor
-- **ListView.builder**: Lazy loading görev listesi
-- **Minimal Rebuild**: setState kullanımı optimize
-- **Drag Performance**: Feedback widget optimize
+## 🔄 State Yönetimi
 
----
+- `_currentFilter` - Seçili filtre (all/pending/inProgress/completed)
+- `_searchQuery` - Arama sorgusu
+- `_mockTasks` - Görev listesi (mutable)
 
-**Son Güncelleme**: 2 Kasım 2025  
-**Versiyon**: 2.0  
-**Toplam Dosya**: 11 (1'den 11'e!)  
-**Ana Dosya**: 269 satır (1553'ten %83 azalma!)  
-**Linter**: ✅ 0 hata
+## 📱 Responsive Davranış
 
+### Desktop (> 900px)
+- Sol menü sabit
+- Yatay Kanban sütunları (Row)
+- Her sütun eşit genişlik (Expanded)
+- Sağ boşluk 16px
+
+### Mobile (< 900px)
+- Drawer menü
+- Dikey Kanban sütunları (Column)
+- Her sütun eşit yükseklik (Expanded)
+- Alt boşluk 12px
+
+## 🎨 Tema ve Renkler
+
+### Durum Renkleri
+- **Yapılacak (Pending)**: Turuncu (Warning)
+- **Devam Ediyor (InProgress)**: Mavi (Primary)
+- **Tamamlandı (Completed)**: Yeşil (Success)
+- **İptal Edildi (Cancelled)**: Gri
+
+### Öncelik Renkleri
+- **Acil (Urgent)**: Koyu Kırmızı (#D32F2F)
+- **Yüksek (High)**: Kırmızı (Error)
+- **Orta (Medium)**: Turuncu (Warning)
+- **Düşük (Low)**: Yeşil (Success)
+
+## 📝 Kod İyileştirmeleri
+
+### Öncesi (1553 satır)
+- Tüm kod tek dosyada
+- Mock data ana dosyada
+- AddTaskDialog ana dosyada
+- Tüm build methodları ana dosyada
+- Overlay bildirimleri ana dosyada
+- Çok büyük ve okunamaz
+
+### Sonrası (300 satır)
+- ✅ Modüler widget yapısı
+- ✅ Mock data ayrı dosyada
+- ✅ Utilities ayrı dosyada
+- ✅ Widget'lar ayrı dosyalarda
+- ✅ Temiz ve okunabilir
+- ✅ Bakım ve test kolay
+
+## 🚀 Performans
+
+- Drag & Drop: Optimized with feedback widget
+- Filtreleme: Getter ile lazy evaluation
+- Arama: Real-time filtering
+- Bildirimler: Overlay ile performanslı
+
+## 📚 Kullanım Örneği
+
+```dart
+// Görevler ekranına navigasyon
+context.go('/tasks');
+
+// Görev durumunu güncelle
+_updateTaskStatus(task, TaskStatus.completed);
+
+// Yeni görev ekle
+_showAddTaskDialog();
+
+// Bildirim göster
+TaskNotificationOverlay.show(
+  context: context,
+  task: task,
+  message: 'Görev tamamlandı',
+  status: TaskStatus.completed,
+);
+```
+
+## 🏗️ Mimari
+
+Bu modül Clean Architecture prensiplerine uygun olarak tasarlanmıştır:
+- **Presentation**: Widgets ve Screens (tek sorumluluk)
+- **Domain**: Models ve Business Logic
+- **Data**: Mock Data ve Services (TODO)
+
+Her widget tek bir sorumluluğa sahip ve bağımsız olarak test edilebilir.
+
+## 🔗 Bağımlılıklar
+
+- `flutter_riverpod` - State yönetimi
+- `go_router` - Navigasyon
+- `Task` model - Görev veri modeli
+- `TaskStatus` enum - Görev durumu
+- `TaskPriority` enum - Görev önceliği
+- `MockTasks` - Mock görev verileri
+
+## 🧪 Test Durumu
+
+⚠️ Test dosyaları henüz oluşturulmadı.
+
+## 📈 Gelecek Geliştirmeler (TODO)
+
+- [ ] Backend entegrasyonu (API)
+- [ ] Görev silme işlevi
+- [ ] Görev düzenleme işlevi
+- [ ] Görev detay sayfası
+- [ ] Görev ataması (kullanıcılara)
+- [ ] Görev kategorileri/etiketleri
+- [ ] Görev dosya ekleri
+- [ ] Görev yorumları
+- [ ] Görev geçmişi
+- [ ] Toplu işlemler
+- [ ] Sıralama seçenekleri
+- [ ] Görünüm modu (liste/kanban/takvim)
+- [ ] Bildirim ayarları
+- [ ] Offline modu
+- [ ] Real-time sync (WebSocket)
+
+## 📊 Dosya Satır Sayıları
+
+| Dosya | Satır Sayısı | Açıklama |
+|-------|--------------|----------|
+| tasks_screen.dart | 300 | Ana ekran (1553'ten düştü!) |
+| mock_tasks.dart | 50 | Mock veriler |
+| task_filter.dart | 12 | Filter enum |
+| task_utils.dart | 54 | Utility fonksiyonlar |
+| tasks_page_header.dart | 76 | Sayfa başlığı |
+| search_and_filter_section.dart | 111 | Arama ve filtre |
+| kanban_board.dart | 58 | Kanban container |
+| kanban_column.dart | 175 | Kanban sütunu |
+| task_card.dart | 190 | Görev kartı |
+| add_task_dialog.dart | 401 | Görev ekleme dialog'u |
+| task_notification_overlay.dart | 133 | Bildirimler |
+
+**Toplam**: ~1560 satır (önceden 1553 satır TEK DOSYADA!)
+**Şimdi**: 11 dosyada, her biri odaklanmış ve bakımı kolay! 🎉

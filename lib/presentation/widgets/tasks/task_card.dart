@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../models/task.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../screens/tasks/utils/task_utils.dart';
 
 /// Görev kartı widget'ı - Sürüklenebilir görev kartı
 class TaskCard extends StatelessWidget {
