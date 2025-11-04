@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
@@ -8,7 +9,7 @@ import 'dart:convert';
 class DatabaseService {
   static Database? _database;
   static const String _databaseName = 'ai_assistant.db';
-  static const int _databaseVersion = 1;
+  static const int _databaseVersion = 2;
 
   // Singleton pattern
   DatabaseService._privateConstructor();
@@ -104,6 +105,43 @@ class DatabaseService {
       )
     ''');
 
+    // Emails tablosu
+    await db.execute('''
+      CREATE TABLE emails (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        account_id INTEGER NOT NULL,
+        message_id TEXT,
+        thread_id TEXT,
+        subject TEXT NOT NULL,
+        from_email TEXT NOT NULL,
+        from_name TEXT,
+        to_emails TEXT NOT NULL,
+        cc_emails TEXT,
+        bcc_emails TEXT,
+        plain_text TEXT,
+        html_content TEXT,
+        attachments TEXT,
+        received_date TEXT,
+        sent_date TEXT,
+        email_status INTEGER NOT NULL DEFAULT 2,
+        email_importance INTEGER NOT NULL DEFAULT 0,
+        is_read INTEGER NOT NULL DEFAULT 0,
+        is_starred INTEGER NOT NULL DEFAULT 0,
+        is_archived INTEGER NOT NULL DEFAULT 0,
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        is_spam INTEGER NOT NULL DEFAULT 0,
+        folder TEXT NOT NULL DEFAULT 'inbox',
+        labels TEXT,
+        size_bytes INTEGER,
+        external_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+        FOREIGN KEY (account_id) REFERENCES email_accounts (id) ON DELETE CASCADE
+      )
+    ''');
+
     // Email analytics tablosu
     await db.execute('''
       CREATE TABLE email_analytics (
@@ -187,6 +225,13 @@ class DatabaseService {
     // Email accounts index'leri
     await db.execute('CREATE INDEX idx_email_accounts_user_id ON email_accounts(user_id)');
 
+    // Emails index'leri
+    await db.execute('CREATE INDEX idx_emails_user_id ON emails(user_id)');
+    await db.execute('CREATE INDEX idx_emails_account_id ON emails(account_id)');
+    await db.execute('CREATE INDEX idx_emails_folder ON emails(folder)');
+    await db.execute('CREATE INDEX idx_emails_status ON emails(email_status)');
+    await db.execute('CREATE INDEX idx_emails_external_id ON emails(external_id)');
+
     // Email analytics index'leri
     await db.execute('CREATE INDEX idx_email_analytics_account_id ON email_analytics(account_id)');
     await db.execute('CREATE INDEX idx_email_analytics_processed ON email_analytics(is_processed)');
@@ -200,7 +245,124 @@ class DatabaseService {
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Veritabanı güncellemeleri burada yapılacak
+    // Version 1'den 2'ye geçiş: emails tablosu ve ilgili tabloları ekle
+    if (oldVersion < 2) {
+      // Emails tablosu yoksa oluştur
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS emails (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            account_id INTEGER NOT NULL,
+            message_id TEXT,
+            thread_id TEXT,
+            subject TEXT NOT NULL,
+            from_email TEXT NOT NULL,
+            from_name TEXT,
+            to_emails TEXT NOT NULL,
+            cc_emails TEXT,
+            bcc_emails TEXT,
+            plain_text TEXT,
+            html_content TEXT,
+            attachments TEXT,
+            received_date TEXT,
+            sent_date TEXT,
+            email_status INTEGER NOT NULL DEFAULT 2,
+            email_importance INTEGER NOT NULL DEFAULT 0,
+            is_read INTEGER NOT NULL DEFAULT 0,
+            is_starred INTEGER NOT NULL DEFAULT 0,
+            is_archived INTEGER NOT NULL DEFAULT 0,
+            is_deleted INTEGER NOT NULL DEFAULT 0,
+            is_spam INTEGER NOT NULL DEFAULT 0,
+            folder TEXT NOT NULL DEFAULT 'inbox',
+            labels TEXT,
+            size_bytes INTEGER,
+            external_id TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+            FOREIGN KEY (account_id) REFERENCES email_accounts (id) ON DELETE CASCADE
+          )
+        ''');
+
+        // Email index'lerini oluştur
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_emails_user_id ON emails(user_id)');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_emails_account_id ON emails(account_id)');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_emails_folder ON emails(folder)');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_emails_status ON emails(email_status)');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_emails_external_id ON emails(external_id)');
+      } catch (e) {
+        // Tablo zaten varsa hata verme
+        debugPrint('Error creating emails table: $e');
+      }
+
+      // Email analytics tablosu yoksa oluştur
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS email_analytics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER NOT NULL,
+            message_id TEXT NOT NULL,
+            sender TEXT,
+            subject TEXT,
+            ai_category TEXT,
+            ai_priority TEXT,
+            ai_summary TEXT,
+            extracted_tasks TEXT,
+            extracted_events TEXT,
+            is_processed INTEGER DEFAULT 0,
+            processed_at TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (account_id) REFERENCES email_accounts (id) ON DELETE CASCADE
+          )
+        ''');
+
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_email_analytics_account_id ON email_analytics(account_id)');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_email_analytics_processed ON email_analytics(is_processed)');
+      } catch (e) {
+        debugPrint('Error creating email_analytics table: $e');
+      }
+
+      // Email templates tablosu yoksa oluştur
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS email_templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            subject TEXT,
+            body TEXT,
+            is_default INTEGER DEFAULT 0,
+            usage_count INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+          )
+        ''');
+      } catch (e) {
+        debugPrint('Error creating email_templates table: $e');
+      }
+
+      // User settings tablosu yoksa oluştur
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS user_settings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            setting_key TEXT NOT NULL,
+            setting_value TEXT,
+            category TEXT DEFAULT 'general',
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+            UNIQUE(user_id, setting_key)
+          )
+        ''');
+
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_user_settings_user_id ON user_settings(user_id)');
+      } catch (e) {
+        debugPrint('Error creating user_settings table: $e');
+      }
+    }
   }
 
   // Şifreleme için basit hash fonksiyonu
@@ -225,6 +387,7 @@ class DatabaseService {
       await txn.delete('notifications');
       await txn.delete('email_analytics');
       await txn.delete('email_templates');
+      await txn.delete('emails');
       await txn.delete('calendar_events');
       await txn.delete('tasks');
       await txn.delete('email_accounts');

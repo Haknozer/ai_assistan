@@ -6,6 +6,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 import 'core/database/database_service.dart';
+import 'core/config/app_config.dart';
 import 'providers/theme_provider.dart';
 
 Future<void> main() async {
@@ -18,10 +19,9 @@ Future<void> main() async {
 
   // Supabase'i başlat
   await Supabase.initialize(
-    url: 'https://laxjsbkonbwuckdwutxg.supabase.co', // Buraya Supabase URL'iniz gelecek
-    anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxheGpzYmtvbmJ3dWNrZHd1dHhnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE5ODI4MjQsImV4cCI6MjA3NzU1ODgyNH0.TeXuMpYl2Oln3vBEB-LQn3jvq8Y_JI2T_Uu0-bIXyZg', // Buraya anon key gelecek
-    debug: true,
+    url: AppConfig.supabaseUrl,
+    anonKey: AppConfig.supabaseAnonKey,
+    debug: AppConfig.debugMode,
   );
 
   // Veritabanını başlatH

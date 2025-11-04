@@ -238,10 +238,40 @@ class Email {
 
   // Veritabanından gelen veri için constructor
   factory Email.fromDatabase(Map<String, dynamic> map) {
+    // user_id ve account_id'yi güvenli şekilde int'e çevir
+    int parseUserId(dynamic value) {
+      if (value == null) return 0;
+      if (value is int) return value;
+      return int.tryParse(value.toString()) ?? 0;
+    }
+
+    int parseAccountId(dynamic value) {
+      if (value == null) return 0;
+      if (value is int) return value;
+      return int.tryParse(value.toString()) ?? 0;
+    }
+
+    // Boolean değerleri güvenli şekilde parse et
+    bool parseBool(dynamic value) {
+      if (value == null) return false;
+      if (value is bool) return value;
+      if (value is int) return value == 1;
+      if (value is String) return value.toLowerCase() == 'true' || value == '1';
+      return false;
+    }
+
+    // int değerleri güvenli şekilde parse et
+    int? parseInt(dynamic value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      if (value is bool) return value ? 1 : 0;
+      return int.tryParse(value.toString());
+    }
+
     return Email(
-      id: map['id'] as int?,
-      userId: map['user_id'] as int,
-      accountId: map['account_id'] as int,
+      id: parseInt(map['id']),
+      userId: parseUserId(map['user_id']),
+      accountId: parseAccountId(map['account_id']),
       messageId: map['message_id'] as String?,
       threadId: map['thread_id'] as String?,
       subject: map['subject'] as String,
@@ -257,16 +287,16 @@ class Email {
           : null,
       receivedDate: map['received_date'] != null ? DateTime.parse(map['received_date'] as String) : null,
       sentDate: map['sent_date'] != null ? DateTime.parse(map['sent_date'] as String) : null,
-      status: EmailStatus.fromInt(map['email_status'] as int?),
-      importance: EmailImportance.fromInt(map['email_importance'] as int?),
-      isRead: (map['is_read'] as int?) == 1,
-      isStarred: (map['is_starred'] as int?) == 1,
-      isArchived: (map['is_archived'] as int?) == 1,
-      isDeleted: (map['is_deleted'] as int?) == 1,
-      isSpam: (map['is_spam'] as int?) == 1,
+      status: EmailStatus.fromInt(parseInt(map['email_status'])),
+      importance: EmailImportance.fromInt(parseInt(map['email_importance'])),
+      isRead: parseBool(map['is_read']),
+      isStarred: parseBool(map['is_starred']),
+      isArchived: parseBool(map['is_archived']),
+      isDeleted: parseBool(map['is_deleted']),
+      isSpam: parseBool(map['is_spam']),
       folder: EmailFolder.fromString(map['folder'] as String? ?? 'inbox'),
       labels: map['labels'] != null ? List<String>.from(map['labels'] as List) : null,
-      sizeBytes: map['size_bytes'] as int?,
+      sizeBytes: parseInt(map['size_bytes']),
       externalId: map['external_id'] as String?,
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
@@ -412,11 +442,34 @@ class Email {
   @override
   int get hashCode {
     return Object.hashAll([
-      id, userId, accountId, messageId, threadId, subject, fromEmail, fromName,
-      toEmails, ccEmails, bccEmails, plainText, htmlContent,
-      receivedDate, sentDate, status, importance, isRead, isStarred,
-      isArchived, isDeleted, isSpam, folder, labels, sizeBytes, externalId,
-      createdAt, updatedAt
+      id,
+      userId,
+      accountId,
+      messageId,
+      threadId,
+      subject,
+      fromEmail,
+      fromName,
+      toEmails,
+      ccEmails,
+      bccEmails,
+      plainText,
+      htmlContent,
+      receivedDate,
+      sentDate,
+      status,
+      importance,
+      isRead,
+      isStarred,
+      isArchived,
+      isDeleted,
+      isSpam,
+      folder,
+      labels,
+      sizeBytes,
+      externalId,
+      createdAt,
+      updatedAt
     ]);
   }
 
@@ -503,9 +556,9 @@ class Email {
   // Spam filtresi
   bool get shouldBeInSpam {
     return isSpam ||
-           (importance == EmailImportance.urgent && !isRead) ||
-           (subject.toLowerCase().contains('spam') || subject.toLowerCase().contains('winning')) ||
-           (fromEmail.toLowerCase().contains('noreply') || fromEmail.toLowerCase().contains('marketing'));
+        (importance == EmailImportance.urgent && !isRead) ||
+        (subject.toLowerCase().contains('spam') || subject.toLowerCase().contains('winning')) ||
+        (fromEmail.toLowerCase().contains('noreply') || fromEmail.toLowerCase().contains('marketing'));
   }
 
   // Okunmamış olup olmaduğu

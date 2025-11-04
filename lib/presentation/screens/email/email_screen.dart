@@ -6,7 +6,7 @@ import '../../../utils/responsive_utils.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../widgets/layout/side_menu.dart';
 import '../../../providers/user_provider.dart';
-import 'data/mock_emails.dart';
+import '../../../features/email/providers/email_provider.dart';
 import '../../widgets/email/email_page_header.dart';
 import '../../widgets/email/search_and_filter_bar.dart';
 import '../../widgets/email/email_filter_section.dart';
@@ -28,60 +28,72 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
   String _searchQuery = '';
   final int _selectedMenuIndex = 4; // E-Posta indeksi
 
-  // Mock e-posta verileri
-  late List<Email> _emails;
+  /// Seçili klasörü döndürür
+  String? get _selectedFolder {
+    switch (_selectedFilter) {
+      case 'Gönderilen':
+        return 'sent';
+      case 'Taslak':
+        return 'drafts';
+      case 'Spam':
+        return 'spam';
+      default:
+        return null; // null = inbox
+    }
+  }
 
-  @override
-  void initState() {
-    super.initState();
-    _emails = List.from(MockEmails.emails);
+  /// Email listesi parametreleri
+  EmailListParams get _emailParams {
+    return EmailListParams(
+      folder: _selectedFolder,
+    );
   }
 
   /// Filtrelenmiş e-posta listesini döndürür
-  List<Email> get _filteredEmails {
-    List<Email> emails = _emails;
+  List<Email> _getFilteredEmails(List<Email> emails) {
+    List<Email> filtered = emails;
 
     // Arama filtresi
     if (_searchQuery.isNotEmpty) {
-      emails = emails.where((email) {
+      filtered = filtered.where((email) {
         return email.subject.toLowerCase().contains(_searchQuery.toLowerCase()) ||
             email.fromDisplayName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
             email.contentPreview.toLowerCase().contains(_searchQuery.toLowerCase());
       }).toList();
     }
 
-    // E-posta filtresi
+    // UI filtreleri (folder zaten API'den geliyor)
     switch (_selectedFilter) {
       case 'Tümü':
-        return emails;
+        return filtered;
       case 'Okunmamış':
-        return emails.where((email) => email.isUnread).toList();
+        return filtered.where((email) => email.isUnread).toList();
       case 'Önemli':
-        return emails.where((email) => email.importance == EmailImportance.important).toList();
-      case 'İş':
-        return emails.where((email) => email.accountId == 1).toList(); // TODO: Account enum eklenince düzeltilecek
+        return filtered.where((email) => email.importance == EmailImportance.important).toList();
       case 'Spam':
-        return emails.where((email) => email.isSpam).toList();
+        return filtered.where((email) => email.isSpam).toList();
       case 'Gönderilen':
-        return emails.where((email) => email.status == EmailStatus.sent).toList();
       case 'Taslak':
-        return emails.where((email) => email.status == EmailStatus.draft).toList();
+        return filtered; // Folder zaten filtrelenmiş
       default:
-        return emails;
+        return filtered;
     }
   }
 
   /// Seçili e-postayı döndürür
-  Email? get _selectedEmail {
-    if (_selectedEmailIndex == null || _selectedEmailIndex! >= _filteredEmails.length) {
+  Email? _getSelectedEmail(List<Email> emails) {
+    final filtered = _getFilteredEmails(emails);
+    if (_selectedEmailIndex == null || _selectedEmailIndex! >= filtered.length) {
       return null;
     }
-    return _filteredEmails[_selectedEmailIndex!];
+    return filtered[_selectedEmailIndex!];
   }
 
   @override
   Widget build(BuildContext context) {
     final currentUser = ref.watch(currentUserProvider);
+    final emailsAsync = ref.watch(emailNotifierProvider(_emailParams));
+    final emailNotifier = ref.read(emailNotifierProvider(_emailParams).notifier);
     final padding = ResponsiveUtils.getResponsivePadding(context);
     final isDesktop = ResponsiveUtils.isDesktop(context);
 
@@ -91,22 +103,66 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: _buildResponsiveLayout(currentUser, padding, isDesktop),
+    return emailsAsync.when(
+      data: (emails) => Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: RefreshIndicator(
+          onRefresh: () => emailNotifier.refresh(),
+          child: _buildResponsiveLayout(currentUser, emails, emailNotifier, padding, isDesktop),
+        ),
+      ),
+      loading: () => Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, stack) => Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.red),
+              const SizedBox(height: 16),
+              const Text('E-posta yüklenirken hata oluştu'),
+              const SizedBox(height: 8),
+              Text(error.toString(), style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => emailNotifier.refresh(),
+                child: const Text('Yeniden Dene'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _buildResponsiveLayout(dynamic currentUser, EdgeInsets padding, bool isDesktop) {
+  Widget _buildResponsiveLayout(
+    dynamic currentUser,
+    List<Email> emails,
+    EmailNotifier emailNotifier,
+    EdgeInsets padding,
+    bool isDesktop,
+  ) {
     if (isDesktop) {
-      return _buildDesktopLayout(currentUser, padding);
+      return _buildDesktopLayout(currentUser, emails, emailNotifier, padding);
     } else {
-      return _buildMobileLayout(currentUser, padding);
+      return _buildMobileLayout(currentUser, emails, emailNotifier, padding);
     }
   }
 
   /// Desktop Layout - Sol menü + içerik
-  Widget _buildDesktopLayout(dynamic currentUser, EdgeInsets padding) {
+  Widget _buildDesktopLayout(
+    dynamic currentUser,
+    List<Email> emails,
+    EmailNotifier emailNotifier,
+    EdgeInsets padding,
+  ) {
+    final filteredEmails = _getFilteredEmails(emails);
+    final selectedEmail = _getSelectedEmail(emails);
+    final unreadCount = emails.where((e) => e.isUnread).length;
+
     return Row(
       children: [
         // Sol Menü
@@ -132,8 +188,8 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 24),
                     child: EmailPageHeader(
-                      totalEmails: _emails.length,
-                      unreadEmails: MockEmails.unreadCount,
+                      totalEmails: emails.length,
+                      unreadEmails: unreadCount,
                     ),
                   ),
 
@@ -142,10 +198,10 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                     onSearchChanged: (query) {
                       setState(() {
                         _searchQuery = query;
-                        _selectedEmailIndex = null; // Arama yapılınca seçimi sıfırla
+                        _selectedEmailIndex = null;
                       });
                     },
-                    onComposeEmail: _showComposeEmailDialog,
+                    onComposeEmail: () => _showComposeEmailDialog(emailNotifier),
                   ),
 
                   const SizedBox(height: 16),
@@ -156,7 +212,7 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                     onFilterChanged: (filter) {
                       setState(() {
                         _selectedFilter = filter;
-                        _selectedEmailIndex = null; // Filtre değişince seçimi sıfırla
+                        _selectedEmailIndex = null;
                       });
                     },
                   ),
@@ -172,19 +228,19 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                         Expanded(
                           flex: 4,
                           child: EmailList(
-                            emails: _filteredEmails,
+                            emails: filteredEmails,
                             selectedIndex: _selectedEmailIndex,
                             onEmailSelected: (index) {
                               setState(() {
                                 _selectedEmailIndex = index;
-                                // E-postayı okundu olarak işaretle
-                                if (_selectedEmail?.status == EmailStatus.unread) {
-                                  _markAsRead(_selectedEmail!);
+                                final email = _getSelectedEmail(emails);
+                                if (email?.status == EmailStatus.unread) {
+                                  emailNotifier.markAsRead(email!.id!);
                                 }
                               });
                             },
-                            onDeleteEmail: _deleteEmail,
-                            onMarkAsImportant: _markAsImportant,
+                            onDeleteEmail: (email) => _deleteEmail(email, emailNotifier),
+                            onMarkAsImportant: (email) => _markAsImportant(email, emailNotifier),
                           ),
                         ),
 
@@ -194,11 +250,11 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                         Expanded(
                           flex: 6,
                           child: EmailDetailPanel(
-                            email: _selectedEmail,
+                            email: selectedEmail,
                             onReply: _replyToEmail,
                             onForward: _forwardEmail,
-                            onDelete: _deleteEmail,
-                            onMarkAsImportant: _markAsImportant,
+                            onDelete: (email) => _deleteEmail(email, emailNotifier),
+                            onMarkAsImportant: (email) => _markAsImportant(email, emailNotifier),
                           ),
                         ),
                       ],
@@ -214,7 +270,15 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
   }
 
   /// Mobile Layout - AppBar + Drawer + içerik
-  Widget _buildMobileLayout(dynamic currentUser, EdgeInsets padding) {
+  Widget _buildMobileLayout(
+    dynamic currentUser,
+    List<Email> emails,
+    EmailNotifier emailNotifier,
+    EdgeInsets padding,
+  ) {
+    final filteredEmails = _getFilteredEmails(emails);
+    final unreadCount = emails.where((e) => e.isUnread).length;
+
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -232,8 +296,8 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                 ),
               ),
               child: EmailPageHeader(
-                totalEmails: _emails.length,
-                unreadEmails: MockEmails.unreadCount,
+                totalEmails: emails.length,
+                unreadEmails: unreadCount,
                 isDesktop: false,
               ),
             ),
@@ -251,7 +315,7 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                           _selectedEmailIndex = null;
                         });
                       },
-                      onComposeEmail: _showComposeEmailDialog,
+                      onComposeEmail: () => _showComposeEmailDialog(emailNotifier),
                     ),
                     const SizedBox(height: 16),
                     EmailFilterSection(
@@ -266,20 +330,21 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                     const SizedBox(height: 16),
                     Expanded(
                       child: EmailList(
-                        emails: _filteredEmails,
+                        emails: filteredEmails,
                         selectedIndex: _selectedEmailIndex,
                         onEmailSelected: (index) {
                           setState(() {
                             _selectedEmailIndex = index;
-                            if (_selectedEmail?.status == EmailStatus.unread) {
-                              _markAsRead(_selectedEmail!);
+                            final email = _getSelectedEmail(emails);
+                            if (email?.status == EmailStatus.unread) {
+                              emailNotifier.markAsRead(email!.id!);
                             }
                           });
                           // Mobilde e-posta detayına git
                           // TODO: Navigate to email detail screen
                         },
-                        onDeleteEmail: _deleteEmail,
-                        onMarkAsImportant: _markAsImportant,
+                        onDeleteEmail: (email) => _deleteEmail(email, emailNotifier),
+                        onMarkAsImportant: (email) => _markAsImportant(email, emailNotifier),
                       ),
                     ),
                   ],
@@ -347,36 +412,18 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
     );
   }
 
-  void _markAsRead(Email email) {
-    setState(() {
-      final emailIndex = _emails.indexWhere((e) => e.id == email.id);
-      if (emailIndex != -1) {
-        _emails[emailIndex] = _emails[emailIndex].copyWith(
-          status: EmailStatus.read,
-        );
-      }
-    });
+  void _markAsImportant(Email email, EmailNotifier emailNotifier) {
+    if (email.id == null) return;
+    final isImportant = email.importance != EmailImportance.important;
+    emailNotifier.toggleImportant(email.id!, isImportant);
   }
 
-  void _markAsImportant(Email email) {
+  void _deleteEmail(Email email, EmailNotifier emailNotifier) {
+    if (email.id == null) return;
+    emailNotifier.deleteEmail(email.id!);
     setState(() {
-      final emailIndex = _emails.indexWhere((e) => e.id == email.id);
-      if (emailIndex != -1) {
-        final currentImportance = _emails[emailIndex].importance;
-        _emails[emailIndex] = _emails[emailIndex].copyWith(
-          importance:
-              currentImportance == EmailImportance.important ? EmailImportance.normal : EmailImportance.important,
-        );
-      }
-    });
-  }
-
-  void _deleteEmail(Email email) {
-    setState(() {
-      _emails.removeWhere((e) => e.id == email.id);
       _selectedEmailIndex = null;
     });
-
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('E-posta silindi')),
     );
@@ -394,21 +441,35 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
     );
   }
 
-  void _showComposeEmailDialog() {
+  void _showComposeEmailDialog(EmailNotifier emailNotifier) {
     showDialog(
       context: context,
       builder: (context) => ComposeEmailDialog(
-        onEmailSent: (email) {
-          setState(() {
-            _emails.insert(0, email);
-          });
-          Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('E-posta başarıyla gönderildi'),
-              backgroundColor: Colors.green,
-            ),
-          );
+        onEmailSent: (email) async {
+          try {
+            await emailNotifier.sendEmail(
+              accountId: email.accountId,
+              toEmails: email.toEmails,
+              subject: email.subject,
+              plainText: email.plainText,
+              htmlContent: email.htmlContent,
+              importance: email.importance,
+            );
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('E-posta başarıyla gönderildi'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          } catch (e) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('E-posta gönderilirken hata oluştu: ${e.toString()}'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         },
       ),
     );
