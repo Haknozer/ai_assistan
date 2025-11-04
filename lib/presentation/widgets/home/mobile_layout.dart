@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../models/user.dart' as app_user;
-import '../layout/side_menu.dart';
 import '../layout/bottom_navigation.dart';
 import '../layout/mobile_app_bar.dart';
 
@@ -60,22 +59,6 @@ class MobileLayout extends StatelessWidget {
         },
         onNotificationsPressed: onNotificationsPressed,
       ),
-      drawer: SizedBox(
-        width: 280,
-        child: SideMenu(
-          userName: currentUser.name,
-          userEmail: currentUser.email,
-          selectedIndex: selectedIndex,
-          onMenuTap: (index) {
-            onMenuTap(index);
-            Navigator.pop(context); // Close drawer
-          },
-          onProfileTap: () {
-            Navigator.pop(context); // Close drawer
-            onProfileTap();
-          },
-        ),
-      ),
       bottomNavigationBar: BottomNavigation(
         selectedIndex: selectedIndex,
         onTap: onMenuTap,
@@ -83,4 +66,3 @@ class MobileLayout extends StatelessWidget {
     );
   }
 }
-
