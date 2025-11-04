@@ -188,6 +188,9 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           const SnackBar(content: Text('Komut Paleti geliştiriliyor...')),
         );
         break;
+      case 8:
+        context.go('/settings');
+        break;
     }
   }
 

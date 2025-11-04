@@ -335,6 +335,9 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
           const SnackBar(content: Text('Komut Paleti geliştiriliyor...')),
         );
         break;
+      case 8:
+        context.go('/settings');
+        break;
     }
   }
 

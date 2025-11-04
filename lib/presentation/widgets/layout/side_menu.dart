@@ -168,6 +168,7 @@ class SideMenu extends ConsumerWidget {
       {'icon': Icons.analytics_outlined, 'label': 'Analitik', 'index': 5},
       {'icon': Icons.smart_toy_outlined, 'label': 'AI Asistan', 'index': 6},
       {'icon': Icons.search, 'label': 'Komut Paleti', 'index': 7},
+      {'icon': Icons.settings_outlined, 'label': 'Ayarlar', 'index': 8},
     ];
 
     return Expanded(

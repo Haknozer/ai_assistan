@@ -217,6 +217,9 @@ class _UnifiedMessagesScreenState extends ConsumerState<UnifiedMessagesScreen> {
           const SnackBar(content: Text('Komut Paleti geliştiriliyor...')),
         );
         break;
+      case 8:
+        context.go('/settings');
+        break;
     }
   }
 

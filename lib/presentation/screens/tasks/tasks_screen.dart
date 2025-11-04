@@ -248,6 +248,9 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
           const SnackBar(content: Text('Komut Paleti geliştiriliyor...')),
         );
         break;
+      case 8:
+        context.go('/settings');
+        break;
     }
   }
 
