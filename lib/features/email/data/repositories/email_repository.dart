@@ -1,4 +1,5 @@
 import 'package:ai_asisstan/models/email.dart';
+import 'package:ai_asisstan/core/api/api_exceptions.dart';
 import '../datasources/email_remote_datasource.dart';
 
 /// Email verilerini API'den çeken repository
@@ -11,6 +12,7 @@ class EmailRepository {
   }) : _remoteDataSource = remoteDataSource ?? EmailRemoteDataSource();
 
   /// Email listesini API'den getir
+  /// API hatası durumunda boş liste döndürür (API hazır değilse)
   Future<List<Email>> getEmails({
     int? accountId,
     String? folder,
@@ -18,13 +20,29 @@ class EmailRepository {
     int? offset,
     String? accessToken,
   }) async {
-    return await _remoteDataSource.getEmails(
-      accountId: accountId,
-      folder: folder,
-      limit: limit,
-      offset: offset,
-      accessToken: accessToken,
-    );
+    try {
+      return await _remoteDataSource.getEmails(
+        accountId: accountId,
+        folder: folder,
+        limit: limit,
+        offset: offset,
+        accessToken: accessToken,
+      );
+    } on ApiException catch (e) {
+      // API hatası durumunda (örn: api.example.com erişilemiyor)
+      // Boş liste döndür ve hatayı logla
+      if (e.message.contains('Failed host lookup') || 
+          e.message.contains('api.example.com') ||
+          e.message.contains('Network error')) {
+        // API hazır değil, boş liste döndür
+        return [];
+      }
+      // Diğer API hatalarını fırlat (Gmail API hataları dahil)
+      rethrow;
+    } catch (e) {
+      // Beklenmeyen hatalar için boş liste döndür
+      return [];
+    }
   }
 
   /// Tek email detayını API'den getir

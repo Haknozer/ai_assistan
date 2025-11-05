@@ -2,10 +2,24 @@ import '../config/app_config.dart';
 
 /// API endpoint'lerini tanımlayan sınıf
 class ApiEndpoints {
-  // Base URL - Config'den alınır
-  static String get baseUrl => AppConfig.apiBaseUrl;
+  // Base URL - Gmail API için
+  static const String gmailApiBaseUrl = 'https://gmail.googleapis.com/gmail/v1';
 
-  // Email endpoints
+  // Gmail API endpoints - Doğrudan Gmail API kullanıyoruz
+  static String get messages => '$gmailApiBaseUrl/users/me/messages';
+  static String messageById(String messageId) => '$gmailApiBaseUrl/users/me/messages/$messageId';
+  static String get sendMessage => '$gmailApiBaseUrl/users/me/messages/send';
+  static String modifyMessage(String messageId) => '$gmailApiBaseUrl/users/me/messages/$messageId/modify';
+  static String get batchModify => '$gmailApiBaseUrl/users/me/messages/batchModify';
+  static String get trashMessage => '$gmailApiBaseUrl/users/me/messages/{messageId}/trash';
+  static String get untrashMessage => '$gmailApiBaseUrl/users/me/messages/{messageId}/untrash';
+  
+  // Labels (folders için)
+  static String get labels => '$gmailApiBaseUrl/users/me/labels';
+  static String labelById(String labelId) => '$gmailApiBaseUrl/users/me/labels/$labelId';
+
+  // Legacy endpoints (eski backend API için - şimdilik kullanılmıyor)
+  static String get baseUrl => AppConfig.apiBaseUrl;
   static const String emails = '/api/v1/emails';
   static String emailById(int id) => '$emails/$id';
   static const String sendEmail = '$emails/send';
@@ -14,24 +28,22 @@ class ApiEndpoints {
   static String deleteEmail(int id) => '$emails/$id';
   static String emailAttachments(int emailId) => '$emails/$emailId/attachments';
   static String downloadAttachment(int emailId, int attachmentId) => '$emails/$emailId/attachments/$attachmentId';
-
-  // Email Account endpoints
   static const String emailAccounts = '/api/v1/email-accounts';
   static String emailAccountById(int id) => '$emailAccounts/$id';
   static const String connectEmailAccount = '$emailAccounts/connect';
   static String syncEmailAccount(int id) => '$emailAccounts/$id/sync';
   static String refreshToken(int id) => '$emailAccounts/$id/refresh-token';
   static String disconnectEmailAccount(int id) => '$emailAccounts/$id/disconnect';
-
-  // Email Folders endpoints
   static String emailFolders(int accountId) => '$emailAccounts/$accountId/folders';
   static String emailsByFolder(int accountId, String folder) => '$emailAccounts/$accountId/folders/$folder/emails';
-
-  // Search endpoints
   static const String searchEmails = '$emails/search';
 
   // Full URL helper method
   static String getFullUrl(String endpoint) {
+    // Gmail API endpoint'leri zaten full URL, diğerleri için baseUrl ekle
+    if (endpoint.startsWith('http')) {
+      return endpoint;
+    }
     return '$baseUrl$endpoint';
   }
 }

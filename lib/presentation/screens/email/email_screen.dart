@@ -6,6 +6,7 @@ import '../../../utils/responsive_utils.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../widgets/layout/side_menu.dart';
 import '../../../providers/user_provider.dart';
+import '../../../providers/email_account_provider.dart';
 import '../../../features/email/providers/email_provider.dart';
 import '../../widgets/email/email_page_header.dart';
 import '../../widgets/email/search_and_filter_bar.dart';
@@ -13,6 +14,7 @@ import '../../widgets/email/email_filter_section.dart';
 import '../../widgets/email/email_list.dart';
 import '../../widgets/email/email_detail_panel.dart';
 import '../../widgets/email/compose_email_dialog.dart';
+import '../../../models/email_account.dart';
 
 /// E-posta ekranı - E-posta yönetimi ve filtreleme
 class EmailScreen extends ConsumerStatefulWidget {
@@ -40,13 +42,6 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
       default:
         return null; // null = inbox
     }
-  }
-
-  /// Email listesi parametreleri
-  EmailListParams get _emailParams {
-    return EmailListParams(
-      folder: _selectedFolder,
-    );
   }
 
   /// Filtrelenmiş e-posta listesini döndürür
@@ -92,8 +87,6 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
   @override
   Widget build(BuildContext context) {
     final currentUser = ref.watch(currentUserProvider);
-    final emailsAsync = ref.watch(emailNotifierProvider(_emailParams));
-    final emailNotifier = ref.read(emailNotifierProvider(_emailParams).notifier);
     final padding = ResponsiveUtils.getResponsivePadding(context);
     final isDesktop = ResponsiveUtils.isDesktop(context);
 
@@ -103,14 +96,72 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
       );
     }
 
-    return emailsAsync.when(
-      data: (emails) => Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        body: RefreshIndicator(
-          onRefresh: () => emailNotifier.refresh(),
-          child: _buildResponsiveLayout(currentUser, emails, emailNotifier, padding, isDesktop),
-        ),
-      ),
+    // Email account'ları kontrol et
+    final emailAccountsAsync = ref.watch(emailAccountsProvider(EmailAccountsParams(
+      userId: currentUser.id,
+    )));
+
+    return emailAccountsAsync.when(
+      data: (accounts) {
+        // Gmail account'u bul
+        final gmailAccount = accounts.firstWhere(
+          (account) => account.provider == EmailProvider.gmail && account.isActive,
+          orElse: () => accounts.isNotEmpty ? accounts.first : EmailAccount(
+            userId: currentUser.id!,
+            emailAddress: '',
+            provider: EmailProvider.gmail,
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          ),
+        );
+
+        final emailParams = EmailListParams(
+          accountId: gmailAccount.id,
+          folder: _selectedFolder,
+          accessToken: gmailAccount.accessToken,
+        );
+
+        final emailsAsync = ref.watch(emailNotifierProvider(emailParams));
+        final emailNotifier = ref.read(emailNotifierProvider(emailParams).notifier);
+
+        return emailsAsync.when(
+          data: (emails) => Scaffold(
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            body: RefreshIndicator(
+              onRefresh: () => emailNotifier.refresh(),
+              child: _buildResponsiveLayout(currentUser, emails, emailNotifier, padding, isDesktop),
+            ),
+          ),
+          loading: () => Scaffold(
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            body: const Center(child: CircularProgressIndicator()),
+          ),
+          error: (error, stack) => Scaffold(
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 16),
+                  const Text('E-posta yüklenirken hata oluştu'),
+                  const SizedBox(height: 8),
+                  Text(
+                    error.toString(),
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => emailNotifier.refresh(),
+                    child: const Text('Yeniden Dene'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
       loading: () => Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: const Center(child: CircularProgressIndicator()),
@@ -123,13 +174,12 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
             children: [
               const Icon(Icons.error_outline, size: 48, color: Colors.red),
               const SizedBox(height: 16),
-              const Text('E-posta yüklenirken hata oluştu'),
+              const Text('Email hesabı yüklenirken hata oluştu'),
               const SizedBox(height: 8),
-              Text(error.toString(), style: const TextStyle(fontSize: 12, color: Colors.grey)),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () => emailNotifier.refresh(),
-                child: const Text('Yeniden Dene'),
+              Text(
+                error.toString(),
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                textAlign: TextAlign.center,
               ),
             ],
           ),

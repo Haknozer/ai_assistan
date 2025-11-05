@@ -229,8 +229,33 @@ class ApiClient {
           originalError: response.body,
         );
       case 403:
+        // Gmail API için daha açıklayıcı hata mesajı
+        String forbiddenMessage = errorMessage;
+        try {
+          final errorJson = jsonDecode(response.body) as Map<String, dynamic>;
+          final errorDetail = errorJson['error'] as Map<String, dynamic>?;
+          if (errorDetail != null) {
+            final reason = errorDetail['reason'] as String? ?? '';
+            final message = errorDetail['message'] as String? ?? '';
+            
+            if (reason.contains('accessNotConfigured') || message.contains('Gmail API')) {
+              forbiddenMessage = 'Gmail API etkin değil. Lütfen Google Cloud Console\'da Gmail API\'yi enable edin:\n'
+                  '1. https://console.cloud.google.com/ adresine gidin\n'
+                  '2. Projenizi seçin\n'
+                  '3. "APIs & Services" > "Library" bölümüne gidin\n'
+                  '4. "Gmail API" arayın ve "Enable" butonuna tıklayın\n'
+                  '5. Birkaç dakika bekleyip tekrar deneyin';
+            } else if (reason.contains('insufficientPermissions') || message.contains('permission')) {
+              forbiddenMessage = 'Gmail API için yeterli izin yok. Lütfen Gmail bağlantısını yeniden yapın ve tüm izinleri verin.';
+            } else {
+              forbiddenMessage = 'Gmail API erişim hatası: $message\n\nDetay: $reason';
+            }
+          }
+        } catch (e) {
+          // JSON parse hatası durumunda varsayılan mesajı kullan
+        }
         throw ForbiddenException(
-          message: errorMessage,
+          message: forbiddenMessage,
           originalError: response.body,
         );
       case 404:
