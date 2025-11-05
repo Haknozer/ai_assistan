@@ -35,6 +35,17 @@ class AppConfig {
   static const bool enableOfflineMode = true;
   static const bool enableAnalytics = true;
 
+  // Google OAuth Configuration (Windows için)
+  static const String googleClientId = String.fromEnvironment(
+    'GOOGLE_CLIENT_ID',
+    defaultValue: '', // Environment variable'dan gelecek - run_windows.bat script'i kullanın
+  );
+
+  static const String googleClientSecret = String.fromEnvironment(
+    'GOOGLE_CLIENT_SECRET',
+    defaultValue: '', // Google Cloud Console'dan alınacak (güvenlik için kullanılmayabilir)
+  );
+
   // Debug Configuration
   static const bool debugMode = bool.fromEnvironment('DEBUG', defaultValue: false);
   static const bool enableLogging = bool.fromEnvironment('ENABLE_LOGGING', defaultValue: true);

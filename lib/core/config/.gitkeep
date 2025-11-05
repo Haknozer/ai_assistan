@@ -1,0 +1,10 @@
+# Configuration
+# Sensitive bilgileri bu dosyada tutmayın!
+# Bunun yerine environment variable kullanın veya bu dosyayı .gitignore'a ekleyin
+
+# AppConfig dosyasındaki hassas bilgileri environment variable olarak kullanın:
+# flutter run --dart-define=GOOGLE_CLIENT_ID=your_client_id
+# flutter run --dart-define=API_BASE_URL=your_api_url
+
+# VEYA bu dosyayı .gitignore'a ekleyin (önerilmez çünkü dosya değişiklikleri takip edilemez)
+

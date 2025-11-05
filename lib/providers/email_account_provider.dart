@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ai_asisstan/core/api/api_client.dart';
 import 'package:ai_asisstan/core/api/api_endpoints.dart';
@@ -56,6 +57,7 @@ class EmailAccountRepository {
   }
 
   /// Email hesabı bağla
+  /// API çağrısı başarısız olsa bile local database'e kaydeder
   Future<EmailAccount> connectEmailAccount({
     required int userId,
     required String emailAddress,
@@ -65,6 +67,9 @@ class EmailAccountRepository {
     DateTime? tokenExpires,
     String? displayName,
   }) async {
+    EmailAccount account;
+
+    // Önce API'ye kaydetmeyi dene
     try {
       final body = {
         'user_id': userId,
@@ -82,21 +87,54 @@ class EmailAccountRepository {
       );
 
       final accountData = response['data'] ?? response;
-      final account = EmailAccount.fromJson(accountData as Map<String, dynamic>);
-
-      // Cache'e kaydet
-      final db = await _databaseService.database;
-      await _saveAccountToCache(db, account);
-
-      return account;
-    } on ApiException {
-      rethrow;
-    } catch (e) {
-      throw ApiException(
-        message: 'Failed to connect email account: ${e.toString()}',
-        originalError: e,
+      account = EmailAccount.fromJson(accountData as Map<String, dynamic>);
+    } on ApiException catch (e) {
+      // API hatası varsa (örn: api.example.com erişilemiyor), local database'e kaydet
+      // Bu durumda yeni bir EmailAccount objesi oluştur
+      final now = DateTime.now();
+      account = EmailAccount(
+        id: null, // Local database otomatik ID atayacak
+        userId: userId,
+        emailAddress: emailAddress,
+        provider: provider,
+        displayName: displayName,
+        isActive: true,
+        syncEnabled: true,
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        tokenExpires: tokenExpires,
+        createdAt: now,
+        updatedAt: now,
       );
+
+      // API hatasını logla ama devam et
+      debugPrint('API çağrısı başarısız, local database\'e kaydediliyor: ${e.message}');
+    } catch (e) {
+      // Beklenmeyen hata durumunda da local database'e kaydet
+      final now = DateTime.now();
+      account = EmailAccount(
+        id: null,
+        userId: userId,
+        emailAddress: emailAddress,
+        provider: provider,
+        displayName: displayName,
+        isActive: true,
+        syncEnabled: true,
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        tokenExpires: tokenExpires,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      debugPrint('Email account kaydetme hatası (local database\'e kaydediliyor): ${e.toString()}');
     }
+
+    // Her durumda local database'e kaydet
+    final db = await _databaseService.database;
+    await _saveAccountToCache(db, account);
+
+    return account;
   }
 
   /// Email hesabı senkronize et
@@ -328,8 +366,8 @@ class EmailAccountNotifier extends StateNotifier<AsyncValue<List<EmailAccount>>>
 
 /// Email account notifier provider
 final emailAccountNotifierProvider =
-    StateNotifierProvider.family<EmailAccountNotifier, AsyncValue<List<EmailAccount>>, EmailAccountsParams>((ref, params) {
+    StateNotifierProvider.family<EmailAccountNotifier, AsyncValue<List<EmailAccount>>, EmailAccountsParams>(
+        (ref, params) {
   final repository = ref.watch(emailAccountRepositoryProvider);
   return EmailAccountNotifier(repository, params);
 });
-

@@ -43,3 +43,55 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# ============================================
+# GÜVENLİK: Hassas Bilgiler İçeren Dosyalar
+# ============================================
+
+# Windows için run script'i (Client ID ve Client Secret içeriyor)
+run_windows.bat
+
+# VS Code launch configuration (Client Secret içeriyor olabilir)
+.vscode/launch.json
+
+# Environment variable dosyaları
+.env
+.env.local
+.env.*.local
+*.env
+
+# Geçici batch dosyaları
+*.bat.bak
+*_local.bat
+*_secret.bat
+
+# Config dosyaları (hassas bilgiler içerebilir)
+config.local.dart
+app_config.local.dart
+
+# Database dosyaları (local development için)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Log dosyaları (hassas bilgi içerebilir)
+logs/
+*.log
+
+# ============================================
+# TUTORIAL/REHBER DOSYALARI
+# ============================================
+
+# Tutorial ve rehber dosyaları (kişisel notlar)
+GITIGNORE_KULLANIMI.md
+RUN_WINDOWS_BAT_KULLANIMI.md
+INVALID_CLIENT_HATA_COZUMU.md
+CLIENT_ID_SECRET_ACIKLAMA.md
+CLIENT_SECRET_REHBERI.md
+OAUTH_HATA_GIDERME.md
+WINDOWS_OAUTH_GUNCELLEME.md
+HAZIRLIK_KONTROL_LISTESI.md
+ENVIRONMENT_VARIABLE_KULLANIMI.md
+WINDOWS_GMAIL_OAUTH_SETUP.md

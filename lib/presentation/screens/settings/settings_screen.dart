@@ -9,6 +9,10 @@ import '../../widgets/settings/notifications_card.dart';
 import '../../widgets/settings/appearance_card.dart';
 import '../../widgets/settings/privacy_card.dart';
 import '../../../providers/user_provider.dart';
+import '../../../providers/email_account_provider.dart';
+import '../../../services/gmail_oauth_service.dart';
+import '../../../models/email_account.dart';
+import '../../../core/config/app_config.dart';
 import '../../../utils/responsive_utils.dart';
 import 'data/settings_data.dart';
 
@@ -161,6 +165,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Widget _buildScrollableContent() {
+    final currentUser = ref.watch(currentUserProvider);
+
+    // Email account'ları kontrol et (Gmail bağlantısı için)
+    final emailAccountsAsync = ref.watch(emailAccountsProvider(EmailAccountsParams(
+      userId: currentUser?.id,
+    )));
+
+    // Gmail bağlı mı kontrol et
+    final isGmailConnected = emailAccountsAsync.when(
+      data: (accounts) => accounts.any((account) => account.provider == EmailProvider.gmail),
+      loading: () => false,
+      error: (_, __) => false,
+    );
+
+    // Entegrasyon verilerini güncelle
+    final integrationsData = Map<String, List<Map<String, dynamic>>>.from(SettingsData.integrations);
+    integrationsData['E-posta Entegrasyonları'] = [
+      {'name': 'Gmail', 'connected': isGmailConnected},
+      {'name': 'Outlook', 'connected': false},
+      {'name': 'Yahoo Mail', 'connected': false},
+    ];
+
     return SingleChildScrollView(
       controller: _scrollController,
       child: Column(
@@ -175,7 +201,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           // Entegrasyonlar Section (genişletilmişse)
           if (_selectedCategory == 'Entegrasyonlar') ...[
             const SizedBox(height: 16),
-            ...SettingsData.integrations.entries.map((entry) {
+            ...integrationsData.entries.map((entry) {
               return IntegrationCard(
                 category: entry.key,
                 integrations: entry.value,
@@ -227,7 +253,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     });
   }
 
-  void _showIntegrationDialog(String integrationName, bool isConnected) {
+  void _showIntegrationDialog(String integrationName, bool isConnected) async {
+    if (integrationName == 'Gmail' && !isConnected) {
+      // Gmail OAuth bağlantısı
+      await _connectGmail();
+      return;
+    }
+
+    // Diğer entegrasyonlar için standart dialog
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -256,6 +289,82 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _connectGmail() async {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null || currentUser.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Önce giriş yapmalısınız')),
+      );
+      return;
+    }
+
+    // Loading dialog göster
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      // Debug: Client ID ve Secret kontrolü
+      debugPrint('Client ID: ${AppConfig.googleClientId}');
+      debugPrint('Client Secret: ${AppConfig.googleClientSecret.isNotEmpty ? "***GİZLİ***" : "BOŞ"}');
+
+      // Gmail OAuth servisi
+      final gmailOAuth = GmailOAuthService(
+        clientId: AppConfig.googleClientId.isNotEmpty ? AppConfig.googleClientId : null,
+        clientSecret: AppConfig.googleClientSecret.isNotEmpty ? AppConfig.googleClientSecret : null,
+      );
+      final authResult = await gmailOAuth.connectGmail();
+
+      // Email account repository
+      final emailAccountRepo = ref.read(emailAccountRepositoryProvider);
+
+      // Email account oluştur ve kaydet
+      await emailAccountRepo.connectEmailAccount(
+        userId: currentUser.id!,
+        emailAddress: authResult.email,
+        provider: EmailProvider.gmail,
+        accessToken: authResult.accessToken,
+        refreshToken: authResult.refreshToken,
+        displayName: authResult.displayName,
+      );
+
+      // Dialog'u kapat
+      if (context.mounted) {
+        Navigator.pop(context); // Loading dialog
+
+        // Başarı mesajı göster
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gmail başarıyla bağlandı: ${authResult.email}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Listeyi yenile (state güncellemesi için)
+        ref.invalidate(emailAccountsProvider(EmailAccountsParams(
+          userId: currentUser.id,
+        )));
+      }
+    } catch (e) {
+      // Dialog'u kapat
+      if (context.mounted) {
+        Navigator.pop(context); // Loading dialog
+
+        // Hata mesajı göster
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gmail bağlantısı başarısız: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _handleNotificationChanged(String title, bool value) {

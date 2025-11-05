@@ -38,7 +38,7 @@ class DesktopLayout extends StatelessWidget {
           // Main Content Area
           Expanded(
             child: IndexedStack(
-              index: selectedIndex,
+              index: selectedIndex >= 0 && selectedIndex < pages.length ? selectedIndex : 0,
               children: pages,
             ),
           ),
