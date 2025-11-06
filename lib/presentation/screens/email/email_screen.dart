@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../models/email.dart';
 import '../../../utils/responsive_utils.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/api/api_exceptions.dart';
 import '../../widgets/layout/side_menu.dart';
 import '../../../providers/user_provider.dart';
 import '../../../providers/email_account_provider.dart';
@@ -106,19 +107,49 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
         // Gmail account'u bul
         final gmailAccount = accounts.firstWhere(
           (account) => account.provider == EmailProvider.gmail && account.isActive,
-          orElse: () => accounts.isNotEmpty ? accounts.first : EmailAccount(
-            userId: currentUser.id!,
-            emailAddress: '',
-            provider: EmailProvider.gmail,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-          ),
+          orElse: () => accounts.isNotEmpty
+              ? accounts.first
+              : EmailAccount(
+                  userId: currentUser.id ?? 0,
+                  emailAddress: '',
+                  provider: EmailProvider.gmail,
+                  createdAt: DateTime.now(),
+                  updatedAt: DateTime.now(),
+                ),
         );
+
+        // Account ID veya access token yoksa boş liste göster
+        if (gmailAccount.id == null || gmailAccount.accessToken == null || gmailAccount.accessToken!.isEmpty) {
+          return Scaffold(
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.email_outlined, size: 48, color: Colors.grey),
+                  const SizedBox(height: 16),
+                  const Text('Gmail hesabı bağlı değil'),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Lütfen ayarlardan Gmail hesabınızı bağlayın',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pushNamed(context, '/settings'),
+                    child: const Text('Ayarlara Git'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
 
         final emailParams = EmailListParams(
           accountId: gmailAccount.id,
           folder: _selectedFolder,
-          accessToken: gmailAccount.accessToken,
+          accessToken: gmailAccount.accessToken!,
         );
 
         final emailsAsync = ref.watch(emailNotifierProvider(emailParams));
@@ -127,39 +158,71 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
         return emailsAsync.when(
           data: (emails) => Scaffold(
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            body: RefreshIndicator(
-              onRefresh: () => emailNotifier.refresh(),
-              child: _buildResponsiveLayout(currentUser, emails, emailNotifier, padding, isDesktop),
-            ),
+            body: _buildResponsiveLayout(currentUser, emails, emailNotifier, emailParams, padding, isDesktop),
           ),
           loading: () => Scaffold(
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             body: const Center(child: CircularProgressIndicator()),
           ),
-          error: (error, stack) => Scaffold(
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                  const SizedBox(height: 16),
-                  const Text('E-posta yüklenirken hata oluştu'),
-                  const SizedBox(height: 8),
-                  Text(
-                    error.toString(),
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    textAlign: TextAlign.center,
+          error: (error, stack) {
+            // Hata mesajını daha açıklayıcı hale getir
+            String errorMessage = 'Bilinmeyen bir hata oluştu';
+            String? detailedMessage;
+
+            if (error is ApiException) {
+              errorMessage = error.message;
+              detailedMessage = error.originalError?.toString();
+            } else if (error.toString().contains('UnauthorizedException')) {
+              errorMessage = 'Oturum süresi dolmuş. Lütfen Gmail bağlantısını yeniden yapın.';
+            } else if (error.toString().contains('ForbiddenException')) {
+              errorMessage = 'Gmail API erişim izni yok. Lütfen Google Cloud Console\'da Gmail API\'yi enable edin.';
+            } else if (error.toString().contains('NetworkException') || error.toString().contains('Network error')) {
+              errorMessage = 'İnternet bağlantısı yok veya Gmail API\'ye erişilemiyor.';
+            } else {
+              errorMessage = error.toString().replaceAll('ApiException: ', '');
+            }
+
+            return Scaffold(
+              backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+              body: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                      const SizedBox(height: 16),
+                      Text(
+                        'E-posta yüklenirken hata oluştu',
+                        style: Theme.of(context).textTheme.titleLarge,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        errorMessage,
+                        style: const TextStyle(fontSize: 14, color: Colors.grey),
+                        textAlign: TextAlign.center,
+                      ),
+                      if (detailedMessage != null && detailedMessage.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          detailedMessage,
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                      ElevatedButton.icon(
+                        onPressed: () => emailNotifier.refresh(),
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Yeniden Dene'),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => emailNotifier.refresh(),
-                    child: const Text('Yeniden Dene'),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
       loading: () => Scaffold(
@@ -192,13 +255,14 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
     dynamic currentUser,
     List<Email> emails,
     EmailNotifier emailNotifier,
+    EmailListParams emailParams,
     EdgeInsets padding,
     bool isDesktop,
   ) {
     if (isDesktop) {
-      return _buildDesktopLayout(currentUser, emails, emailNotifier, padding);
+      return _buildDesktopLayout(currentUser, emails, emailNotifier, emailParams, padding);
     } else {
-      return _buildMobileLayout(currentUser, emails, emailNotifier, padding);
+      return _buildMobileLayout(currentUser, emails, emailNotifier, emailParams, padding);
     }
   }
 
@@ -207,6 +271,7 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
     dynamic currentUser,
     List<Email> emails,
     EmailNotifier emailNotifier,
+    EmailListParams emailParams,
     EdgeInsets padding,
   ) {
     final filteredEmails = _getFilteredEmails(emails);
@@ -284,13 +349,17 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                               setState(() {
                                 _selectedEmailIndex = index;
                                 final email = _getSelectedEmail(emails);
-                                if (email?.status == EmailStatus.unread) {
-                                  emailNotifier.markAsRead(email!.id!);
+                                if (email?.status == EmailStatus.unread && email?.messageId != null) {
+                                  // Access token'ı email params'tan al
+                                  emailNotifier.markAsRead(
+                                    email!.messageId!,
+                                    accessToken: emailParams.accessToken,
+                                  );
                                 }
                               });
                             },
-                            onDeleteEmail: (email) => _deleteEmail(email, emailNotifier),
-                            onMarkAsImportant: (email) => _markAsImportant(email, emailNotifier),
+                            onDeleteEmail: (email) => _deleteEmail(email, emailNotifier, emailParams),
+                            onMarkAsImportant: (email) => _markAsImportant(email, emailNotifier, emailParams),
                           ),
                         ),
 
@@ -303,8 +372,8 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                             email: selectedEmail,
                             onReply: _replyToEmail,
                             onForward: _forwardEmail,
-                            onDelete: (email) => _deleteEmail(email, emailNotifier),
-                            onMarkAsImportant: (email) => _markAsImportant(email, emailNotifier),
+                            onDelete: (email) => _deleteEmail(email, emailNotifier, emailParams),
+                            onMarkAsImportant: (email) => _markAsImportant(email, emailNotifier, emailParams),
                           ),
                         ),
                       ],
@@ -324,6 +393,7 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
     dynamic currentUser,
     List<Email> emails,
     EmailNotifier emailNotifier,
+    EmailListParams emailParams,
     EdgeInsets padding,
   ) {
     final filteredEmails = _getFilteredEmails(emails);
@@ -386,15 +456,18 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                           setState(() {
                             _selectedEmailIndex = index;
                             final email = _getSelectedEmail(emails);
-                            if (email?.status == EmailStatus.unread) {
-                              emailNotifier.markAsRead(email!.id!);
+                            if (email?.status == EmailStatus.unread && email?.messageId != null) {
+                              emailNotifier.markAsRead(
+                                email!.messageId!,
+                                accessToken: emailParams.accessToken,
+                              );
                             }
                           });
                           // Mobilde e-posta detayına git
                           // TODO: Navigate to email detail screen
                         },
-                        onDeleteEmail: (email) => _deleteEmail(email, emailNotifier),
-                        onMarkAsImportant: (email) => _markAsImportant(email, emailNotifier),
+                        onDeleteEmail: (email) => _deleteEmail(email, emailNotifier, emailParams),
+                        onMarkAsImportant: (email) => _markAsImportant(email, emailNotifier, emailParams),
                       ),
                     ),
                   ],
@@ -462,15 +535,21 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
     );
   }
 
-  void _markAsImportant(Email email, EmailNotifier emailNotifier) {
-    if (email.id == null) return;
+  void _markAsImportant(Email email, EmailNotifier emailNotifier, EmailListParams emailParams) {
+    // Gmail API messageId kullanır
+    if (email.messageId == null) return;
     final isImportant = email.importance != EmailImportance.important;
-    emailNotifier.toggleImportant(email.id!, isImportant);
+    final emailId = int.tryParse(email.messageId!) ?? 0;
+    if (emailId == 0) return;
+    emailNotifier.toggleImportant(emailId, isImportant, accessToken: emailParams.accessToken);
   }
 
-  void _deleteEmail(Email email, EmailNotifier emailNotifier) {
-    if (email.id == null) return;
-    emailNotifier.deleteEmail(email.id!);
+  void _deleteEmail(Email email, EmailNotifier emailNotifier, EmailListParams emailParams) {
+    // Gmail API messageId kullanır
+    if (email.messageId == null) return;
+    final emailId = int.tryParse(email.messageId!) ?? 0;
+    if (emailId == 0) return;
+    emailNotifier.deleteEmail(emailId, accessToken: emailParams.accessToken);
     setState(() {
       _selectedEmailIndex = null;
     });
@@ -505,20 +584,24 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
               htmlContent: email.htmlContent,
               importance: email.importance,
             );
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('E-posta başarıyla gönderildi'),
-                backgroundColor: Colors.green,
-              ),
-            );
+            if (context.mounted) {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('E-posta başarıyla gönderildi'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
           } catch (e) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('E-posta gönderilirken hata oluştu: ${e.toString()}'),
-                backgroundColor: Colors.red,
-              ),
-            );
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('E-posta gönderilirken hata oluştu: ${e.toString()}'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
           }
         },
       ),

@@ -335,7 +335,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       );
 
       // Dialog'u kapat
-      if (context.mounted) {
+      if (mounted) {
         Navigator.pop(context); // Loading dialog
 
         // Başarı mesajı göster
@@ -353,7 +353,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }
     } catch (e) {
       // Dialog'u kapat
-      if (context.mounted) {
+      if (mounted) {
         Navigator.pop(context); // Loading dialog
 
         // Hata mesajı göster

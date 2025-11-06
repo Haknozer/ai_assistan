@@ -46,7 +46,7 @@ class NotificationCategoryItem extends StatelessWidget {
               Switch(
                 value: isEnabled,
                 onChanged: onChanged,
-                activeColor: Theme.of(context).colorScheme.primary,
+                activeThumbColor: Theme.of(context).colorScheme.primary,
               ),
             ],
           ),
@@ -55,4 +55,3 @@ class NotificationCategoryItem extends StatelessWidget {
     );
   }
 }
-

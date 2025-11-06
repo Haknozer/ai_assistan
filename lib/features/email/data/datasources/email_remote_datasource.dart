@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:ai_asisstan/core/api/api_client.dart';
 import 'package:ai_asisstan/core/api/api_endpoints.dart';
 import 'package:ai_asisstan/core/api/api_exceptions.dart';
@@ -77,7 +78,7 @@ class EmailRemoteDataSource {
         try {
           final messageId = messageItem['id'] as String;
           final email = await _getEmailDetails(
-            messageId, 
+            messageId,
             accessToken: accessToken,
             userId: userId,
             accountId: accountId,
@@ -110,6 +111,11 @@ class EmailRemoteDataSource {
     int? accountId,
   }) async {
     try {
+      if (accessToken.isEmpty) {
+        debugPrint('_getEmailDetails: Access token boş!');
+        return null;
+      }
+
       final response = await _apiClient.get(
         ApiEndpoints.messageById(messageId),
         queryParameters: {'format': 'full'},
@@ -117,7 +123,13 @@ class EmailRemoteDataSource {
       );
 
       return _parseGmailMessage(response, messageId, userId: userId, accountId: accountId);
+    } on NotFoundException {
+      // 404 hatası - email bulunamadı, sessizce null döndür
+      debugPrint('_getEmailDetails: Email bulunamadı (messageId: $messageId)');
+      return null;
     } catch (e) {
+      // Diğer hatalar için logla ama devam et
+      debugPrint('_getEmailDetails hatası (messageId: $messageId): ${e.toString()}');
       return null;
     }
   }
@@ -156,9 +168,8 @@ class EmailRemoteDataSource {
 
     // Tarihleri parse et
     final internalDate = gmailMessage['internalDate'] as String?;
-    final receivedDate = internalDate != null 
-        ? DateTime.fromMillisecondsSinceEpoch(int.parse(internalDate)) 
-        : DateTime.now();
+    final receivedDate =
+        internalDate != null ? DateTime.fromMillisecondsSinceEpoch(int.parse(internalDate)) : DateTime.now();
 
     // Label'lardan folder ve status belirle
     final folder = _determineFolder(labelIds);
@@ -240,58 +251,166 @@ class EmailRemoteDataSource {
     return emails;
   }
 
-  /// Body'yi payload'dan çıkar
+  /// HTML içeriğini recursive olarak parts içinden çıkar
+  String? _extractHtmlFromParts(Map<String, dynamic> payload) {
+    final mimeType = payload['mimeType'] as String? ?? '';
+    final body = payload['body'] as Map<String, dynamic>?;
+    final data = body?['data'] as String?;
+
+    // Eğer bu part HTML ise ve data varsa, decode et ve döndür
+    if (mimeType == 'text/html' && data != null) {
+      try {
+        // Base64-URL decode (Gmail API formatı)
+        String normalizedData = data.replaceAll('-', '+').replaceAll('_', '/');
+
+        // Padding ekle
+        while (normalizedData.length % 4 != 0) {
+          normalizedData += '=';
+        }
+
+        final decoded = base64.decode(normalizedData);
+        final content = utf8.decode(decoded);
+        debugPrint('_extractHtmlFromParts: HTML bulundu ve decode edildi, uzunluk: ${content.length}');
+        return content;
+      } catch (e) {
+        debugPrint('_extractHtmlFromParts: HTML decode hatası: $e, base64Url.decode deneniyor...');
+        // Fallback: base64Url.decode dene
+        try {
+          final decoded = base64Url.decode(data);
+          final content = utf8.decode(decoded);
+          debugPrint('_extractHtmlFromParts: base64Url.decode ile başarılı');
+          return content;
+        } catch (e2) {
+          debugPrint('_extractHtmlFromParts: base64Url.decode da başarısız: $e2');
+        }
+      }
+    }
+
+    // Eğer parts varsa, recursive olarak ara
+    final parts = payload['parts'] as List<dynamic>?;
+    if (parts != null) {
+      debugPrint('_extractHtmlFromParts: ${parts.length} part bulundu, recursive aranıyor...');
+      for (final part in parts) {
+        final result = _extractHtmlFromParts(part as Map<String, dynamic>);
+        if (result != null) {
+          return result;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /// Plain text içeriğini recursive olarak parts içinden çıkar
+  String? _extractPlainTextFromParts(Map<String, dynamic> payload) {
+    final mimeType = payload['mimeType'] as String? ?? '';
+    final body = payload['body'] as Map<String, dynamic>?;
+    final data = body?['data'] as String?;
+
+    // Eğer bu part plain text ise ve data varsa, decode et ve döndür
+    if (mimeType == 'text/plain' && data != null) {
+      try {
+        // Base64-URL decode (Gmail API formatı)
+        String normalizedData = data.replaceAll('-', '+').replaceAll('_', '/');
+
+        // Padding ekle
+        while (normalizedData.length % 4 != 0) {
+          normalizedData += '=';
+        }
+
+        final decoded = base64.decode(normalizedData);
+        final content = utf8.decode(decoded);
+        debugPrint('_extractPlainTextFromParts: Plain text bulundu ve decode edildi, uzunluk: ${content.length}');
+        return content;
+      } catch (e) {
+        debugPrint('_extractPlainTextFromParts: Plain text decode hatası: $e, base64Url.decode deneniyor...');
+        // Fallback: base64Url.decode dene
+        try {
+          final decoded = base64Url.decode(data);
+          final content = utf8.decode(decoded);
+          debugPrint('_extractPlainTextFromParts: base64Url.decode ile başarılı');
+          return content;
+        } catch (e2) {
+          debugPrint('_extractPlainTextFromParts: base64Url.decode da başarısız: $e2');
+        }
+      }
+    }
+
+    // Eğer parts varsa, recursive olarak ara
+    final parts = payload['parts'] as List<dynamic>?;
+    if (parts != null) {
+      for (final part in parts) {
+        final result = _extractPlainTextFromParts(part as Map<String, dynamic>);
+        if (result != null) {
+          return result;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /// Body'yi payload'dan çıkar - Recursive approach ile nested parts desteği
   Map<String, String?> _extractBody(Map<String, dynamic> payload) {
     String? plainText;
     String? htmlContent;
 
+    // Önce direkt body'den kontrol et
     final body = payload['body'] as Map<String, dynamic>?;
     if (body != null) {
       final data = body['data'] as String?;
+      final mimeType = payload['mimeType'] as String? ?? '';
+
       if (data != null) {
         try {
-          final decoded = base64Url.decode(data);
+          // Base64-URL decode (Gmail API formatı)
+          String normalizedData = data.replaceAll('-', '+').replaceAll('_', '/');
+
+          // Padding ekle
+          while (normalizedData.length % 4 != 0) {
+            normalizedData += '=';
+          }
+
+          final decoded = base64.decode(normalizedData);
           final content = utf8.decode(decoded);
-          plainText = content;
+
+          if (mimeType == 'text/html') {
+            htmlContent = content;
+            debugPrint('_extractBody: Body\'den HTML alındı, uzunluk: ${content.length}');
+          } else {
+            plainText = content;
+            debugPrint('_extractBody: Body\'den plain text alındı, uzunluk: ${content.length}');
+          }
         } catch (e) {
-          // Decode hatası, geç
-        }
-      }
-    }
-
-    final parts = payload['parts'] as List<dynamic>?;
-    if (parts != null) {
-      for (final part in parts) {
-        final mimeType = part['mimeType'] as String? ?? '';
-        final bodyData = part['body'] as Map<String, dynamic>?;
-        final data = bodyData?['data'] as String?;
-
-        if (data != null) {
+          debugPrint('_extractBody: Body decode hatası: $e, base64Url.decode deneniyor...');
+          // Fallback: base64Url.decode dene
           try {
             final decoded = base64Url.decode(data);
             final content = utf8.decode(decoded);
 
-            if (mimeType == 'text/plain' && plainText == null) {
-              plainText = content;
-            } else if (mimeType == 'text/html' && htmlContent == null) {
+            if (mimeType == 'text/html') {
               htmlContent = content;
+            } else {
+              plainText = content;
             }
-          } catch (e) {
-            // Decode hatası, geç
+            debugPrint('_extractBody: base64Url.decode ile başarılı');
+          } catch (e2) {
+            debugPrint('_extractBody: base64Url.decode da başarısız: $e2');
           }
-        }
-
-        // Nested parts kontrolü
-        final nestedParts = part['parts'] as List<dynamic>?;
-        if (nestedParts != null) {
-          final nestedResult = _extractBody({'parts': nestedParts});
-          if (plainText == null) plainText = nestedResult['plainText'];
-          if (htmlContent == null) htmlContent = nestedResult['htmlContent'];
         }
       }
     }
 
-    return {'plainText': plainText, 'htmlContent': htmlContent};
+    // Recursive olarak parts içinden HTML ve plain text ara
+    htmlContent ??= _extractHtmlFromParts(payload);
+
+    plainText ??= _extractPlainTextFromParts(payload);
+
+    debugPrint('_extractBody: Final - plainText: ${plainText?.length ?? 0}, htmlContent: ${htmlContent?.length ?? 0}');
+    return {
+      'plainText': plainText,
+      'htmlContent': htmlContent,
+    };
   }
 
   /// Label'lardan folder belirle
@@ -313,7 +432,7 @@ class EmailRemoteDataSource {
     if (accessToken == null || accessToken.isEmpty) {
       throw ApiException(message: 'Access token required for Gmail API');
     }
-    
+
     // Gmail API messageId string kullanır, bu yüzden emailId'yi messageId olarak kullan
     final email = await _getEmailDetails(emailId.toString(), accessToken: accessToken);
     if (email == null) {
@@ -391,7 +510,7 @@ class EmailRemoteDataSource {
     List<String>? bccEmails,
   }) {
     final buffer = StringBuffer();
-    
+
     // Headers
     buffer.writeln('To: ${toEmails.join(', ')}');
     if (ccEmails != null && ccEmails.isNotEmpty) {
@@ -402,7 +521,7 @@ class EmailRemoteDataSource {
     }
     buffer.writeln('Subject: $subject');
     buffer.writeln('MIME-Version: 1.0');
-    
+
     // Body
     if (htmlContent != null && plainText != null) {
       // Multipart/alternative
@@ -449,13 +568,22 @@ class EmailRemoteDataSource {
         accessToken: accessToken,
       );
 
-      // Güncellenmiş email'i tekrar çek
-      final updatedEmail = await _getEmailDetails(emailId.toString(), accessToken: accessToken);
-      if (updatedEmail == null) {
-        throw NotFoundException(message: 'Email not found');
+      // Email'i tekrar çekmeye çalışma - 404 hatası verebilir
+      // Bunun yerine sadece başarılı olduğunu döndür, refresh işlemi yapılacak
+      // Mevcut email bilgilerini kullanarak updated email oluştur
+      final existingEmail = await _getEmailDetails(emailId.toString(), accessToken: accessToken);
+      if (existingEmail != null) {
+        return existingEmail;
       }
-      return updatedEmail;
+
+      // Email bulunamazsa, sadece label'ı güncellenmiş bir email döndür
+      // Bu durumda original email bilgilerini kullan (refresh'te güncellenecek)
+      throw NotFoundException(message: 'Email not found after update');
     } catch (e) {
+      if (e is NotFoundException) {
+        // 404 hatası normal - email zaten silinmiş veya erişilemez olabilir
+        rethrow;
+      }
       if (e is ApiException) {
         rethrow;
       }
@@ -648,11 +776,11 @@ class EmailRemoteDataSource {
         bccEmails: bccEmails,
       );
 
-      final body = {'message': {'raw': emailBody}};
+      final body = {
+        'message': {'raw': emailBody}
+      };
 
-      final endpoint = draftId != null
-          ? ApiEndpoints.labelById(draftId.toString())
-          : '${ApiEndpoints.labels}/drafts';
+      final endpoint = draftId != null ? ApiEndpoints.labelById(draftId.toString()) : '${ApiEndpoints.labels}/drafts';
 
       final response = draftId != null
           ? await _apiClient.put(endpoint, body: body, accessToken: accessToken)

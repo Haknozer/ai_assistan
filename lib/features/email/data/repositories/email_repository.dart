@@ -1,18 +1,26 @@
 import 'package:ai_asisstan/models/email.dart';
 import 'package:ai_asisstan/core/api/api_exceptions.dart';
+import 'package:ai_asisstan/models/email_account.dart';
+import 'package:ai_asisstan/core/database/database_service.dart';
+import 'package:ai_asisstan/services/gmail_oauth_service.dart';
+import 'package:ai_asisstan/core/config/app_config.dart';
 import '../datasources/email_remote_datasource.dart';
 
 /// Email verilerini API'den çeken repository
 /// Cache kullanmaz, her zaman API'den çeker
 class EmailRepository {
   final EmailRemoteDataSource _remoteDataSource;
+  final DatabaseService _databaseService;
 
   EmailRepository({
     EmailRemoteDataSource? remoteDataSource,
-  }) : _remoteDataSource = remoteDataSource ?? EmailRemoteDataSource();
+    DatabaseService? databaseService,
+  })  : _remoteDataSource = remoteDataSource ?? EmailRemoteDataSource(),
+        _databaseService = databaseService ?? DatabaseService.instance;
 
   /// Email listesini API'den getir
   /// API hatası durumunda boş liste döndürür (API hazır değilse)
+  /// 401 hatası durumunda token yenileme dener
   Future<List<Email>> getEmails({
     int? accountId,
     String? folder,
@@ -28,10 +36,34 @@ class EmailRepository {
         offset: offset,
         accessToken: accessToken,
       );
+    } on UnauthorizedException {
+      // 401 hatası - token expire olmuş, yenilemeyi dene
+      if (accountId != null && accessToken != null) {
+        try {
+          final newAccessToken = await _refreshTokenIfNeeded(accountId);
+          if (newAccessToken != null) {
+            // Yeni token ile tekrar dene
+            return await _remoteDataSource.getEmails(
+              accountId: accountId,
+              folder: folder,
+              limit: limit,
+              offset: offset,
+              accessToken: newAccessToken,
+            );
+          }
+        } catch (refreshError) {
+          // Token yenileme başarısız, hatayı fırlat
+          throw ApiException(
+            message: 'Token yenilenemedi. Lütfen Gmail bağlantısını yeniden yapın.',
+            originalError: refreshError,
+          );
+        }
+      }
+      rethrow;
     } on ApiException catch (e) {
       // API hatası durumunda (örn: api.example.com erişilemiyor)
       // Boş liste döndür ve hatayı logla
-      if (e.message.contains('Failed host lookup') || 
+      if (e.message.contains('Failed host lookup') ||
           e.message.contains('api.example.com') ||
           e.message.contains('Network error')) {
         // API hazır değil, boş liste döndür
@@ -45,8 +77,66 @@ class EmailRepository {
     }
   }
 
+  /// Token yenileme yardımcı metodu
+  Future<String?> _refreshTokenIfNeeded(int accountId) async {
+    try {
+      final db = await _databaseService.database;
+      final accountMaps = await db.query(
+        'email_accounts',
+        where: 'id = ? AND is_active = 1',
+        whereArgs: [accountId],
+        limit: 1,
+      );
+
+      if (accountMaps.isEmpty) {
+        return null;
+      }
+
+      final account = EmailAccount.fromDatabase(accountMaps.first);
+
+      // Refresh token yoksa null döndür
+      if (account.refreshToken == null || account.refreshToken!.isEmpty) {
+        return null;
+      }
+
+      // Gmail OAuth service ile token yenile
+      final gmailOAuth = GmailOAuthService(
+        clientId: AppConfig.googleClientId.isNotEmpty ? AppConfig.googleClientId : null,
+        clientSecret: AppConfig.googleClientSecret.isNotEmpty ? AppConfig.googleClientSecret : null,
+      );
+
+      final authResult = await gmailOAuth.refreshAccessToken(account.refreshToken!);
+
+      // Yenilenen token'ı database'e kaydet
+      const expiresIn = 3600; // Gmail API genellikle 1 saat verir
+      final tokenExpires = DateTime.now().add(const Duration(seconds: expiresIn));
+
+      await db.update(
+        'email_accounts',
+        {
+          'access_token': authResult.accessToken,
+          'token_expires': tokenExpires.toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+        where: 'id = ?',
+        whereArgs: [accountId],
+      );
+
+      return authResult.accessToken;
+    } catch (e) {
+      // Token yenileme hatası
+      return null;
+    }
+  }
+
   /// Tek email detayını API'den getir
+  /// Access token gerekli - email account'tan alınmalı
   Future<Email> getEmailById(int emailId, {String? accessToken}) async {
+    if (accessToken == null || accessToken.isEmpty) {
+      throw ApiException(
+        message: 'Access token required for Gmail API. Please reconnect your Gmail account.',
+      );
+    }
     return await _remoteDataSource.getEmailById(emailId, accessToken: accessToken);
   }
 

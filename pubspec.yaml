@@ -34,6 +34,12 @@ dependencies:
   # Web Auth (Windows için)
   flutter_web_auth: ^0.5.0
   url_launcher: ^6.2.2
+  # HTML Parser (For Base64 decoding)
+  html: ^0.15.4
+  # HTML Renderer
+  flutter_html: ^3.0.0
+  # HTML to Widget renderer (better HTML support)
+  flutter_widget_from_html: ^0.17.1
   # Yardımcı
   intl: ^0.18.1
   uuid: ^4.2.1

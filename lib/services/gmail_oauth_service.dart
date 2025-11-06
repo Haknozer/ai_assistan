@@ -353,6 +353,78 @@ class GmailOAuthService {
     // Web OAuth için token kontrolü yapılabilir ama şimdilik null döndürüyoruz
     return null;
   }
+
+  /// Refresh token ile access token yenile
+  Future<GmailAuthResult> refreshAccessToken(String refreshToken) async {
+    if (_clientId == null || _clientId!.isEmpty) {
+      throw ApiException(
+        message: 'Client ID yapılandırılmamış',
+      );
+    }
+    if (_clientSecret == null || _clientSecret!.isEmpty) {
+      throw ApiException(
+        message: 'Client Secret yapılandırılmamış',
+      );
+    }
+
+    try {
+      final tokenUrl = Uri.parse('https://oauth2.googleapis.com/token');
+
+      final response = await http.post(
+        tokenUrl,
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'client_id': _clientId!,
+          'client_secret': _clientSecret!,
+          'refresh_token': refreshToken,
+          'grant_type': 'refresh_token',
+        },
+      );
+
+      if (response.statusCode != 200) {
+        final errorBody = response.body;
+        String errorMessage = 'Token yenilenemedi: $errorBody';
+
+        if (errorBody.contains('invalid_grant')) {
+          errorMessage = 'Refresh token geçersiz veya süresi dolmuş. Lütfen Gmail bağlantısını yeniden yapın.';
+        } else if (errorBody.contains('invalid_client')) {
+          errorMessage = 'Client ID veya Client Secret yanlış.';
+        }
+
+        throw ApiException(message: errorMessage);
+      }
+
+      final tokenResponse = json.decode(response.body) as Map<String, dynamic>;
+      final newAccessToken = tokenResponse['access_token'] as String;
+
+      // User info'yu almak için yeni access token kullan
+      try {
+        final userInfo = await _getUserInfo(newAccessToken);
+        return GmailAuthResult(
+          accessToken: newAccessToken,
+          refreshToken: refreshToken, // Refresh token aynı kalır
+          email: userInfo['email'] as String? ?? '',
+          displayName: userInfo['name'] as String?,
+        );
+      } catch (e) {
+        // User info alınamazsa da access token'ı döndür
+        return GmailAuthResult(
+          accessToken: newAccessToken,
+          refreshToken: refreshToken,
+          email: '',
+          displayName: null,
+        );
+      }
+    } catch (e) {
+      if (e is ApiException) {
+        rethrow;
+      }
+      throw ApiException(
+        message: 'Token yenileme hatası: ${e.toString()}',
+        originalError: e,
+      );
+    }
+  }
 }
 
 /// Gmail OAuth sonuç modeli

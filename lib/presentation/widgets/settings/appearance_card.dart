@@ -102,7 +102,7 @@ class AppearanceCard extends ConsumerWidget {
                   SnackBar(content: Text('Karanlık mod ${value ? "açık" : "kapalı"}')),
                 );
               },
-              activeColor: Theme.of(context).colorScheme.primary,
+              activeThumbColor: Theme.of(context).colorScheme.primary,
             ),
           ],
         ),
@@ -110,4 +110,3 @@ class AppearanceCard extends ConsumerWidget {
     );
   }
 }
-

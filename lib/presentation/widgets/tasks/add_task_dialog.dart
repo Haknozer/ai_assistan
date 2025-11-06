@@ -290,7 +290,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<TaskStatus>(
-          value: _selectedStatus,
+          initialValue: _selectedStatus,
           decoration: InputDecoration(
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             focusedBorder: OutlineInputBorder(

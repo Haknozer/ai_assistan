@@ -1,5 +1,6 @@
 import 'package:json_annotation/json_annotation.dart';
 import 'package:intl/intl.dart';
+import 'package:html/parser.dart' as html_parser;
 
 part 'email.g.dart';
 
@@ -505,8 +506,36 @@ class Email {
 
     if (content.isEmpty) return '';
 
-    // HTML etiketlerini temizle
-    content = content.replaceAll(RegExp(r'<[^>]*>'), '');
+    // Eğer HTML içeriği varsa, HTML'den düz metne çevir
+    if (htmlContent != null && htmlContent!.isNotEmpty && plainText == null) {
+      try {
+        // html paketini kullanarak HTML'i parse et ve sadece metni al
+        final document = html_parser.parse(content);
+        final bodyText = document.body?.text;
+        if (bodyText != null && bodyText.trim().isNotEmpty) {
+          content = bodyText;
+        }
+      } catch (e) {
+        // Parse hatası durumunda regex ile temizle
+        content = content.replaceAll(RegExp(r'<[^>]*>'), '');
+      }
+    } else {
+      // HTML etiketlerini temizle (eğer hala varsa)
+      content = content.replaceAll(RegExp(r'<[^>]*>'), '');
+    }
+
+    // HTML entity'lerini decode et (&nbsp;, &amp;, &lt; vb.)
+    content = content
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll('&apos;', "'")
+        .replaceAll('&mdash;', '—')
+        .replaceAll('&ndash;', '–')
+        .replaceAll('&hellip;', '...');
 
     // Satır sonu ve fazla boşlukları temizle
     content = content.replaceAll(RegExp(r'\s+'), ' ').trim();

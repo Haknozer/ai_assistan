@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/repositories/email_repository.dart';
 import 'package:ai_asisstan/models/email.dart';
+import 'package:ai_asisstan/core/api/api_exceptions.dart';
 
 /// Email repository provider
 final emailRepositoryProvider = Provider<EmailRepository>((ref) {
@@ -117,13 +119,13 @@ class EmailNotifier extends StateNotifier<AsyncValue<List<Email>>> {
   }
 
   /// Email'i okundu olarak işaretle
-  Future<void> markAsRead(int emailId, {String? accessToken}) async {
+  Future<void> markAsRead(String messageId, {String? accessToken}) async {
     final currentEmails = state.value;
     if (currentEmails == null) return;
 
-    // Optimistic update
+    // Optimistic update - messageId ile karşılaştır
     final updatedEmails = currentEmails.map((email) {
-      if (email.id == emailId) {
+      if (email.messageId == messageId) {
         return email.copyWith(
           status: EmailStatus.read,
           isRead: true,
@@ -135,13 +137,28 @@ class EmailNotifier extends StateNotifier<AsyncValue<List<Email>>> {
     state = AsyncValue.data(updatedEmails);
 
     try {
+      // messageId'yi int'e çevir (Gmail API messageId string kullanır ama int olarak parse edilebilir)
+      final emailId = int.tryParse(messageId) ?? 0;
+      if (emailId == 0) {
+        debugPrint('markAsRead: Invalid messageId: $messageId');
+        return;
+      }
+      
       await _repository.markAsRead(emailId, accessToken: accessToken);
+      
       // Başarılı olursa liste yeniden yüklenir
       await refresh();
-    } catch (e, stack) {
-      // Hata varsa geri al
+    } on NotFoundException {
+      // 404 hatası - email bulunamadı, ama optimistic update zaten yapıldı
+      // Sadece refresh yap, hata gösterme
+      debugPrint('markAsRead: Email not found (messageId: $messageId), refreshing list');
+      await refresh();
+    } catch (e) {
+      // Hata varsa geri al ve hata göster
+      debugPrint('markAsRead hatası: ${e.toString()}');
       state = AsyncValue.data(currentEmails);
-      state = AsyncValue.error(e, stack);
+      // Hata durumunda da refresh yap, belki email başka bir yerde güncellenmiştir
+      await refresh();
     }
   }
 
