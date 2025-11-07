@@ -46,6 +46,12 @@ class AppConfig {
     defaultValue: '', // Google Cloud Console'dan alınacak (güvenlik için kullanılmayabilir)
   );
 
+  // Weather API Configuration
+  static const String weatherApiKey = String.fromEnvironment(
+    'WEATHER_API_KEY',
+    defaultValue: '', // OpenWeatherMap API key - https://openweathermap.org/api
+  );
+
   // Debug Configuration
   static const bool debugMode = bool.fromEnvironment('DEBUG', defaultValue: false);
   static const bool enableLogging = bool.fromEnvironment('ENABLE_LOGGING', defaultValue: true);

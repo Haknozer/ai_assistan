@@ -1,17 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/user_provider.dart';
+import '../../../providers/weather_provider.dart';
 import '../../../utils/responsive_utils.dart';
 import '../../widgets/home/stats_cards.dart';
 import '../../widgets/dashboard/welcome_header.dart';
 import '../../widgets/dashboard/today_overview_section.dart';
 import '../../widgets/dashboard/task_completion_card.dart';
 
-class DashboardPage extends ConsumerWidget {
+class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends ConsumerState<DashboardPage> {
+  @override
+  void initState() {
+    super.initState();
+    // Uygulama açıldığında hava durumu isteği at
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(weatherProvider.notifier).loadCurrentLocationWeather();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final currentUser = ref.watch(currentUserProvider);
 
     if (currentUser == null) {

@@ -7,69 +7,83 @@ part of 'email.dart';
 // **************************************************************************
 
 Email _$EmailFromJson(Map<String, dynamic> json) => Email(
-      id: json['id'] as int?,
-      userId: json['userId'] as int,
-      accountId: json['accountId'] as int,
-      messageId: json['messageId'] as String?,
-      threadId: json['threadId'] as String?,
+      id: (json['id'] as num?)?.toInt(),
+      userId: (json['user_id'] as num).toInt(),
+      accountId: (json['account_id'] as num).toInt(),
+      messageId: json['message_id'] as String?,
+      threadId: json['thread_id'] as String?,
       subject: json['subject'] as String,
-      fromEmail: json['fromEmail'] as String,
-      fromName: json['fromName'] as String?,
-      toEmails: (json['toEmails'] as List<dynamic>).map((e) => e as String).toList(),
-      ccEmails: (json['ccEmails'] as List<dynamic>?)?.map((e) => e as String).toList(),
-      bccEmails: (json['bccEmails'] as List<dynamic>?)?.map((e) => e as String).toList(),
-      plainText: json['plainText'] as String?,
-      htmlContent: json['htmlContent'] as String?,
+      fromEmail: json['from_email'] as String,
+      fromName: json['from_name'] as String?,
+      toEmails:
+          (json['to_emails'] as List<dynamic>).map((e) => e as String).toList(),
+      ccEmails: (json['cc_emails'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
+      bccEmails: (json['bcc_emails'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
+      plainText: json['plain_text'] as String?,
+      htmlContent: json['html_content'] as String?,
       attachments: (json['attachments'] as List<dynamic>?)
           ?.map((e) => EmailAttachment.fromJson(e as Map<String, dynamic>))
           .toList(),
-      receivedDate: json['receivedDate'] == null ? null : DateTime.parse(json['receivedDate'] as String),
-      sentDate: json['sentDate'] == null ? null : DateTime.parse(json['sentDate'] as String),
-      status: $enumDecode(_$EmailStatusEnumMap, json['status']),
-      importance: $enumDecode(_$EmailImportanceEnumMap, json['importance']),
-      isRead: json['isRead'] as bool,
-      isStarred: json['isStarred'] as bool,
-      isArchived: json['isArchived'] as bool,
-      isDeleted: json['isDeleted'] as bool,
-      isSpam: json['isSpam'] as bool,
-      folder: $enumDecode(_$EmailFolderEnumMap, json['folder']),
-      labels: (json['labels'] as List<dynamic>?)?.map((e) => e as String).toList(),
-      sizeBytes: json['sizeBytes'] as int?,
-      externalId: json['externalId'] as String?,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      receivedDate: json['received_date'] == null
+          ? null
+          : DateTime.parse(json['received_date'] as String),
+      sentDate: json['sent_date'] == null
+          ? null
+          : DateTime.parse(json['sent_date'] as String),
+      status: $enumDecodeNullable(_$EmailStatusEnumMap, json['email_status']) ??
+          EmailStatus.received,
+      importance: $enumDecodeNullable(
+              _$EmailImportanceEnumMap, json['email_importance']) ??
+          EmailImportance.normal,
+      isRead: json['is_read'] as bool? ?? false,
+      isStarred: json['is_starred'] as bool? ?? false,
+      isArchived: json['is_archived'] as bool? ?? false,
+      isDeleted: json['is_deleted'] as bool? ?? false,
+      isSpam: json['is_spam'] as bool? ?? false,
+      folder: $enumDecodeNullable(_$EmailFolderEnumMap, json['folder']) ??
+          EmailFolder.inbox,
+      labels:
+          (json['labels'] as List<dynamic>?)?.map((e) => e as String).toList(),
+      sizeBytes: (json['size_bytes'] as num?)?.toInt(),
+      externalId: json['external_id'] as String?,
+      createdAt: DateTime.parse(json['created_at'] as String),
+      updatedAt: DateTime.parse(json['updated_at'] as String),
     );
 
 Map<String, dynamic> _$EmailToJson(Email instance) => <String, dynamic>{
       'id': instance.id,
-      'userId': instance.userId,
-      'accountId': instance.accountId,
-      'messageId': instance.messageId,
-      'threadId': instance.threadId,
+      'user_id': instance.userId,
+      'account_id': instance.accountId,
+      'message_id': instance.messageId,
+      'thread_id': instance.threadId,
       'subject': instance.subject,
-      'fromEmail': instance.fromEmail,
-      'fromName': instance.fromName,
-      'toEmails': instance.toEmails,
-      'ccEmails': instance.ccEmails,
-      'bccEmails': instance.bccEmails,
-      'plainText': instance.plainText,
-      'htmlContent': instance.htmlContent,
+      'from_email': instance.fromEmail,
+      'from_name': instance.fromName,
+      'to_emails': instance.toEmails,
+      'cc_emails': instance.ccEmails,
+      'bcc_emails': instance.bccEmails,
+      'plain_text': instance.plainText,
+      'html_content': instance.htmlContent,
       'attachments': instance.attachments,
-      'receivedDate': instance.receivedDate?.toIso8601String(),
-      'sentDate': instance.sentDate?.toIso8601String(),
-      'status': _$EmailStatusEnumMap[instance.status]!,
-      'importance': _$EmailImportanceEnumMap[instance.importance]!,
-      'isRead': instance.isRead,
-      'isStarred': instance.isStarred,
-      'isArchived': instance.isArchived,
-      'isDeleted': instance.isDeleted,
-      'isSpam': instance.isSpam,
+      'received_date': instance.receivedDate?.toIso8601String(),
+      'sent_date': instance.sentDate?.toIso8601String(),
+      'email_status': _$EmailStatusEnumMap[instance.status]!,
+      'email_importance': _$EmailImportanceEnumMap[instance.importance]!,
+      'is_read': instance.isRead,
+      'is_starred': instance.isStarred,
+      'is_archived': instance.isArchived,
+      'is_deleted': instance.isDeleted,
+      'is_spam': instance.isSpam,
       'folder': _$EmailFolderEnumMap[instance.folder]!,
       'labels': instance.labels,
-      'sizeBytes': instance.sizeBytes,
-      'externalId': instance.externalId,
-      'createdAt': instance.createdAt.toIso8601String(),
-      'updatedAt': instance.updatedAt.toIso8601String(),
+      'size_bytes': instance.sizeBytes,
+      'external_id': instance.externalId,
+      'created_at': instance.createdAt.toIso8601String(),
+      'updated_at': instance.updatedAt.toIso8601String(),
     };
 
 const _$EmailStatusEnumMap = {
@@ -95,26 +109,28 @@ const _$EmailFolderEnumMap = {
   EmailFolder.important: 'important',
 };
 
-EmailAttachment _$EmailAttachmentFromJson(Map<String, dynamic> json) => EmailAttachment(
-      id: json['id'] as int?,
-      emailId: json['emailId'] as int,
+EmailAttachment _$EmailAttachmentFromJson(Map<String, dynamic> json) =>
+    EmailAttachment(
+      id: (json['id'] as num?)?.toInt(),
+      emailId: (json['email_id'] as num).toInt(),
       filename: json['filename'] as String,
-      contentType: json['contentType'] as String,
-      sizeBytes: json['sizeBytes'] as int?,
-      storagePath: json['storagePath'] as String?,
-      downloadUrl: json['downloadUrl'] as String?,
-      isDownloaded: json['isDownloaded'] as bool,
-      createdAt: DateTime.parse(json['createdAt'] as String),
+      contentType: json['content_type'] as String,
+      sizeBytes: (json['size_bytes'] as num?)?.toInt(),
+      storagePath: json['storage_path'] as String?,
+      downloadUrl: json['download_url'] as String?,
+      isDownloaded: json['is_downloaded'] as bool? ?? false,
+      createdAt: DateTime.parse(json['created_at'] as String),
     );
 
-Map<String, dynamic> _$EmailAttachmentToJson(EmailAttachment instance) => <String, dynamic>{
+Map<String, dynamic> _$EmailAttachmentToJson(EmailAttachment instance) =>
+    <String, dynamic>{
       'id': instance.id,
-      'emailId': instance.emailId,
+      'email_id': instance.emailId,
       'filename': instance.filename,
-      'contentType': instance.contentType,
-      'sizeBytes': instance.sizeBytes,
-      'storagePath': instance.storagePath,
-      'downloadUrl': instance.downloadUrl,
-      'isDownloaded': instance.isDownloaded,
-      'createdAt': instance.createdAt.toIso8601String(),
+      'content_type': instance.contentType,
+      'size_bytes': instance.sizeBytes,
+      'storage_path': instance.storagePath,
+      'download_url': instance.downloadUrl,
+      'is_downloaded': instance.isDownloaded,
+      'created_at': instance.createdAt.toIso8601String(),
     };
