@@ -4,6 +4,9 @@ import 'package:ai_asisstan/models/calendar_account.dart';
 import 'package:ai_asisstan/core/api/api_exceptions.dart';
 import '../datasources/calendar_remote_datasource.dart';
 import 'calendar_local_repository.dart';
+import 'utils/event_merger.dart';
+import 'utils/event_sync_helper.dart';
+import 'utils/error_handler.dart';
 
 /// Calendar verilerini API'den çeken ve local database'e kaydeden repository
 class CalendarRepository {
@@ -27,12 +30,7 @@ class CalendarRepository {
         provider: provider,
       );
     } on UnauthorizedException catch (e) {
-      // 401 hatası - token expire olmuş
-      final providerName = provider == CalendarProvider.google ? 'Google Calendar' : 'Outlook Calendar';
-      throw UnauthorizedException(
-        message: 'Oturum süresi dolmuş. Lütfen $providerName bağlantısını yeniden yapın.',
-        originalError: e.originalError,
-      );
+      throw CalendarErrorHandler.handleUnauthorized(e, provider);
     } on ApiException {
       rethrow;
     } catch (e) {
@@ -52,10 +50,9 @@ class CalendarRepository {
     required String accessToken,
     required CalendarProvider provider,
     int? userId,
-    bool syncToLocal = true, // Local database'e senkronize et
+    bool syncToLocal = true,
   }) async {
     try {
-      // API'den event'leri çek
       final events = await _remoteDataSource.getEvents(
         calendarId: calendarId,
         timeMin: timeMin,
@@ -66,20 +63,17 @@ class CalendarRepository {
         userId: userId,
       );
 
-      // Local database'e kaydet (eğer syncToLocal true ise)
       if (syncToLocal && userId != null) {
         try {
           await _localRepository.saveEvents(events);
           debugPrint('✅ ${events.length} event local database\'e kaydedildi');
         } catch (e) {
           debugPrint('⚠️ Event\'ler local database\'e kaydedilemedi: $e');
-          // Hata olsa bile event'leri döndür
         }
       }
 
       return events;
     } on UnauthorizedException catch (e) {
-      // 401 hatası - token expire olmuş, local database'den döndür
       if (userId != null) {
         try {
           debugPrint('⚠️ API hatası, local database\'den event\'ler getiriliyor');
@@ -92,13 +86,8 @@ class CalendarRepository {
           debugPrint('⚠️ Local database\'den event getirilemedi: $localError');
         }
       }
-      final providerName = provider == CalendarProvider.google ? 'Google Calendar' : 'Outlook Calendar';
-      throw UnauthorizedException(
-        message: 'Oturum süresi dolmuş. Lütfen $providerName bağlantısını yeniden yapın.',
-        originalError: e.originalError,
-      );
+      throw CalendarErrorHandler.handleUnauthorized(e, provider);
     } on ApiException {
-      // API hatası durumunda local database'den döndür
       if (userId != null) {
         try {
           debugPrint('⚠️ API hatası, local database\'den event\'ler getiriliyor');
@@ -159,7 +148,7 @@ class CalendarRepository {
       }
     }
 
-    // Sonra Calendar'dan event'leri çek ve birleştir (Google veya Outlook)
+    // Sonra Calendar'dan event'leri çek ve birleştir
     if (accessToken != null && accessToken.isNotEmpty && provider != null) {
       try {
         final remoteEvents = await getEvents(
@@ -173,24 +162,13 @@ class CalendarRepository {
           syncToLocal: true,
         );
 
-        // External ID'ye göre birleştir (duplicate'leri önle)
-        final existingExternalIds =
-            allEvents.where((e) => e.externalId != null && e.externalId!.isNotEmpty).map((e) => e.externalId!).toSet();
-
-        for (final event in remoteEvents) {
-          if (event.externalId == null || !existingExternalIds.contains(event.externalId)) {
-            allEvents.add(event);
-          }
-        }
+        return EventMerger.mergeEvents(allEvents, remoteEvents);
       } catch (e) {
         debugPrint('⚠️ Calendar event\'leri getirilemedi: $e');
       }
     }
 
-    // Tarihe göre sırala
-    allEvents.sort((a, b) => a.startTime.compareTo(b.startTime));
-
-    return allEvents;
+    return EventMerger.sortByDate(allEvents);
   }
 
   /// Hem Google hem Outlook Calendar event'lerini birleştir
@@ -222,159 +200,126 @@ class CalendarRepository {
 
       // Google Calendar'dan event'leri çek
       if (googleAccessToken != null && googleAccessToken.isNotEmpty) {
-        try {
-          debugPrint('📅 Google Calendar event\'leri çekiliyor...');
-          // Doğrudan remote data source'dan çek (getEvents kullanma, çünkü o local database'den tekrar çekiyor)
-          final googleEvents = await _remoteDataSource.getEvents(
-            calendarId: calendarId,
-            timeMin: timeMin,
-            timeMax: timeMax,
-            maxResults: maxResults,
-            accessToken: googleAccessToken,
-            provider: CalendarProvider.google,
-            userId: userId,
-          );
-          debugPrint('✅ Google Calendar\'dan ${googleEvents.length} event alındı');
-
-          // Yeni event'leri local database'e kaydet (sadece yeni olanlar)
-          if (userId != null && googleEvents.isNotEmpty) {
-            try {
-              // Mevcut local event'leri kontrol et (external ID'ye göre)
-              final externalIds = googleEvents.map((e) => e.externalId).whereType<String>().toList();
-              if (externalIds.isNotEmpty) {
-                final existingLocalEvents = await _localRepository.getEvents(
-                  userId: userId,
-                  source: EventSource.google,
-                  externalIdList: externalIds,
-                );
-
-                final existingExternalIds = existingLocalEvents
-                    .where((e) => e.externalId != null && e.externalId!.isNotEmpty)
-                    .map((e) => e.externalId!)
-                    .toSet();
-
-                // Sadece yeni event'leri kaydet
-                int savedCount = 0;
-                for (final event in googleEvents) {
-                  if (event.externalId != null && !existingExternalIds.contains(event.externalId)) {
-                    await _localRepository.saveEvent(event.copyWith(source: EventSource.google));
-                    savedCount++;
-                  }
-                }
-                if (savedCount > 0) {
-                  debugPrint('✅ $savedCount Google Calendar event local database\'e kaydedildi');
-                }
-              }
-            } catch (e) {
-              debugPrint('⚠️ Google Calendar event\'leri local database\'e kaydedilemedi: $e');
-            }
-          }
-
-          // External ID'ye göre birleştir (duplicate'leri önle)
-          final existingExternalIds = allEvents
-              .where((e) => e.externalId != null && e.externalId!.isNotEmpty)
-              .map((e) => e.externalId!)
-              .toSet();
-
-          for (final event in googleEvents) {
-            if (event.externalId == null || !existingExternalIds.contains(event.externalId)) {
-              allEvents.add(event);
-              existingExternalIds.add(event.externalId ?? '');
-            }
-          }
-        } on UnauthorizedException catch (e) {
-          // 401 hatası - token expire olmuş, sadece log'la ve devam et
-          debugPrint('❌ Google Calendar - Token süresi dolmuş (401): ${e.message}');
-          debugPrint('  Google Calendar event\'leri atlanıyor. Lütfen Google Calendar bağlantısını yeniden yapın.');
-          // Hata olsa bile devam et, diğer calendar'lardan gelen event'leri göster
-        } catch (e) {
-          debugPrint('⚠️ Google Calendar event\'leri getirilemedi: $e');
-          // Hata durumunda sadece log'la, local database'den tekrar çekme (zaten allEvents'te var)
-        }
+        await _fetchAndMergeGoogleEvents(
+          allEvents: allEvents,
+          calendarId: calendarId,
+          timeMin: timeMin,
+          timeMax: timeMax,
+          maxResults: maxResults,
+          accessToken: googleAccessToken,
+          userId: userId,
+        );
       }
 
       // Outlook Calendar'dan event'leri çek
       if (outlookAccessToken != null && outlookAccessToken.isNotEmpty) {
-        try {
-          debugPrint('📅 Outlook Calendar event\'leri çekiliyor...');
-          // Doğrudan remote data source'dan çek (getEvents kullanma, çünkü o local database'den tekrar çekiyor)
-          final outlookEvents = await _remoteDataSource.getEvents(
-            calendarId: calendarId,
-            timeMin: timeMin,
-            timeMax: timeMax,
-            maxResults: maxResults,
-            accessToken: outlookAccessToken,
-            provider: CalendarProvider.outlook,
-            userId: userId,
-          );
-          debugPrint('✅ Outlook Calendar\'dan ${outlookEvents.length} event alındı');
-
-          // Yeni event'leri local database'e kaydet (sadece yeni olanlar)
-          if (userId != null && outlookEvents.isNotEmpty) {
-            try {
-              // Mevcut local event'leri kontrol et (external ID'ye göre)
-              final externalIds = outlookEvents.map((e) => e.externalId).whereType<String>().toList();
-              if (externalIds.isNotEmpty) {
-                final existingLocalEvents = await _localRepository.getEvents(
-                  userId: userId,
-                  source: EventSource.outlook,
-                  externalIdList: externalIds,
-                );
-
-                final existingExternalIds = existingLocalEvents
-                    .where((e) => e.externalId != null && e.externalId!.isNotEmpty)
-                    .map((e) => e.externalId!)
-                    .toSet();
-
-                // Sadece yeni event'leri kaydet
-                int savedCount = 0;
-                for (final event in outlookEvents) {
-                  if (event.externalId != null && !existingExternalIds.contains(event.externalId)) {
-                    await _localRepository.saveEvent(event.copyWith(source: EventSource.outlook));
-                    savedCount++;
-                  }
-                }
-                if (savedCount > 0) {
-                  debugPrint('✅ $savedCount Outlook Calendar event local database\'e kaydedildi');
-                }
-              }
-            } catch (e) {
-              debugPrint('⚠️ Outlook Calendar event\'leri local database\'e kaydedilemedi: $e');
-            }
-          }
-
-          // External ID'ye göre birleştir (duplicate'leri önle)
-          final existingExternalIds = allEvents
-              .where((e) => e.externalId != null && e.externalId!.isNotEmpty)
-              .map((e) => e.externalId!)
-              .toSet();
-
-          for (final event in outlookEvents) {
-            if (event.externalId == null || !existingExternalIds.contains(event.externalId)) {
-              allEvents.add(event);
-              existingExternalIds.add(event.externalId ?? '');
-            }
-          }
-        } catch (e, stackTrace) {
-          debugPrint('❌ Outlook Calendar event\'leri getirilemedi:');
-          debugPrint('  Error: $e');
-          debugPrint('  Stack Trace: $stackTrace');
-          // Hata durumunda sadece log'la, local database'den tekrar çekme (zaten allEvents'te var)
-          // Hata olsa bile devam et, diğer calendar'lardan gelen event'leri göster
-        }
+        await _fetchAndMergeOutlookEvents(
+          allEvents: allEvents,
+          calendarId: calendarId,
+          timeMin: timeMin,
+          timeMax: timeMax,
+          maxResults: maxResults,
+          accessToken: outlookAccessToken,
+          userId: userId,
+        );
       }
 
-      // Tarihe göre sırala
-      allEvents.sort((a, b) => a.startTime.compareTo(b.startTime));
-
       debugPrint('✅ getAllCombinedEvents tamamlandı: ${allEvents.length} event');
-      return allEvents;
+      return EventMerger.sortByDate(allEvents);
     } catch (e, stackTrace) {
       debugPrint('❌ getAllCombinedEvents kritik hata:');
       debugPrint('  Error: $e');
       debugPrint('  Stack Trace: $stackTrace');
-      // Kritik hata olsa bile boş liste döndür, provider'ın sürekli yeniden çalışmasını önle
       return [];
+    }
+  }
+
+  /// Google Calendar event'lerini çek ve birleştir
+  Future<void> _fetchAndMergeGoogleEvents({
+    required List<CalendarEvent> allEvents,
+    String? calendarId,
+    DateTime? timeMin,
+    DateTime? timeMax,
+    int? maxResults,
+    required String accessToken,
+    int? userId,
+  }) async {
+    try {
+      debugPrint('📅 Google Calendar event\'leri çekiliyor...');
+      final googleEvents = await _remoteDataSource.getEvents(
+        calendarId: calendarId,
+        timeMin: timeMin,
+        timeMax: timeMax,
+        maxResults: maxResults,
+        accessToken: accessToken,
+        provider: CalendarProvider.google,
+        userId: userId,
+      );
+      debugPrint('✅ Google Calendar\'dan ${googleEvents.length} event alındı');
+
+      // Yeni event'leri local database'e kaydet
+      if (userId != null && googleEvents.isNotEmpty) {
+        await EventSyncHelper.syncNewEventsToLocal(
+          remoteEvents: googleEvents,
+          localRepository: _localRepository,
+          userId: userId,
+          source: EventSource.google,
+        );
+      }
+
+      // Event'leri birleştir
+      final merged = EventMerger.mergeEvents(allEvents, googleEvents);
+      allEvents.clear();
+      allEvents.addAll(merged);
+    } on UnauthorizedException catch (e) {
+      debugPrint('❌ Google Calendar - Token süresi dolmuş (401): ${e.message}');
+      debugPrint('  Google Calendar event\'leri atlanıyor. Lütfen Google Calendar bağlantısını yeniden yapın.');
+    } catch (e) {
+      debugPrint('⚠️ Google Calendar event\'leri getirilemedi: $e');
+    }
+  }
+
+  /// Outlook Calendar event'lerini çek ve birleştir
+  Future<void> _fetchAndMergeOutlookEvents({
+    required List<CalendarEvent> allEvents,
+    String? calendarId,
+    DateTime? timeMin,
+    DateTime? timeMax,
+    int? maxResults,
+    required String accessToken,
+    int? userId,
+  }) async {
+    try {
+      debugPrint('📅 Outlook Calendar event\'leri çekiliyor...');
+      final outlookEvents = await _remoteDataSource.getEvents(
+        calendarId: calendarId,
+        timeMin: timeMin,
+        timeMax: timeMax,
+        maxResults: maxResults,
+        accessToken: accessToken,
+        provider: CalendarProvider.outlook,
+        userId: userId,
+      );
+      debugPrint('✅ Outlook Calendar\'dan ${outlookEvents.length} event alındı');
+
+      // Yeni event'leri local database'e kaydet
+      if (userId != null && outlookEvents.isNotEmpty) {
+        await EventSyncHelper.syncNewEventsToLocal(
+          remoteEvents: outlookEvents,
+          localRepository: _localRepository,
+          userId: userId,
+          source: EventSource.outlook,
+        );
+      }
+
+      // Event'leri birleştir
+      final merged = EventMerger.mergeEvents(allEvents, outlookEvents);
+      allEvents.clear();
+      allEvents.addAll(merged);
+    } catch (e, stackTrace) {
+      debugPrint('❌ Outlook Calendar event\'leri getirilemedi:');
+      debugPrint('  Error: $e');
+      debugPrint('  Stack Trace: $stackTrace');
     }
   }
 
@@ -395,11 +340,7 @@ class CalendarRepository {
         userId: userId,
       );
     } on UnauthorizedException catch (e) {
-      final providerName = provider == CalendarProvider.google ? 'Google Calendar' : 'Outlook Calendar';
-      throw UnauthorizedException(
-        message: 'Oturum süresi dolmuş. Lütfen $providerName bağlantısını yeniden yapın.',
-        originalError: e.originalError,
-      );
+      throw CalendarErrorHandler.handleUnauthorized(e, provider);
     } on ApiException {
       rethrow;
     } catch (e) {
@@ -422,7 +363,6 @@ class CalendarRepository {
     required int userId,
   }) async {
     try {
-      // Calendar'a event oluştur
       final event = await _remoteDataSource.createEvent(
         title: title,
         startTime: startTime,
@@ -442,22 +382,13 @@ class CalendarRepository {
         debugPrint('✅ Event local database\'e kaydedildi: ${event.title} (externalId: ${event.externalId})');
       } catch (e) {
         debugPrint('⚠️ Event local database\'e kaydedilemedi: $e');
-        // Hata olsa bile event'i döndür
       }
 
       return event;
     } on UnauthorizedException catch (e) {
-      final providerName = provider == CalendarProvider.google ? 'Google Calendar' : 'Outlook Calendar';
-      throw UnauthorizedException(
-        message: 'Oturum süresi dolmuş. Lütfen $providerName bağlantısını yeniden yapın.',
-        originalError: e.originalError,
-      );
+      throw CalendarErrorHandler.handleUnauthorized(e, provider);
     } on ValidationException catch (e) {
-      // HTTP 400 hatası için daha detaylı mesaj
-      throw ApiException(
-        message: 'Event oluşturma hatası. Lütfen tüm alanların doğru olduğundan emin olun.\n\nDetay: ${e.message}',
-        originalError: e.originalError,
-      );
+      throw CalendarErrorHandler.handleValidation(e);
     } on ApiException {
       rethrow;
     } catch (e) {
@@ -497,11 +428,7 @@ class CalendarRepository {
         userId: userId,
       );
     } on UnauthorizedException catch (e) {
-      final providerName = provider == CalendarProvider.google ? 'Google Calendar' : 'Outlook Calendar';
-      throw UnauthorizedException(
-        message: 'Oturum süresi dolmuş. Lütfen $providerName bağlantısını yeniden yapın.',
-        originalError: e.originalError,
-      );
+      throw CalendarErrorHandler.handleUnauthorized(e, provider);
     } on ApiException {
       rethrow;
     } catch (e) {
@@ -527,11 +454,7 @@ class CalendarRepository {
         provider: provider,
       );
     } on UnauthorizedException catch (e) {
-      final providerName = provider == CalendarProvider.google ? 'Google Calendar' : 'Outlook Calendar';
-      throw UnauthorizedException(
-        message: 'Oturum süresi dolmuş. Lütfen $providerName bağlantısını yeniden yapın.',
-        originalError: e.originalError,
-      );
+      throw CalendarErrorHandler.handleUnauthorized(e, provider);
     } on ApiException {
       rethrow;
     } catch (e) {

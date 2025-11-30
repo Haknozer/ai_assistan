@@ -1,17 +1,20 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:ai_asisstan/core/api/api_exceptions.dart';
 import 'package:ai_asisstan/core/config/app_config.dart';
+import 'oauth/gmail/gmail_oauth_config.dart';
+import 'oauth/gmail/gmail_token_exchange.dart';
+import 'oauth/gmail/gmail_user_info.dart';
+import 'oauth/utils/oauth_server_helper.dart';
 
 /// Gmail OAuth servisi - Google Sign-In ile Gmail hesabı bağlama
 class GmailOAuthService {
   final GoogleSignIn? _googleSignIn;
   final String? _clientId;
   final String? _clientSecret;
+  late final GmailTokenExchange _tokenExchange;
 
   GmailOAuthService({
     GoogleSignIn? googleSignIn,
@@ -21,14 +24,13 @@ class GmailOAuthService {
         _clientId = clientId ?? (AppConfig.googleClientId.isNotEmpty ? AppConfig.googleClientId : null),
         _clientSecret =
             clientSecret ?? (AppConfig.googleClientSecret.isNotEmpty ? AppConfig.googleClientSecret : null) {
-    // Debug: Client Secret kontrolü
+    _tokenExchange = GmailTokenExchange(clientId: _clientId, clientSecret: _clientSecret);
     debugPrint('GmailOAuthService initialized:');
     debugPrint('  Client ID: ${_clientId ?? "NULL"}');
     debugPrint('  Client Secret: ${_clientSecret != null && _clientSecret!.isNotEmpty ? "***SET***" : "NULL/EMPTY"}');
   }
 
   /// Gmail hesabına bağlan (OAuth flow)
-  /// Returns: (accessToken, refreshToken, email, displayName)
   Future<GmailAuthResult> connectGmail() async {
     try {
       // Windows/Linux/MacOS için web tabanlı OAuth
@@ -45,10 +47,7 @@ class GmailOAuthService {
         );
       }
 
-      // Önce çıkış yap (eğer önceki oturum varsa)
       await _googleSignIn!.signOut();
-
-      // Google Sign-In flow'u başlat
       final GoogleSignInAccount? account = await _googleSignIn!.signIn();
 
       if (account == null) {
@@ -57,7 +56,6 @@ class GmailOAuthService {
         );
       }
 
-      // Access token al
       final GoogleSignInAuthentication auth = await account.authentication;
 
       if (auth.accessToken == null) {
@@ -106,70 +104,22 @@ class GmailOAuthService {
       );
     }
 
-    // OAuth 2.0 parametreleri (port dinamik olacak)
     String redirectUri = 'http://localhost:8080/oauth-callback';
-    final scopes = [
-      'email',
-      'https://www.googleapis.com/auth/gmail.readonly',
-      'https://www.googleapis.com/auth/gmail.send',
-      'https://www.googleapis.com/auth/gmail.modify',
-    ].join(' ');
-
-    // Local HTTP server başlat
     HttpServer? server;
     String? authCode;
     String? error;
-    int port = 8080;
-    List<int> alternativePorts = [8081, 8082, 8083, 3000, 3001];
 
     try {
-      // Port 8080'i dene, başarısız olursa alternatif portları dene
-      bool serverStarted = false;
-      SocketException? lastException;
-
-      try {
-        server = await HttpServer.bind('localhost', port);
-        serverStarted = true;
-        debugPrint('✅ HTTP server başlatıldı: localhost:$port');
-      } on SocketException catch (e) {
-        lastException = e;
-        debugPrint('⚠️ Port $port kullanılamıyor: ${e.message}');
-        
-        // Alternatif portları dene
-        for (final altPort in alternativePorts) {
-          try {
-            server = await HttpServer.bind('localhost', altPort);
-            port = altPort;
-            serverStarted = true;
-            debugPrint('✅ HTTP server alternatif portta başlatıldı: localhost:$port');
-            break;
-          } on SocketException catch (altE) {
-            debugPrint('⚠️ Port $altPort da kullanılamıyor: ${altE.message}');
-            lastException = altE;
-            continue;
-          }
-        }
-      }
-
-      if (!serverStarted || server == null) {
-        throw ApiException(
-          message: 'Localhost\'a bağlanılamadı. Portlar kullanımda olabilir veya firewall engelliyor olabilir.\n\n'
-              'Çözüm:\n'
-              '1. Diğer uygulamaları kapatın (port 8080, 8081, 8082, 8083, 3000, 3001 kullanıyor olabilir)\n'
-              '2. Windows Firewall ayarlarını kontrol edin\n'
-              '3. Uygulamayı yönetici olarak çalıştırmayı deneyin\n'
-              '4. Antivirus yazılımınızın localhost bağlantılarını engellemediğinden emin olun',
-          originalError: lastException,
-        );
-      }
+      // HTTP server başlat
+      server = await OAuthServerHelper.startServer();
+      final port = server.port;
 
       // Port değiştiyse redirect URI'yi güncelle
       if (port != 8080) {
         redirectUri = 'http://localhost:$port/oauth-callback';
         debugPrint('⚠️ Port değişti, redirect URI güncellendi: $redirectUri');
         debugPrint('⚠️ ÖNEMLİ: Google Cloud Console\'da bu redirect URI\'yi eklemeniz gerekebilir: $redirectUri');
-        
-        // Kullanıcıya bilgi ver (sadece debug mode'da)
+
         if (kDebugMode) {
           debugPrint('💡 İPUCU: Tüm olası portları Google Cloud Console\'a ekleyerek bu sorunu önleyebilirsiniz:');
           debugPrint('   - http://localhost:8080/oauth-callback');
@@ -181,27 +131,16 @@ class GmailOAuthService {
         }
       }
 
-      // OAuth URL oluştur - query parametrelerini manuel olarak encode et
-      // Uri.https bazen query parametrelerini kaybedebiliyor, bu yüzden manuel oluşturuyoruz
-      final queryString = [
-        'client_id=${Uri.encodeComponent(_clientId!)}',
-        'redirect_uri=${Uri.encodeComponent(redirectUri)}',
-        'response_type=code',
-        'scope=${Uri.encodeComponent(scopes)}',
-        'access_type=offline',
-        'prompt=consent',
-      ].join('&');
+      // OAuth URL oluştur
+      final authUrlString = GmailOAuthConfig.buildAuthUrl(
+        clientId: _clientId!,
+        redirectUri: redirectUri,
+      );
 
-      final authUrlString = 'https://accounts.google.com/o/oauth2/v2/auth?$queryString';
-      final authUrl = Uri.parse(authUrlString);
-
-      // URL'i debug için loglayalım
       debugPrint('OAuth URL: $authUrlString');
-      debugPrint('response_type parametresi kontrolü: ${authUrl.queryParameters['response_type']}');
 
-      // Windows'ta ShellExecute kullanarak URL'i aç (daha güvenilir)
+      // Windows'ta ShellExecute kullanarak URL'i aç
       if (Platform.isWindows) {
-        // Windows'ta ShellExecute kullan
         final result = await Process.run(
           'powershell',
           [
@@ -214,7 +153,6 @@ class GmailOAuthService {
         debugPrint('Browser açıldı, exit code: ${result.exitCode}');
         if (result.exitCode != 0) {
           debugPrint('Powershell error: ${result.stderr}');
-          // Fallback olarak url_launcher dene
           final uri = Uri.parse(authUrlString);
           if (await canLaunchUrl(uri)) {
             await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -225,7 +163,6 @@ class GmailOAuthService {
           }
         }
       } else {
-        // Linux/MacOS için url_launcher kullan
         final uri = Uri.parse(authUrlString);
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -249,18 +186,7 @@ class GmailOAuthService {
         error = uri.queryParameters['error'];
 
         // Başarılı yanıt gönder
-        request.response.statusCode = 200;
-        request.response.headers.set('Content-Type', 'text/html; charset=utf-8');
-        request.response.write('''
-          <html>
-            <head><title>Gmail Bağlantısı Başarılı</title></head>
-            <body>
-              <h1>✅ Gmail bağlantısı başarılı!</h1>
-              <p>Bu pencereyi kapatabilirsiniz. Uygulamaya geri dönün.</p>
-            </body>
-          </html>
-        ''');
-        await request.response.close();
+        await OAuthServerHelper.sendSuccessResponse(request, 'Gmail');
         break;
       }
     } finally {
@@ -280,10 +206,10 @@ class GmailOAuthService {
     }
 
     // Authorization code ile access token al
-    final tokenResponse = await _exchangeCodeForTokens(authCode, redirectUri);
+    final tokenResponse = await _tokenExchange.exchangeCodeForTokens(authCode, redirectUri);
 
     // Kullanıcı bilgilerini al
-    final userInfo = await _getUserInfo(tokenResponse['access_token'] as String);
+    final userInfo = await GmailUserInfo.getUserInfo(tokenResponse['access_token'] as String);
 
     return GmailAuthResult(
       accessToken: tokenResponse['access_token'] as String,
@@ -293,93 +219,12 @@ class GmailOAuthService {
     );
   }
 
-  /// Authorization code'u access token'a çevir
-  Future<Map<String, dynamic>> _exchangeCodeForTokens(String code, String redirectUri) async {
-    if (_clientSecret == null || _clientSecret!.isEmpty) {
-      throw ApiException(
-        message:
-            'Client Secret eksik. Lütfen Google Cloud Console\'dan Client Secret alıp environment variable olarak ekleyin.',
-      );
-    }
-
-    final tokenUrl = Uri.parse('https://oauth2.googleapis.com/token');
-
-    // Debug: Token exchange bilgilerini logla (secret hariç)
-    debugPrint('Token exchange başlatılıyor:');
-    debugPrint('  Client ID: $_clientId');
-    debugPrint('  Redirect URI: $redirectUri');
-    debugPrint('  Client Secret: ${_clientSecret!.substring(0, 6)}... (ilk 6 karakter)');
-
-    final response = await http.post(
-      tokenUrl,
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: {
-        'code': code,
-        'client_id': _clientId!,
-        'client_secret': _clientSecret!,
-        'redirect_uri': redirectUri,
-        'grant_type': 'authorization_code',
-      },
-    );
-
-    debugPrint('Token exchange yanıtı: Status=${response.statusCode}');
-    debugPrint('Token exchange body: ${response.body}');
-
-    if (response.statusCode != 200) {
-      final errorBody = response.body;
-      String errorMessage = 'Token alınamadı: $errorBody';
-
-      // Daha açıklayıcı hata mesajları
-      if (errorBody.contains('invalid_client')) {
-        errorMessage =
-            'Client ID veya Client Secret yanlış. Lütfen Google Cloud Console\'daki değerlerle eşleştiğinden emin olun. Ayrıca OAuth Client ID tipinin "Web application" olduğundan emin olun.';
-      } else if (errorBody.contains('invalid_grant')) {
-        errorMessage = 'Authorization code geçersiz veya süresi dolmuş. Lütfen tekrar deneyin.';
-      } else if (errorBody.contains('redirect_uri_mismatch')) {
-        errorMessage =
-            'Redirect URI eşleşmiyor. Google Cloud Console\'da şu redirect URI\'leri eklemeniz gerekiyor:\n\n'
-            '1. http://localhost:8080/oauth-callback\n'
-            '2. http://localhost:8081/oauth-callback\n'
-            '3. http://localhost:8082/oauth-callback\n'
-            '4. http://localhost:8083/oauth-callback\n'
-            '5. http://localhost:3000/oauth-callback\n'
-            '6. http://localhost:3001/oauth-callback\n\n'
-            'Google Cloud Console > APIs & Services > Credentials > OAuth 2.0 Client ID > Authorized redirect URIs';
-      }
-
-      throw ApiException(
-        message: errorMessage,
-      );
-    }
-
-    return json.decode(response.body) as Map<String, dynamic>;
-  }
-
-  /// Kullanıcı bilgilerini al
-  Future<Map<String, dynamic>> _getUserInfo(String accessToken) async {
-    final userInfoUrl = Uri.parse('https://www.googleapis.com/oauth2/v2/userinfo');
-
-    final response = await http.get(
-      userInfoUrl,
-      headers: {'Authorization': 'Bearer $accessToken'},
-    );
-
-    if (response.statusCode != 200) {
-      throw ApiException(
-        message: 'Kullanıcı bilgileri alınamadı: ${response.body}',
-      );
-    }
-
-    return json.decode(response.body) as Map<String, dynamic>;
-  }
-
   /// Gmail bağlantısını kes
   Future<void> disconnectGmail() async {
     try {
       if (_googleSignIn != null) {
         await _googleSignIn!.signOut();
       }
-      // Web OAuth için çıkış yapılmasına gerek yok (token geçersizleştirilebilir ama şimdilik yeterli)
     } catch (e) {
       throw ApiException(
         message: 'Gmail bağlantısı kesilemedi: ${e.toString()}',
@@ -393,7 +238,6 @@ class GmailOAuthService {
     if (_googleSignIn != null) {
       return await _googleSignIn!.isSignedIn();
     }
-    // Web OAuth için token kontrolü yapılabilir ama şimdilik false döndürüyoruz
     return false;
   }
 
@@ -415,64 +259,25 @@ class GmailOAuthService {
         return null;
       }
     }
-    // Web OAuth için token kontrolü yapılabilir ama şimdilik null döndürüyoruz
     return null;
   }
 
   /// Refresh token ile access token yenile
   Future<GmailAuthResult> refreshAccessToken(String refreshToken) async {
-    if (_clientId == null || _clientId!.isEmpty) {
-      throw ApiException(
-        message: 'Client ID yapılandırılmamış',
-      );
-    }
-    if (_clientSecret == null || _clientSecret!.isEmpty) {
-      throw ApiException(
-        message: 'Client Secret yapılandırılmamış',
-      );
-    }
-
     try {
-      final tokenUrl = Uri.parse('https://oauth2.googleapis.com/token');
-
-      final response = await http.post(
-        tokenUrl,
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: {
-          'client_id': _clientId!,
-          'client_secret': _clientSecret!,
-          'refresh_token': refreshToken,
-          'grant_type': 'refresh_token',
-        },
-      );
-
-      if (response.statusCode != 200) {
-        final errorBody = response.body;
-        String errorMessage = 'Token yenilenemedi: $errorBody';
-
-        if (errorBody.contains('invalid_grant')) {
-          errorMessage = 'Refresh token geçersiz veya süresi dolmuş. Lütfen Gmail bağlantısını yeniden yapın.';
-        } else if (errorBody.contains('invalid_client')) {
-          errorMessage = 'Client ID veya Client Secret yanlış.';
-        }
-
-        throw ApiException(message: errorMessage);
-      }
-
-      final tokenResponse = json.decode(response.body) as Map<String, dynamic>;
+      final tokenResponse = await _tokenExchange.refreshAccessToken(refreshToken);
       final newAccessToken = tokenResponse['access_token'] as String;
 
       // User info'yu almak için yeni access token kullan
       try {
-        final userInfo = await _getUserInfo(newAccessToken);
+        final userInfo = await GmailUserInfo.getUserInfo(newAccessToken);
         return GmailAuthResult(
           accessToken: newAccessToken,
-          refreshToken: refreshToken, // Refresh token aynı kalır
+          refreshToken: refreshToken,
           email: userInfo['email'] as String? ?? '',
           displayName: userInfo['name'] as String?,
         );
       } catch (e) {
-        // User info alınamazsa da access token'ı döndür
         return GmailAuthResult(
           accessToken: newAccessToken,
           refreshToken: refreshToken,
