@@ -192,7 +192,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     integrationsData['E-posta Entegrasyonları'] = [
       {'name': 'Gmail', 'connected': isGmailConnected},
       {'name': 'Outlook', 'connected': isOutlookConnected},
-      {'name': 'Yahoo Mail', 'connected': false},
     ];
 
     return SingleChildScrollView(
@@ -426,10 +425,36 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (mounted) {
         Navigator.pop(context);
 
+        // Hata mesajını daha kullanıcı dostu hale getir
+        String errorMessage = 'Gmail bağlantısı kesilemedi';
+        if (e is ApiException) {
+          // Network hatası durumunda local database'den silindi mesajı göster
+          if (e.message.contains('Failed host lookup') ||
+              e.message.contains('Network error') ||
+              e.message.contains('api.example.com')) {
+            errorMessage = 'Gmail bağlantısı kesildi (local olarak)';
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(errorMessage),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            // Listeyi yenile
+            ref.invalidate(emailAccountsProvider(EmailAccountsParams(
+              userId: currentUser.id,
+            )));
+            return;
+          } else {
+            errorMessage = e.message;
+          }
+        } else {
+          errorMessage = 'Gmail bağlantısı kesilemedi: ${e.toString()}';
+        }
+
         // Hata mesajı göster
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gmail bağlantısı kesilemedi: ${e.toString()}'),
+            content: Text(errorMessage),
             backgroundColor: Colors.red,
           ),
         );
@@ -568,10 +593,36 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (mounted) {
         Navigator.pop(context);
 
+        // Hata mesajını daha kullanıcı dostu hale getir
+        String errorMessage = 'Outlook bağlantısı kesilemedi';
+        if (e is ApiException) {
+          // Network hatası durumunda local database'den silindi mesajı göster
+          if (e.message.contains('Failed host lookup') ||
+              e.message.contains('Network error') ||
+              e.message.contains('api.example.com')) {
+            errorMessage = 'Outlook bağlantısı kesildi (local olarak)';
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(errorMessage),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            // Listeyi yenile
+            ref.invalidate(emailAccountsProvider(EmailAccountsParams(
+              userId: currentUser.id,
+            )));
+            return;
+          } else {
+            errorMessage = e.message;
+          }
+        } else {
+          errorMessage = 'Outlook bağlantısı kesilemedi: ${e.toString()}';
+        }
+
         // Hata mesajı göster
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Outlook bağlantısı kesilemedi: ${e.toString()}'),
+            content: Text(errorMessage),
             backgroundColor: Colors.red,
           ),
         );

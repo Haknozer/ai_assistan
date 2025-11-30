@@ -190,19 +190,39 @@ class EmailAccountRepository {
   }
 
   /// Email hesabı bağlantısını kes
+  /// API çağrısı başarısız olsa bile local database'den siler
   Future<void> disconnectEmailAccount(int accountId, {String? accessToken}) async {
-    try {
-      await _apiClient.delete(
-        ApiEndpoints.disconnectEmailAccount(accountId),
-        accessToken: accessToken,
-      );
+    // Önce local database'den sil (backend yoksa bile çalışsın)
+    final db = await _databaseService.database;
 
-      // Cache'den sil
-      final db = await _databaseService.database;
+    try {
+      // API'ye DELETE isteği gönder (backend varsa)
+      try {
+        await _apiClient.delete(
+          ApiEndpoints.disconnectEmailAccount(accountId),
+          accessToken: accessToken,
+        );
+      } on ApiException catch (e) {
+        // API hatası olsa bile devam et (backend yoksa normal)
+        // Sadece network hatalarını sessizce logla
+        if (e.message.contains('Failed host lookup') ||
+            e.message.contains('Network error') ||
+            e.message.contains('api.example.com')) {
+          debugPrint('API disconnect hatası (backend yok olabilir): ${e.message}');
+        } else {
+          // Diğer API hatalarını logla ama devam et
+          debugPrint('API disconnect hatası: ${e.message}');
+        }
+      } catch (e) {
+        // Beklenmeyen hatalar için de devam et
+        debugPrint('API disconnect beklenmeyen hatası: ${e.toString()}');
+      }
+
+      // Cache'den sil (her durumda)
       await db.delete('email_accounts', where: 'id = ?', whereArgs: [accountId]);
-    } on ApiException {
-      rethrow;
+      debugPrint('Email account $accountId local database\'den silindi');
     } catch (e) {
+      // Database hatası durumunda hata fırlat
       throw ApiException(
         message: 'Failed to disconnect email account: ${e.toString()}',
         originalError: e,

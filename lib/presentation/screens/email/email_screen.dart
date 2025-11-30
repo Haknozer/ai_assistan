@@ -113,31 +113,13 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                 account.accessToken!.isNotEmpty)
             .toList();
 
-        // Hiç aktif account yoksa hata göster
+        // Hiç aktif account yoksa boş liste ile standart e-posta sayfasını göster
         if (activeAccounts.isEmpty) {
-          return Scaffold(
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.email_outlined, size: 48, color: Colors.grey),
-                  const SizedBox(height: 16),
-                  const Text('E-posta hesabı bağlı değil'),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Lütfen ayarlardan Gmail veya Outlook hesabınızı bağlayın',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => Navigator.pushNamed(context, '/settings'),
-                    child: const Text('Ayarlara Git'),
-                  ),
-                ],
-              ),
-            ),
+          return _buildEmptyAccountEmailView(
+            context,
+            currentUser,
+            padding,
+            isDesktop,
           );
         }
 
@@ -154,24 +136,55 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: const Center(child: CircularProgressIndicator()),
       ),
-      error: (error, stack) => Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 48, color: Colors.red),
-              const SizedBox(height: 16),
-              const Text('Email hesabı yüklenirken hata oluştu'),
-              const SizedBox(height: 8),
-              Text(
-                error.toString(),
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
+      error: (error, stack) {
+        // Hata olsa bile boş liste ile standart e-posta sayfasını göster
+        return _buildEmptyAccountEmailView(
+          context,
+          currentUser,
+          padding,
+          isDesktop,
+        );
+      },
+    );
+  }
+
+  /// Boş account durumu için standart e-posta sayfasını göster
+  Widget _buildEmptyAccountEmailView(
+    BuildContext context,
+    dynamic currentUser,
+    EdgeInsets padding,
+    bool isDesktop,
+  ) {
+    // Boş email listesi ve dummy account oluştur
+    final emptyEmails = <Email>[];
+    final dummyAccount = EmailAccount(
+      userId: currentUser.id ?? 0,
+      emailAddress: '',
+      provider: EmailProvider.gmail,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+    final emptyAccountProviders = <int, EmailProvider>{};
+
+    // Dummy email params ve notifier oluştur (işlemler için)
+    final dummyEmailParams = EmailListParams(
+      accountId: null,
+      folder: _selectedFolder,
+      accessToken: null,
+    );
+    final dummyEmailNotifier = ref.read(emailNotifierProvider(dummyEmailParams).notifier);
+
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: _buildResponsiveLayout(
+        currentUser,
+        emptyEmails,
+        dummyEmailNotifier,
+        dummyEmailParams,
+        padding,
+        isDesktop,
+        dummyAccount,
+        emptyAccountProviders,
       ),
     );
   }
