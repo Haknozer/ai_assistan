@@ -110,11 +110,19 @@ class GoogleCalendarOAuthService {
     const port = 8080;
 
     // OAuth URL oluştur
+    // Scope'lara email ve profile ekliyoruz (user info için gerekli)
+    final scopes = [
+      'email',
+      'profile',
+      'https://www.googleapis.com/auth/calendar',
+      'https://www.googleapis.com/auth/calendar.events',
+    ].join(' ');
+    
     final authUrl = Uri.parse('https://accounts.google.com/o/oauth2/v2/auth').replace(queryParameters: {
       'client_id': _clientId!,
       'redirect_uri': redirectUri,
       'response_type': 'code',
-      'scope': 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events',
+      'scope': scopes,
       'access_type': 'offline',
       'prompt': 'consent',
     });
@@ -243,16 +251,38 @@ class GoogleCalendarOAuthService {
   Future<Map<String, dynamic>> _getUserInfo(String accessToken) async {
     final userInfoUrl = Uri.parse('https://www.googleapis.com/oauth2/v2/userinfo');
 
-    final response = await http.get(
-      userInfoUrl,
-      headers: {'Authorization': 'Bearer $accessToken'},
-    );
+    try {
+      final response = await http.get(
+        userInfoUrl,
+        headers: {'Authorization': 'Bearer $accessToken'},
+      );
 
-    if (response.statusCode != 200) {
-      throw ApiException(message: 'Kullanıcı bilgileri alınamadı: ${response.body}');
+      if (response.statusCode != 200) {
+        final errorBody = response.body;
+        String errorMessage = 'Kullanıcı bilgileri alınamadı: $errorBody';
+        
+        if (response.statusCode == 401) {
+          errorMessage = 'Access token geçersiz veya süresi dolmuş. Lütfen tekrar bağlanmayı deneyin.';
+        } else if (response.statusCode == 403) {
+          errorMessage = 'Email ve profile scope\'ları eksik. Lütfen OAuth consent screen\'de bu scope\'ları ekleyin.';
+        }
+        
+        debugPrint('User info hatası (${response.statusCode}): $errorBody');
+        throw ApiException(message: errorMessage);
+      }
+
+      final userInfo = json.decode(response.body) as Map<String, dynamic>;
+      debugPrint('User info başarılı: ${userInfo['email'] ?? 'email yok'}');
+      return userInfo;
+    } catch (e) {
+      if (e is ApiException) {
+        rethrow;
+      }
+      throw ApiException(
+        message: 'Kullanıcı bilgileri alınırken hata oluştu: ${e.toString()}',
+        originalError: e,
+      );
     }
-
-    return json.decode(response.body) as Map<String, dynamic>;
   }
 
   /// Google Calendar bağlantısını kes

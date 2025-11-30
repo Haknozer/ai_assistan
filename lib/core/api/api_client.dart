@@ -218,8 +218,22 @@ class ApiClient {
     // Status code'a göre exception fırlat
     switch (statusCode) {
       case 400:
+        // Google Calendar API için daha detaylı hata mesajı
+        String detailedMessage = errorMessage;
+        try {
+          final errorJson = jsonDecode(response.body) as Map<String, dynamic>;
+          final errorDetails = errorJson['error'] as Map<String, dynamic>?;
+          if (errorDetails != null) {
+            final errorMessageDetail = errorDetails['message'] as String?;
+            if (errorMessageDetail != null) {
+              detailedMessage = errorMessageDetail;
+            }
+          }
+        } catch (e) {
+          // JSON parse hatası, mevcut mesajı kullan
+        }
         throw ValidationException(
-          message: errorMessage,
+          message: 'Bad Request: $detailedMessage',
           errors: errorData,
           originalError: response.body,
         );

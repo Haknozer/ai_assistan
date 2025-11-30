@@ -129,9 +129,14 @@ class _AddEventDialogState extends State<AddEventDialog> {
       _endTime!.minute,
     );
 
+    // End time start time'dan önce olamaz
+    final finalEndTime = endDateTime.isBefore(startDateTime) 
+        ? startDateTime.add(const Duration(hours: 1))
+        : endDateTime;
+
     final newEvent = CalendarEvent(
-      id: DateTime.now().millisecondsSinceEpoch,
-      userId: 1,
+      id: null, // Google Calendar'a eklenecek, ID oradan gelecek
+      userId: 0, // Calendar screen'den geçirilecek
       title: _titleController.text.trim(),
       description: _descriptionController.text.trim().isEmpty
           ? null
@@ -140,7 +145,7 @@ class _AddEventDialogState extends State<AddEventDialog> {
           ? null
           : _locationController.text.trim(),
       startTime: startDateTime,
-      endTime: endDateTime,
+      endTime: finalEndTime,
       eventType: _selectedType,
       source: EventSource.manual,
       createdAt: DateTime.now(),

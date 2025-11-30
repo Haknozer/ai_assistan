@@ -9,7 +9,7 @@ import 'dart:convert';
 class DatabaseService {
   static Database? _database;
   static const String _databaseName = 'ai_assistant.db';
-  static const int _databaseVersion = 2;
+  static const int _databaseVersion = 3;
 
   // Singleton pattern
   DatabaseService._privateConstructor();
@@ -88,6 +88,26 @@ class DatabaseService {
     // Email accounts tablosu
     await db.execute('''
       CREATE TABLE email_accounts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        email_address TEXT UNIQUE NOT NULL,
+        provider TEXT NOT NULL,
+        display_name TEXT,
+        is_active INTEGER DEFAULT 1,
+        last_sync TEXT,
+        sync_enabled INTEGER DEFAULT 1,
+        access_token TEXT,
+        refresh_token TEXT,
+        token_expires TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+      )
+    ''');
+
+    // Calendar accounts tablosu
+    await db.execute('''
+      CREATE TABLE calendar_accounts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         email_address TEXT UNIQUE NOT NULL,
@@ -363,6 +383,36 @@ class DatabaseService {
         debugPrint('Error creating user_settings table: $e');
       }
     }
+
+    // Version 2'den 3'e geçiş: calendar_accounts tablosunu ekle
+    if (oldVersion < 3) {
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS calendar_accounts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            email_address TEXT UNIQUE NOT NULL,
+            provider TEXT NOT NULL,
+            display_name TEXT,
+            is_active INTEGER DEFAULT 1,
+            last_sync TEXT,
+            sync_enabled INTEGER DEFAULT 1,
+            access_token TEXT,
+            refresh_token TEXT,
+            token_expires TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+          )
+        ''');
+
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_calendar_accounts_user_id ON calendar_accounts(user_id)');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_calendar_accounts_provider ON calendar_accounts(provider)');
+        debugPrint('✅ calendar_accounts tablosu oluşturuldu');
+      } catch (e) {
+        debugPrint('Error creating calendar_accounts table: $e');
+      }
+    }
   }
 
   // Şifreleme için basit hash fonksiyonu
@@ -391,6 +441,7 @@ class DatabaseService {
       await txn.delete('calendar_events');
       await txn.delete('tasks');
       await txn.delete('email_accounts');
+      await txn.delete('calendar_accounts');
       await txn.delete('users');
     });
   }

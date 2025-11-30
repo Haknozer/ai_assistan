@@ -6,7 +6,10 @@ import '../../../utils/responsive_utils.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../widgets/layout/side_menu.dart';
 import '../../../providers/user_provider.dart';
-import 'data/mock_events.dart';
+import '../../../providers/calendar_account_provider.dart';
+import '../../../features/calendar/providers/calendar_provider.dart';
+import '../../../models/calendar_account.dart';
+import '../../../core/api/api_exceptions.dart';
 import '../../widgets/calendar/calendar_page_header.dart';
 import '../../widgets/calendar/month_selector.dart';
 import '../../widgets/calendar/calendar_grid.dart';
@@ -27,20 +30,23 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   DateTime _currentMonth = DateTime(DateTime.now().year, DateTime.now().month, 1);
   DateTime? _selectedDay;
 
-  late List<CalendarEvent> _events;
-
   @override
   void initState() {
     super.initState();
-    _events = List.from(MockEvents.events);
   }
 
   /// Seçili gün veya ay etkinliklerini döndürür
-  List<CalendarEvent> get _displayedEvents {
+  List<CalendarEvent> _getDisplayedEvents(List<CalendarEvent> allEvents) {
     if (_selectedDay != null) {
-      return MockEvents.getEventsForDay(_events, _selectedDay!);
+      return allEvents.where((event) {
+        final eventDate = DateTime(event.startTime.year, event.startTime.month, event.startTime.day);
+        final selectedDate = DateTime(_selectedDay!.year, _selectedDay!.month, _selectedDay!.day);
+        return eventDate == selectedDate;
+      }).toList();
     }
-    return MockEvents.getEventsForMonth(_events, _currentMonth);
+    return allEvents.where((event) {
+      return event.startTime.year == _currentMonth.year && event.startTime.month == _currentMonth.month;
+    }).toList();
   }
 
   String get _eventsListTitle {
@@ -62,22 +68,66 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       );
     }
 
+    // Calendar account'ları kontrol et
+    final calendarAccountsAsync = ref.watch(calendarAccountsProvider(CalendarAccountsParams(
+      userId: currentUser.id,
+    )));
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: _buildResponsiveLayout(currentUser, padding, isDesktop),
+      body: calendarAccountsAsync.when(
+        data: (accounts) {
+          CalendarAccount? googleAccount;
+          try {
+            googleAccount = accounts.firstWhere(
+              (account) => account.provider == CalendarProvider.google && account.isActive,
+            );
+          } catch (e) {
+            googleAccount = null;
+          }
+
+          return _buildResponsiveLayout(
+            currentUser,
+            padding,
+            isDesktop,
+            googleAccount: googleAccount,
+          );
+        },
+        loading: () => const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
+        error: (error, stack) {
+          // Hata olsa bile ekranı göster (sadece local event'lerle)
+          return _buildResponsiveLayout(
+            currentUser,
+            padding,
+            isDesktop,
+            googleAccount: null,
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildResponsiveLayout(dynamic currentUser, EdgeInsets padding, bool isDesktop) {
+  Widget _buildResponsiveLayout(
+    dynamic currentUser,
+    EdgeInsets padding,
+    bool isDesktop, {
+    CalendarAccount? googleAccount,
+  }) {
     if (isDesktop) {
-      return _buildDesktopLayout(currentUser, padding);
+      return _buildDesktopLayout(currentUser, padding, googleAccount: googleAccount);
     } else {
-      return _buildMobileLayout(currentUser, padding);
+      return _buildMobileLayout(currentUser, padding, googleAccount: googleAccount);
     }
   }
 
   /// Desktop Layout - Sol menü + içerik
-  Widget _buildDesktopLayout(dynamic currentUser, EdgeInsets padding) {
+  Widget _buildDesktopLayout(
+    dynamic currentUser,
+    EdgeInsets padding, {
+    CalendarAccount? googleAccount,
+  }) {
     return Row(
       children: [
         // Sol Menü
@@ -110,7 +160,11 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
                   // Takvim Görünümü
                   Expanded(
-                    child: _buildCalendarView(isDesktop: true),
+                    child: _buildCalendarView(
+                      isDesktop: true,
+                      googleAccount: googleAccount,
+                      currentUser: currentUser,
+                    ),
                   ),
                 ],
               ),
@@ -122,7 +176,11 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   }
 
   /// Mobile Layout - AppBar + Drawer + içerik
-  Widget _buildMobileLayout(dynamic currentUser, EdgeInsets padding) {
+  Widget _buildMobileLayout(
+    dynamic currentUser,
+    EdgeInsets padding, {
+    CalendarAccount? googleAccount,
+  }) {
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -149,7 +207,11 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             Expanded(
               child: Padding(
                 padding: padding.copyWith(top: 16),
-                child: _buildCalendarView(isDesktop: false),
+                child: _buildCalendarView(
+                  isDesktop: false,
+                  googleAccount: googleAccount,
+                  currentUser: currentUser,
+                ),
               ),
             ),
           ],
@@ -174,72 +236,265 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     );
   }
 
-  Widget _buildCalendarView({required bool isDesktop}) {
-    return Column(
-      children: [
-        // Ay ve Yıl Seçimi
-        MonthSelector(
-          currentMonth: _currentMonth,
-          onPreviousMonth: _goToPreviousMonth,
-          onNextMonth: _goToNextMonth,
-          onTodayTap: _goToToday,
-        ),
-        const SizedBox(height: 20),
+  Widget _buildCalendarView({
+    required bool isDesktop,
+    CalendarAccount? googleAccount,
+    required dynamic currentUser,
+  }) {
+    // Google Calendar event'lerini çek
+    if (googleAccount != null && googleAccount.accessToken != null && googleAccount.accessToken!.isNotEmpty) {
+      // Google Calendar'dan event'leri çek
+      final timeMin = DateTime(_currentMonth.year, _currentMonth.month, 1);
+      final timeMax = DateTime(_currentMonth.year, _currentMonth.month + 1, 1);
 
-        // Takvim Grid ve Etkinlik Listesi
-        Expanded(
-          child: isDesktop
-              ? Row(
-                  children: [
-                    // Sol Panel - Takvim Grid
-                    Expanded(
-                      flex: 3,
-                      child: CalendarGrid(
-                        currentMonth: _currentMonth,
-                        events: _events,
-                        onDayTap: _onDayTap,
+      final eventParams = EventListParams(
+        calendarId: 'primary',
+        timeMin: timeMin,
+        timeMax: timeMax,
+        accessToken: googleAccount.accessToken,
+        userId: currentUser.id,
+      );
+
+      final eventsAsync = ref.watch(calendarNotifierProvider(eventParams));
+
+      return eventsAsync.when(
+        data: (events) {
+          final displayedEvents = _getDisplayedEvents(events);
+
+          return Column(
+            children: [
+              // Ay ve Yıl Seçimi
+              MonthSelector(
+                currentMonth: _currentMonth,
+                onPreviousMonth: () {
+                  setState(() {
+                    _goToPreviousMonth();
+                  });
+                },
+                onNextMonth: () {
+                  setState(() {
+                    _goToNextMonth();
+                  });
+                },
+                onTodayTap: () {
+                  setState(() {
+                    _goToToday();
+                  });
+                },
+              ),
+              const SizedBox(height: 20),
+
+              // Takvim Grid ve Etkinlik Listesi
+              Expanded(
+                child: isDesktop
+                    ? Row(
+                        children: [
+                          // Sol Panel - Takvim Grid
+                          Expanded(
+                            flex: 3,
+                            child: CalendarGrid(
+                              currentMonth: _currentMonth,
+                              events: events,
+                              onDayTap: _onDayTap,
+                            ),
+                          ),
+                          const SizedBox(width: 20),
+                          // Sağ Panel - Etkinlik Listesi
+                          Expanded(
+                            flex: 2,
+                            child: EventsList(
+                              title: _eventsListTitle,
+                              events: displayedEvents,
+                              onEventTap: (event) {
+                                // TODO: Göster etkinlik detayı
+                              },
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        children: [
+                          // Takvim Grid
+                          Expanded(
+                            child: CalendarGrid(
+                              currentMonth: _currentMonth,
+                              events: events,
+                              onDayTap: _onDayTap,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          // Etkinlik Listesi
+                          Expanded(
+                            child: EventsList(
+                              title: _eventsListTitle,
+                              events: displayedEvents,
+                              onEventTap: (event) {
+                                // TODO: Göster etkinlik detayı
+                              },
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 20),
-                    // Sağ Panel - Etkinlik Listesi
-                    Expanded(
-                      flex: 2,
-                      child: EventsList(
-                        title: _eventsListTitle,
-                        events: _displayedEvents,
-                        onEventTap: (event) {
-                          // TODO: Göster etkinlik detayı
-                        },
-                      ),
-                    ),
-                  ],
-                )
-              : Column(
-                  children: [
-                    // Takvim Grid
-                    Expanded(
-                      child: CalendarGrid(
-                        currentMonth: _currentMonth,
-                        events: _events,
-                        onDayTap: _onDayTap,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // Etkinlik Listesi
-                    Expanded(
-                      child: EventsList(
-                        title: _eventsListTitle,
-                        events: _displayedEvents,
-                        onEventTap: (event) {
-                          // TODO: Göster etkinlik detayı
-                        },
-                      ),
-                    ),
-                  ],
-                ),
+              ),
+            ],
+          );
+        },
+        loading: () => Column(
+          children: [
+            MonthSelector(
+              currentMonth: _currentMonth,
+              onPreviousMonth: () {
+                setState(() {
+                  _goToPreviousMonth();
+                });
+              },
+              onNextMonth: () {
+                setState(() {
+                  _goToNextMonth();
+                });
+              },
+              onTodayTap: () {
+                setState(() {
+                  _goToToday();
+                });
+              },
+            ),
+            const Expanded(
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          ],
         ),
-      ],
-    );
+        error: (error, stack) {
+          // Hata durumunda boş liste göster
+          return Column(
+            children: [
+              MonthSelector(
+                currentMonth: _currentMonth,
+                onPreviousMonth: () {
+                  setState(() {
+                    _goToPreviousMonth();
+                  });
+                },
+                onNextMonth: () {
+                  setState(() {
+                    _goToNextMonth();
+                  });
+                },
+                onTodayTap: () {
+                  setState(() {
+                    _goToToday();
+                  });
+                },
+              ),
+              const SizedBox(height: 20),
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Event\'ler yüklenemedi: ${error.toString()}',
+                        style: const TextStyle(color: Colors.grey),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          // Refresh
+                          final eventParams = EventListParams(
+                            calendarId: 'primary',
+                            timeMin: DateTime(_currentMonth.year, _currentMonth.month, 1),
+                            timeMax: DateTime(_currentMonth.year, _currentMonth.month + 1, 1),
+                            accessToken: googleAccount.accessToken,
+                            userId: currentUser.id,
+                          );
+                          ref.read(calendarNotifierProvider(eventParams).notifier).refresh();
+                        },
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Yeniden Dene'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    } else {
+      // Google Calendar bağlı değil, sadece local event'ler (şimdilik boş)
+      final allEvents = <CalendarEvent>[];
+      final displayedEvents = _getDisplayedEvents(allEvents);
+
+      return Column(
+        children: [
+          MonthSelector(
+            currentMonth: _currentMonth,
+            onPreviousMonth: () {
+              setState(() {
+                _goToPreviousMonth();
+              });
+            },
+            onNextMonth: () {
+              setState(() {
+                _goToNextMonth();
+              });
+            },
+            onTodayTap: () {
+              setState(() {
+                _goToToday();
+              });
+            },
+          ),
+          const SizedBox(height: 20),
+          Expanded(
+            child: isDesktop
+                ? Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: CalendarGrid(
+                          currentMonth: _currentMonth,
+                          events: allEvents,
+                          onDayTap: _onDayTap,
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        flex: 2,
+                        child: EventsList(
+                          title: _eventsListTitle,
+                          events: displayedEvents,
+                          onEventTap: (event) {},
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      Expanded(
+                        child: CalendarGrid(
+                          currentMonth: _currentMonth,
+                          events: allEvents,
+                          onDayTap: _onDayTap,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Expanded(
+                        child: EventsList(
+                          title: _eventsListTitle,
+                          events: displayedEvents,
+                          onEventTap: (event) {},
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ],
+      );
+    }
   }
 
   void _goToPreviousMonth() {
@@ -310,15 +565,107 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   }
 
   void _showAddEventDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AddEventDialog(
-        onEventAdded: (event) {
-          setState(() => _events.add(event));
-          Navigator.pop(context);
-          EventNotificationOverlay.showEventAddedNotification(context, event);
-        },
-      ),
-    );
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null) return;
+
+    // Google Calendar account'u kontrol et
+    final calendarAccountsAsync = ref.read(calendarAccountsProvider(CalendarAccountsParams(
+      userId: currentUser.id,
+    )));
+
+    calendarAccountsAsync.whenData((accounts) {
+      CalendarAccount? googleAccount;
+      try {
+        googleAccount = accounts.firstWhere(
+          (account) => account.provider == CalendarProvider.google && account.isActive,
+        );
+      } catch (e) {
+        googleAccount = null;
+      }
+
+      showDialog(
+        context: context,
+        builder: (dialogContext) => AddEventDialog(
+          onEventAdded: (event) async {
+            // Dialog'u kapat
+            if (dialogContext.mounted) {
+              Navigator.pop(dialogContext);
+            }
+            
+            // Google Calendar'a ekle
+            if (googleAccount != null && googleAccount.accessToken != null && googleAccount.accessToken!.isNotEmpty) {
+              try {
+                final eventParams = EventListParams(
+                  calendarId: 'primary',
+                  accessToken: googleAccount.accessToken,
+                  userId: currentUser.id,
+                );
+                final calendarNotifier = ref.read(calendarNotifierProvider(eventParams).notifier);
+                
+                final createdEvent = await calendarNotifier.createEvent(
+                  title: event.title,
+                  startTime: event.startTime,
+                  endTime: event.endTime,
+                  description: event.description,
+                  location: event.location,
+                  eventType: event.eventType,
+                );
+                
+                if (mounted) {
+                  EventNotificationOverlay.showEventAddedNotification(context, createdEvent);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Event Google Calendar\'a eklendi'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                  
+                  // Event listesini yenile
+                  final refreshParams = EventListParams(
+                    calendarId: 'primary',
+                    timeMin: DateTime(_currentMonth.year, _currentMonth.month, 1),
+                    timeMax: DateTime(_currentMonth.year, _currentMonth.month + 1, 1),
+                    accessToken: googleAccount.accessToken,
+                    userId: currentUser.id,
+                  );
+                  ref.read(calendarNotifierProvider(refreshParams).notifier).refresh();
+                }
+              } catch (e) {
+                if (mounted) {
+                  String errorMessage = 'Event eklenirken hata oluştu';
+                  if (e is ValidationException) {
+                    errorMessage = 'Event oluşturma hatası: ${e.message}';
+                  } else if (e is ApiException) {
+                    errorMessage = 'API hatası: ${e.message}';
+                  } else {
+                    errorMessage = 'Beklenmeyen hata: ${e.toString()}';
+                  }
+                  
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(errorMessage),
+                      backgroundColor: Colors.red,
+                      duration: const Duration(seconds: 5),
+                    ),
+                  );
+                }
+                debugPrint('createEvent hatası: $e');
+              }
+            } else {
+              // Sadece local'e ekle (Google Calendar bağlı değil)
+              if (mounted) {
+                EventNotificationOverlay.showEventAddedNotification(context, event);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Google Calendar bağlı değil. Event sadece local\'e kaydedildi.'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+              }
+            }
+          },
+        ),
+      );
+    });
   }
 }

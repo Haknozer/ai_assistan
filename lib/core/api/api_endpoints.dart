@@ -13,10 +13,26 @@ class ApiEndpoints {
   static String get batchModify => '$gmailApiBaseUrl/users/me/messages/batchModify';
   static String get trashMessage => '$gmailApiBaseUrl/users/me/messages/{messageId}/trash';
   static String get untrashMessage => '$gmailApiBaseUrl/users/me/messages/{messageId}/untrash';
-  
+
   // Labels (folders için)
   static String get labels => '$gmailApiBaseUrl/users/me/labels';
   static String labelById(String labelId) => '$gmailApiBaseUrl/users/me/labels/$labelId';
+
+  // Base URL - Google Calendar API için
+  static const String calendarApiBaseUrl = 'https://www.googleapis.com/calendar/v3';
+
+  // Google Calendar API endpoints
+  static String get calendars => '$calendarApiBaseUrl/users/me/calendarList';
+  static String calendarById(String calendarId) => '$calendarApiBaseUrl/calendars/$calendarId';
+  static String get events => '$calendarApiBaseUrl/calendars/primary/events';
+  static String eventsByCalendar(String calendarId) => '$calendarApiBaseUrl/calendars/$calendarId/events';
+  static String eventById(String calendarId, String eventId) =>
+      '$calendarApiBaseUrl/calendars/$calendarId/events/$eventId';
+  static String createEvent(String calendarId) => '$calendarApiBaseUrl/calendars/$calendarId/events';
+  static String updateEvent(String calendarId, String eventId) =>
+      '$calendarApiBaseUrl/calendars/$calendarId/events/$eventId';
+  static String deleteEvent(String calendarId, String eventId) =>
+      '$calendarApiBaseUrl/calendars/$calendarId/events/$eventId';
 
   // Base URL - Microsoft Graph API için
   static const String graphApiBaseUrl = 'https://graph.microsoft.com/v1.0';

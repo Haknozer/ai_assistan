@@ -8,7 +8,7 @@ class SettingsData {
           {'name': 'Yahoo Mail', 'connected': false},
         ],
         'Takvim Entegrasyonları': [
-          {'name': 'Google Calendar', 'connected': true},
+          {'name': 'Google Calendar', 'connected': false},
           {'name': 'Outlook Calendar', 'connected': false},
         ],
         'İletişim': [

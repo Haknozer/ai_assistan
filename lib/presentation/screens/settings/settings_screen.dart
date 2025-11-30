@@ -10,9 +10,12 @@ import '../../widgets/settings/appearance_card.dart';
 import '../../widgets/settings/privacy_card.dart';
 import '../../../providers/user_provider.dart';
 import '../../../providers/email_account_provider.dart';
+import '../../../providers/calendar_account_provider.dart';
 import '../../../services/gmail_oauth_service.dart';
 import '../../../services/outlook_oauth_service.dart';
+import '../../../services/google_calendar_oauth_service.dart';
 import '../../../models/email_account.dart';
+import '../../../models/calendar_account.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/api/api_exceptions.dart';
 import '../../../utils/responsive_utils.dart';
@@ -187,11 +190,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       error: (_, __) => false,
     );
 
+    // Calendar account'ları kontrol et
+    final calendarAccountsAsync = ref.watch(calendarAccountsProvider(CalendarAccountsParams(
+      userId: currentUser?.id,
+    )));
+
+    final isGoogleCalendarConnected = calendarAccountsAsync.when(
+      data: (accounts) => accounts.any((account) => account.provider == CalendarProvider.google),
+      loading: () => false,
+      error: (_, __) => false,
+    );
+
     // Entegrasyon verilerini güncelle
     final integrationsData = Map<String, List<Map<String, dynamic>>>.from(SettingsData.integrations);
     integrationsData['E-posta Entegrasyonları'] = [
       {'name': 'Gmail', 'connected': isGmailConnected},
       {'name': 'Outlook', 'connected': isOutlookConnected},
+    ];
+    integrationsData['Takvim Entegrasyonları'] = [
+      {'name': 'Google Calendar', 'connected': isGoogleCalendarConnected},
+      {'name': 'Outlook Calendar', 'connected': false},
     ];
 
     return SingleChildScrollView(
@@ -335,6 +353,45 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       } else {
         // Outlook bağlı değilse, bağlan
         await _connectOutlook();
+      }
+      return;
+    }
+
+    if (integrationName == 'Google Calendar') {
+      if (isConnected) {
+        // Google Calendar bağlıysa, bağlantıyı kes veya yeniden bağla seçenekleri sun
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Google Calendar Bağlantısı'),
+            content: const Text(
+              'Google Calendar hesabınız zaten bağlı. Ne yapmak istersiniz?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('İptal'),
+              ),
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _disconnectGoogleCalendar();
+                },
+                child: const Text('Bağlantıyı Kes'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _connectGoogleCalendar();
+                },
+                child: const Text('Yeniden Bağlan'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        // Google Calendar bağlı değilse, bağlan
+        await _connectGoogleCalendar();
       }
       return;
     }
@@ -761,6 +818,164 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SnackBar(content: Text('Komut Paleti geliştiriliyor...')),
         );
         break;
+    }
+  }
+
+  Future<void> _disconnectGoogleCalendar() async {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null || currentUser.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Önce giriş yapmalısınız')),
+      );
+      return;
+    }
+
+    // Calendar account'ları al
+    final calendarAccountsAsync = ref.read(calendarAccountsProvider(CalendarAccountsParams(
+      userId: currentUser.id,
+    )));
+
+    final accounts = await calendarAccountsAsync.value ?? [];
+    final googleCalendarAccount = accounts.firstWhere(
+      (account) => account.provider == CalendarProvider.google,
+      orElse: () => throw Exception('Google Calendar hesabı bulunamadı'),
+    );
+
+    // Loading dialog göster
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      final calendarAccountRepo = ref.read(calendarAccountRepositoryProvider);
+      await calendarAccountRepo.disconnectCalendarAccount(googleCalendarAccount.id!);
+
+      // Dialog'u kapat
+      if (mounted) {
+        Navigator.pop(context);
+
+        // Başarı mesajı göster
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Google Calendar bağlantısı kesildi'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+
+        // Listeyi yenile
+        ref.invalidate(calendarAccountsProvider(CalendarAccountsParams(
+          userId: currentUser.id,
+        )));
+      }
+    } catch (e) {
+      // Dialog'u kapat
+      if (mounted) {
+        Navigator.pop(context);
+
+        // Hata mesajı göster
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Google Calendar bağlantısı kesilemedi: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _connectGoogleCalendar() async {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null || currentUser.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Önce giriş yapmalısınız')),
+      );
+      return;
+    }
+
+    // Loading dialog göster
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      // Debug: Client ID ve Secret kontrolü
+      debugPrint('Client ID: ${AppConfig.googleClientId}');
+      debugPrint('Client Secret: ${AppConfig.googleClientSecret.isNotEmpty ? "***GİZLİ***" : "BOŞ"}');
+
+      // Google Calendar OAuth servisi
+      final calendarOAuth = GoogleCalendarOAuthService(
+        clientId: AppConfig.googleClientId.isNotEmpty ? AppConfig.googleClientId : null,
+        clientSecret: AppConfig.googleClientSecret.isNotEmpty ? AppConfig.googleClientSecret : null,
+      );
+      final authResult = await calendarOAuth.connectCalendar();
+
+      // Calendar account repository
+      final calendarAccountRepo = ref.read(calendarAccountRepositoryProvider);
+
+      // Calendar account oluştur ve kaydet
+      await calendarAccountRepo.connectCalendarAccount(
+        userId: currentUser.id!,
+        emailAddress: authResult.email,
+        provider: CalendarProvider.google,
+        accessToken: authResult.accessToken,
+        refreshToken: authResult.refreshToken,
+        displayName: authResult.displayName,
+      );
+
+      // Dialog'u kapat
+      if (mounted) {
+        Navigator.pop(context); // Loading dialog
+
+        // Başarı mesajı göster
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Google Calendar başarıyla bağlandı: ${authResult.email}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Listeyi yenile (state güncellemesi için)
+        ref.invalidate(calendarAccountsProvider(CalendarAccountsParams(
+          userId: currentUser.id,
+        )));
+      }
+    } catch (e) {
+      // Dialog'u kapat
+      if (mounted) {
+        Navigator.pop(context); // Loading dialog
+
+        // Hata mesajını daha kullanıcı dostu hale getir
+        String errorMessage = 'Google Calendar bağlantısı başarısız';
+        if (e is ApiException) {
+          errorMessage = e.message;
+        } else {
+          final errorStr = e.toString();
+          if (errorStr.contains('invalid_client')) {
+            errorMessage = 'Client ID veya Client Secret yanlış. Lütfen Google Cloud Console\'daki değerleri kontrol edin.';
+          } else if (errorStr.contains('timeout')) {
+            errorMessage = 'Bağlantı zaman aşımına uğradı. Lütfen tekrar deneyin.';
+          } else {
+            errorMessage = 'Google Calendar bağlantısı başarısız: ${e.toString()}';
+          }
+        }
+
+        // Hata mesajı göster
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
     }
   }
 
