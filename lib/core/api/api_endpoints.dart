@@ -18,6 +18,18 @@ class ApiEndpoints {
   static String get labels => '$gmailApiBaseUrl/users/me/labels';
   static String labelById(String labelId) => '$gmailApiBaseUrl/users/me/labels/$labelId';
 
+  // Base URL - Microsoft Graph API için
+  static const String graphApiBaseUrl = 'https://graph.microsoft.com/v1.0';
+
+  // Microsoft Graph API endpoints - Outlook için
+  static String get graphMessages => '$graphApiBaseUrl/me/messages';
+  static String graphMessageById(String messageId) => '$graphApiBaseUrl/me/messages/$messageId';
+  static String get graphSendMessage => '$graphApiBaseUrl/me/sendMail';
+  static String graphMessageUpdate(String messageId) => '$graphApiBaseUrl/me/messages/$messageId';
+  static String get graphMailFolders => '$graphApiBaseUrl/me/mailFolders';
+  static String graphMailFolderById(String folderId) => '$graphApiBaseUrl/me/mailFolders/$folderId';
+  static String graphMailFolderMessages(String folderId) => '$graphApiBaseUrl/me/mailFolders/$folderId/messages';
+
   // Legacy endpoints (eski backend API için - şimdilik kullanılmıyor)
   static String get baseUrl => AppConfig.apiBaseUrl;
   static const String emails = '/api/v1/emails';

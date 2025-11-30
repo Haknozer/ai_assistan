@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../models/email.dart';
+import '../../../models/email_account.dart';
 import '../../../core/theme/app_colors.dart';
 
 /// E-posta listesi widget'ı
@@ -10,6 +11,8 @@ class EmailList extends StatelessWidget {
   final Function(int) onEmailSelected;
   final Function(Email) onDeleteEmail;
   final Function(Email) onMarkAsImportant;
+  final EmailProvider? provider; // Platform bilgisi (fallback)
+  final Map<int, EmailProvider> accountProviders; // Account ID -> Provider mapping
 
   const EmailList({
     super.key,
@@ -18,6 +21,8 @@ class EmailList extends StatelessWidget {
     required this.onEmailSelected,
     required this.onDeleteEmail,
     required this.onMarkAsImportant,
+    this.provider,
+    this.accountProviders = const {},
   });
 
   @override
@@ -49,12 +54,21 @@ class EmailList extends StatelessWidget {
           final email = emails[index];
           final isSelected = selectedIndex == index;
 
+          // Email'in accountId'sine göre provider'ı bul
+          EmailProvider? emailProvider;
+          if (accountProviders.containsKey(email.accountId)) {
+            emailProvider = accountProviders[email.accountId];
+          }
+          // Fallback olarak genel provider'ı kullan
+          emailProvider ??= provider;
+
           return EmailListItem(
             email: email,
             isSelected: isSelected,
             onTap: () => onEmailSelected(index),
             onDelete: () => onDeleteEmail(email),
             onToggleImportant: () => onMarkAsImportant(email),
+            provider: emailProvider,
           );
         },
       ),
@@ -108,6 +122,7 @@ class EmailListItem extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onDelete;
   final VoidCallback onToggleImportant;
+  final EmailProvider? provider; // Platform bilgisi
 
   const EmailListItem({
     super.key,
@@ -116,6 +131,7 @@ class EmailListItem extends StatelessWidget {
     required this.onTap,
     required this.onDelete,
     required this.onToggleImportant,
+    this.provider,
   });
 
   String _formatDate(DateTime date) {
@@ -268,6 +284,35 @@ class EmailListItem extends StatelessWidget {
                           color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
                         ),
                       const Spacer(),
+                      // Platform badge (Gmail/Outlook)
+                      if (provider != null) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _getProviderColor(provider!).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _getProviderIcon(provider!),
+                                size: 12,
+                                color: _getProviderColor(provider!),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                provider!.displayName,
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: _getProviderColor(provider!),
+                                      fontSize: 10,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
                       // Durum badge
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -329,6 +374,28 @@ class EmailListItem extends StatelessWidget {
         return 'Taslak';
       default:
         return '';
+    }
+  }
+
+  Color _getProviderColor(EmailProvider provider) {
+    switch (provider) {
+      case EmailProvider.gmail:
+        return Colors.red;
+      case EmailProvider.outlook:
+        return Colors.blue;
+      case EmailProvider.yahoo:
+        return Colors.purple;
+    }
+  }
+
+  IconData _getProviderIcon(EmailProvider provider) {
+    switch (provider) {
+      case EmailProvider.gmail:
+        return Icons.mail;
+      case EmailProvider.outlook:
+        return Icons.email;
+      case EmailProvider.yahoo:
+        return Icons.mark_email_read;
     }
   }
 }

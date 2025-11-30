@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:ai_asisstan/models/email.dart';
 import 'package:ai_asisstan/core/api/api_exceptions.dart';
 import 'package:ai_asisstan/models/email_account.dart';
@@ -29,12 +30,34 @@ class EmailRepository {
     String? accessToken,
   }) async {
     try {
+      // Provider bilgisini al
+      EmailProvider? provider;
+      if (accountId != null) {
+        try {
+          final db = await _databaseService.database;
+          final accountMaps = await db.query(
+            'email_accounts',
+            where: 'id = ?',
+            whereArgs: [accountId],
+            limit: 1,
+          );
+          if (accountMaps.isNotEmpty) {
+            final account = EmailAccount.fromDatabase(accountMaps.first);
+            provider = account.provider;
+          }
+        } catch (e) {
+          // Provider alınamazsa default Gmail kullanılır
+          debugPrint('Provider bilgisi alınamadı: $e');
+        }
+      }
+
       return await _remoteDataSource.getEmails(
         accountId: accountId,
         folder: folder,
         limit: limit,
         offset: offset,
         accessToken: accessToken,
+        provider: provider,
       );
     } on UnauthorizedException catch (e) {
       // 401 hatası - token expire olmuş, yenilemeyi dene

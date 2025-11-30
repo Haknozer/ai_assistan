@@ -4,26 +4,61 @@ import 'package:ai_asisstan/core/api/api_client.dart';
 import 'package:ai_asisstan/core/api/api_endpoints.dart';
 import 'package:ai_asisstan/core/api/api_exceptions.dart';
 import 'package:ai_asisstan/models/email.dart';
+import 'package:ai_asisstan/models/email_account.dart';
 
-/// Email remote data source - Gmail API çağrılarını yönetir
+/// Email remote data source - Gmail ve Outlook API çağrılarını yönetir
 class EmailRemoteDataSource {
   final ApiClient _apiClient;
 
   EmailRemoteDataSource({ApiClient? apiClient}) : _apiClient = apiClient ?? ApiClient();
 
-  /// Email listesini Gmail API'den çekme
+  /// Email listesini API'den çekme (Gmail veya Outlook)
   Future<List<Email>> getEmails({
     int? accountId,
     String? folder,
     int? limit,
     int? offset,
     String? accessToken,
-    int? userId, // Email account'tan alınacak
+    int? userId,
+    EmailProvider? provider, // Gmail veya Outlook
   }) async {
     if (accessToken == null || accessToken.isEmpty) {
-      throw ApiException(message: 'Access token required for Gmail API');
+      throw ApiException(message: 'Access token required');
     }
 
+    // Provider'a göre Gmail veya Outlook API kullan
+    final emailProvider = provider ?? EmailProvider.gmail; // Default Gmail
+
+    if (emailProvider == EmailProvider.outlook) {
+      return await _getEmailsFromOutlook(
+        accountId: accountId,
+        folder: folder,
+        limit: limit,
+        offset: offset,
+        accessToken: accessToken,
+        userId: userId,
+      );
+    } else {
+      return await _getEmailsFromGmail(
+        accountId: accountId,
+        folder: folder,
+        limit: limit,
+        offset: offset,
+        accessToken: accessToken,
+        userId: userId,
+      );
+    }
+  }
+
+  /// Gmail API'den email listesi çekme
+  Future<List<Email>> _getEmailsFromGmail({
+    int? accountId,
+    String? folder,
+    int? limit,
+    int? offset,
+    String? accessToken,
+    int? userId,
+  }) async {
     try {
       // Gmail API query parametreleri
       final queryParams = <String, dynamic>{
@@ -74,14 +109,21 @@ class EmailRemoteDataSource {
 
       // Her message için detaylı bilgi çek (batch olarak)
       final emails = <Email>[];
+      if (accessToken == null || accessToken.isEmpty) {
+        return [];
+      }
       for (final messageItem in messagesList.take(limit ?? 50)) {
         try {
-          final messageId = messageItem['id'] as String;
+          final messageIdValue = messageItem['id'];
+          if (messageIdValue == null) continue;
+          final String messageId = messageIdValue.toString();
+          if (messageId.isEmpty) continue;
           final email = await _getEmailDetails(
             messageId,
             accessToken: accessToken,
             userId: userId,
             accountId: accountId,
+            provider: EmailProvider.gmail,
           );
           if (email != null) {
             emails.add(email);
@@ -103,12 +145,216 @@ class EmailRemoteDataSource {
     }
   }
 
+  /// Outlook (Microsoft Graph API) email listesi çekme
+  Future<List<Email>> _getEmailsFromOutlook({
+    int? accountId,
+    String? folder,
+    int? limit,
+    int? offset,
+    String? accessToken,
+    int? userId,
+  }) async {
+    try {
+      // Microsoft Graph API query parametreleri
+      final queryParams = <String, dynamic>{
+        '\$top': limit ?? 50,
+        '\$orderby': 'receivedDateTime desc',
+        '\$select':
+            'id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,sentDateTime,isRead,importance,bodyPreview,body,hasAttachments',
+      };
+
+      String endpoint;
+      // Folder'a göre endpoint belirle
+      if (folder != null && folder.toLowerCase() != 'inbox') {
+        // Belirli bir folder için mailFolders kullan
+        final folderId = _getOutlookFolderId(folder);
+        if (folderId != null) {
+          endpoint = ApiEndpoints.graphMailFolderMessages(folderId);
+        } else {
+          // Folder ID bulunamazsa inbox kullan
+          endpoint = ApiEndpoints.graphMessages;
+          queryParams['\$filter'] = "parentFolderId eq 'inbox'";
+        }
+      } else {
+        // Inbox için direkt messages endpoint
+        endpoint = ApiEndpoints.graphMessages;
+      }
+
+      // Microsoft Graph API'den message listesini çek
+      final response = await _apiClient.get(
+        endpoint,
+        queryParameters: queryParams,
+        accessToken: accessToken,
+      );
+
+      // Microsoft Graph API response formatı: { "value": [{ "id": "...", "subject": "...", ... }] }
+      final messagesList = response['value'] as List<dynamic>? ?? [];
+
+      if (messagesList.isEmpty) {
+        return [];
+      }
+
+      // Her message'ı Email modeline çevir
+      final emails = <Email>[];
+      for (final messageItem in messagesList.take(limit ?? 50)) {
+        try {
+          final email = _parseOutlookMessage(messageItem, userId: userId, accountId: accountId, folder: folder);
+          if (email != null) {
+            emails.add(email);
+          }
+        } catch (e) {
+          debugPrint('Outlook message parse hatası: $e');
+          continue;
+        }
+      }
+
+      return emails;
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException(
+        message: 'Failed to fetch emails from Outlook API: ${e.toString()}',
+        originalError: e,
+      );
+    }
+  }
+
+  /// Outlook folder ID'sini folder adından bul
+  String? _getOutlookFolderId(String folder) {
+    switch (folder.toLowerCase()) {
+      case 'inbox':
+        return 'inbox';
+      case 'sent':
+        return 'sentitems';
+      case 'drafts':
+        return 'drafts';
+      case 'junk':
+      case 'spam':
+        return 'junkemail';
+      case 'trash':
+      case 'deleted':
+        return 'deleteditems';
+      default:
+        return null;
+    }
+  }
+
+  /// Outlook message'ı Email modeline çevir
+  Email? _parseOutlookMessage(
+    Map<String, dynamic> messageData, {
+    int? userId,
+    int? accountId,
+    String? folder,
+  }) {
+    try {
+      final messageId = messageData['id'] as String?;
+      if (messageId == null) return null;
+
+      final subject = messageData['subject'] as String? ?? '';
+      final from = messageData['from'] as Map<String, dynamic>?;
+      final fromEmail = from?['emailAddress']?['address'] as String? ?? '';
+      final fromName = from?['emailAddress']?['name'] as String? ?? '';
+
+      final toRecipients = messageData['toRecipients'] as List<dynamic>? ?? [];
+      final toEmails = toRecipients
+          .map((r) => (r as Map<String, dynamic>)['emailAddress']?['address'] as String? ?? '')
+          .where((e) => e.isNotEmpty)
+          .toList();
+
+      final ccRecipients = messageData['ccRecipients'] as List<dynamic>? ?? [];
+      final ccEmails = ccRecipients
+          .map((r) => (r as Map<String, dynamic>)['emailAddress']?['address'] as String? ?? '')
+          .where((e) => e.isNotEmpty)
+          .toList();
+
+      final bccRecipients = messageData['bccRecipients'] as List<dynamic>? ?? [];
+      final bccEmails = bccRecipients
+          .map((r) => (r as Map<String, dynamic>)['emailAddress']?['address'] as String? ?? '')
+          .where((e) => e.isNotEmpty)
+          .toList();
+
+      final body = messageData['body'] as Map<String, dynamic>?;
+      final bodyContent = body?['content'] as String? ?? '';
+      final bodyContentType = body?['contentType'] as String? ?? 'text';
+      final plainText = bodyContentType == 'text' ? bodyContent : '';
+      final htmlContent = bodyContentType == 'html' ? bodyContent : '';
+
+      final receivedDateTimeStr = messageData['receivedDateTime'] as String?;
+      final sentDateTimeStr = messageData['sentDateTime'] as String?;
+      final receivedDate =
+          receivedDateTimeStr != null ? DateTime.tryParse(receivedDateTimeStr) ?? DateTime.now() : DateTime.now();
+      final sentDate = sentDateTimeStr != null ? DateTime.tryParse(sentDateTimeStr) ?? receivedDate : receivedDate;
+
+      final isRead = messageData['isRead'] as bool? ?? false;
+      final importanceStr = messageData['importance'] as String? ?? 'normal';
+      EmailImportance importance;
+      switch (importanceStr.toLowerCase()) {
+        case 'high':
+        case 'important':
+          importance = EmailImportance.important;
+          break;
+        case 'low':
+          importance = EmailImportance.normal;
+          break;
+        default:
+          importance = EmailImportance.normal;
+      }
+
+      // Status belirle
+      EmailStatus status;
+      if (folder?.toLowerCase() == 'sent' || folder?.toLowerCase() == 'sentitems') {
+        status = EmailStatus.sent;
+      } else if (folder?.toLowerCase() == 'drafts') {
+        status = EmailStatus.draft;
+      } else if (isRead) {
+        status = EmailStatus.read;
+      } else {
+        status = EmailStatus.unread;
+      }
+
+      return Email(
+        id: null,
+        userId: userId ?? 0,
+        accountId: accountId ?? 0,
+        messageId: messageId,
+        threadId: null, // Outlook'ta threadId yok
+        subject: subject,
+        fromEmail: fromEmail,
+        fromName: fromName.isNotEmpty ? fromName : null,
+        toEmails: toEmails,
+        ccEmails: ccEmails,
+        bccEmails: bccEmails,
+        plainText: plainText,
+        htmlContent: htmlContent,
+        receivedDate: receivedDate,
+        sentDate: sentDate,
+        status: status,
+        importance: importance,
+        isRead: isRead,
+        isStarred: false, // Outlook'ta starred yok, importance kullanılır
+        isArchived: false,
+        isDeleted: folder?.toLowerCase() == 'deleteditems' || folder?.toLowerCase() == 'trash',
+        isSpam: folder?.toLowerCase() == 'junkemail' || folder?.toLowerCase() == 'spam',
+        folder: EmailFolder.fromString(folder ?? 'inbox'),
+        labels: [],
+        sizeBytes: null,
+        externalId: messageId,
+        createdAt: receivedDate,
+        updatedAt: receivedDate,
+      );
+    } catch (e) {
+      debugPrint('Outlook message parse hatası: $e');
+      return null;
+    }
+  }
+
   /// Gmail API'den tek email detayını çekme
   Future<Email?> _getEmailDetails(
     String messageId, {
     required String accessToken,
     int? userId,
     int? accountId,
+    EmailProvider? provider,
   }) async {
     try {
       if (accessToken.isEmpty) {
@@ -116,13 +362,25 @@ class EmailRemoteDataSource {
         return null;
       }
 
-      final response = await _apiClient.get(
-        ApiEndpoints.messageById(messageId),
-        queryParameters: {'format': 'full'},
-        accessToken: accessToken,
-      );
+      final emailProvider = provider ?? EmailProvider.gmail;
 
-      return _parseGmailMessage(response, messageId, userId: userId, accountId: accountId);
+      if (emailProvider == EmailProvider.outlook) {
+        // Outlook için Microsoft Graph API
+        final response = await _apiClient.get(
+          ApiEndpoints.graphMessageById(messageId),
+          queryParameters: {},
+          accessToken: accessToken,
+        );
+        return _parseOutlookMessage(response, userId: userId, accountId: accountId, folder: null);
+      } else {
+        // Gmail API
+        final response = await _apiClient.get(
+          ApiEndpoints.messageById(messageId),
+          queryParameters: {'format': 'full'},
+          accessToken: accessToken,
+        );
+        return _parseGmailMessage(response, messageId, userId: userId, accountId: accountId);
+      }
     } on NotFoundException {
       // 404 hatası - email bulunamadı, sessizce null döndür
       debugPrint('_getEmailDetails: Email bulunamadı (messageId: $messageId)');

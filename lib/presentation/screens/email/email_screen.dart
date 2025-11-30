@@ -104,22 +104,17 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
 
     return emailAccountsAsync.when(
       data: (accounts) {
-        // Gmail account'u bul
-        final gmailAccount = accounts.firstWhere(
-          (account) => account.provider == EmailProvider.gmail && account.isActive,
-          orElse: () => accounts.isNotEmpty
-              ? accounts.first
-              : EmailAccount(
-                  userId: currentUser.id ?? 0,
-                  emailAddress: '',
-                  provider: EmailProvider.gmail,
-                  createdAt: DateTime.now(),
-                  updatedAt: DateTime.now(),
-                ),
-        );
+        // Tüm aktif email account'larını bul
+        final activeAccounts = accounts
+            .where((account) =>
+                account.isActive &&
+                account.id != null &&
+                account.accessToken != null &&
+                account.accessToken!.isNotEmpty)
+            .toList();
 
-        // Account ID veya access token yoksa boş liste göster
-        if (gmailAccount.id == null || gmailAccount.accessToken == null || gmailAccount.accessToken!.isEmpty) {
+        // Hiç aktif account yoksa hata göster
+        if (activeAccounts.isEmpty) {
           return Scaffold(
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             body: Center(
@@ -128,10 +123,10 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                 children: [
                   const Icon(Icons.email_outlined, size: 48, color: Colors.grey),
                   const SizedBox(height: 16),
-                  const Text('Gmail hesabı bağlı değil'),
+                  const Text('E-posta hesabı bağlı değil'),
                   const SizedBox(height: 8),
                   const Text(
-                    'Lütfen ayarlardan Gmail hesabınızı bağlayın',
+                    'Lütfen ayarlardan Gmail veya Outlook hesabınızı bağlayın',
                     style: TextStyle(fontSize: 12, color: Colors.grey),
                     textAlign: TextAlign.center,
                   ),
@@ -146,106 +141,13 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
           );
         }
 
-        final emailParams = EmailListParams(
-          accountId: gmailAccount.id,
-          folder: _selectedFolder,
-          accessToken: gmailAccount.accessToken!,
-        );
-
-        final emailsAsync = ref.watch(emailNotifierProvider(emailParams));
-        final emailNotifier = ref.read(emailNotifierProvider(emailParams).notifier);
-
-        return emailsAsync.when(
-          data: (emails) => Scaffold(
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            body: _buildResponsiveLayout(currentUser, emails, emailNotifier, emailParams, padding, isDesktop),
-          ),
-          loading: () => Scaffold(
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            body: const Center(child: CircularProgressIndicator()),
-          ),
-          error: (error, stack) {
-            // Hata mesajını daha açıklayıcı hale getir
-            String errorMessage = 'Bilinmeyen bir hata oluştu';
-            String? detailedMessage;
-
-            if (error is ApiException) {
-              errorMessage = error.message;
-              detailedMessage = error.originalError?.toString();
-            } else if (error.toString().contains('UnauthorizedException') || 
-                       error.toString().contains('unauthorized') ||
-                       error.toString().contains('401')) {
-              if (error is ApiException && error.message.isNotEmpty) {
-                errorMessage = error.message;
-              } else {
-                errorMessage = 'Oturum süresi dolmuş. Lütfen Gmail bağlantısını yeniden yapın.\n\nAyarlar > E-posta Hesapları bölümünden Gmail hesabınızı yeniden bağlayabilirsiniz.';
-              }
-            } else if (error.toString().contains('ForbiddenException')) {
-              errorMessage = 'Gmail API erişim izni yok. Lütfen Google Cloud Console\'da Gmail API\'yi enable edin.';
-            } else if (error.toString().contains('NetworkException') || error.toString().contains('Network error')) {
-              errorMessage = 'İnternet bağlantısı yok veya Gmail API\'ye erişilemiyor.';
-            } else {
-              errorMessage = error.toString().replaceAll('ApiException: ', '');
-            }
-
-            return Scaffold(
-              backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-              body: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                      const SizedBox(height: 16),
-                      Text(
-                        'E-posta yüklenirken hata oluştu',
-                        style: Theme.of(context).textTheme.titleLarge,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        errorMessage,
-                        style: const TextStyle(fontSize: 14, color: Colors.grey),
-                        textAlign: TextAlign.center,
-                      ),
-                      if (detailedMessage != null && detailedMessage.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          detailedMessage,
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                      const SizedBox(height: 24),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          ElevatedButton.icon(
-                            onPressed: () => emailNotifier.refresh(),
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Yeniden Dene'),
-                          ),
-                          if (errorMessage.contains('Oturum süresi dolmuş') || 
-                              errorMessage.contains('Gmail bağlantısını yeniden yapın')) ...[
-                            const SizedBox(width: 12),
-                            OutlinedButton.icon(
-                              onPressed: () {
-                                // Ayarlar sayfasına yönlendir
-                                context.push('/settings');
-                              },
-                              icon: const Icon(Icons.settings),
-                              label: const Text('Gmail Bağlantısını Yeniden Yap'),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
+        // Tüm account'lardan email'leri birleştir
+        return _buildMultiAccountEmailView(
+          context,
+          currentUser,
+          activeAccounts,
+          padding,
+          isDesktop,
         );
       },
       loading: () => Scaffold(
@@ -274,6 +176,144 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
     );
   }
 
+  /// Birden fazla account'tan email'leri birleştirip göster
+  Widget _buildMultiAccountEmailView(
+    BuildContext context,
+    dynamic currentUser,
+    List<EmailAccount> accounts,
+    EdgeInsets padding,
+    bool isDesktop,
+  ) {
+    // Her account için email provider'ları oluştur ve izle
+    final emailProviders = accounts.map((account) {
+      final emailParams = EmailListParams(
+        accountId: account.id,
+        folder: _selectedFolder,
+        accessToken: account.accessToken!,
+      );
+      return ref.watch(emailNotifierProvider(emailParams));
+    }).toList();
+
+    // Tüm provider'ların durumunu kontrol et
+    final isLoading = emailProviders.any((provider) => provider.isLoading);
+    final hasError = emailProviders.any((provider) => provider.hasError);
+
+    if (isLoading) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // Tüm email'leri birleştir (hata olsa bile başarılı olanları göster)
+    final allEmails = <Email>[];
+    String? firstErrorMessage;
+
+    for (final emailProvider in emailProviders) {
+      // Provider'dan email'leri al (data varsa)
+      final emails = emailProvider.value;
+      if (emails != null) {
+        allEmails.addAll(emails);
+      }
+
+      // Hata varsa logla ama devam et
+      if (emailProvider.hasError) {
+        emailProvider.whenOrNull(
+          error: (error, stack) {
+            if (firstErrorMessage == null) {
+              if (error is ApiException) {
+                firstErrorMessage = error.message;
+              } else {
+                firstErrorMessage = error.toString();
+              }
+            }
+            return null;
+          },
+        );
+      }
+    }
+
+    // Hata varsa ama email'ler de varsa, email'leri göster ama uyarı ver
+    if (hasError && allEmails.isEmpty) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                const SizedBox(height: 16),
+                Text(
+                  firstErrorMessage ?? 'E-posta yüklenirken hata oluştu',
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    // Tüm provider'ları yenile
+                    for (final account in accounts) {
+                      final emailParams = EmailListParams(
+                        accountId: account.id,
+                        folder: _selectedFolder,
+                        accessToken: account.accessToken!,
+                      );
+                      ref.read(emailNotifierProvider(emailParams).notifier).refresh();
+                    }
+                  },
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Yeniden Dene'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Tarihe göre sırala (en yeni üstte)
+    allEmails.sort((a, b) {
+      final dateA = a.receivedDate ?? a.sentDate ?? DateTime(1970);
+      final dateB = b.receivedDate ?? b.sentDate ?? DateTime(1970);
+      return dateB.compareTo(dateA);
+    });
+
+    // İlk account'u primary olarak kullan (UI için)
+    final primaryAccount = accounts.first;
+
+    // Email notifier'ı primary account için oluştur (işlemler için)
+    final emailParams = EmailListParams(
+      accountId: primaryAccount.id,
+      folder: _selectedFolder,
+      accessToken: primaryAccount.accessToken!,
+    );
+    final emailNotifier = ref.read(emailNotifierProvider(emailParams).notifier);
+
+    // Account ID -> Provider mapping oluştur
+    final accountProviders = <int, EmailProvider>{};
+    for (final account in accounts) {
+      if (account.id != null) {
+        accountProviders[account.id!] = account.provider;
+      }
+    }
+
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: _buildResponsiveLayout(
+        currentUser,
+        allEmails,
+        emailNotifier,
+        emailParams,
+        padding,
+        isDesktop,
+        primaryAccount,
+        accountProviders,
+      ),
+    );
+  }
+
   Widget _buildResponsiveLayout(
     dynamic currentUser,
     List<Email> emails,
@@ -281,11 +321,13 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
     EmailListParams emailParams,
     EdgeInsets padding,
     bool isDesktop,
+    EmailAccount account,
+    Map<int, EmailProvider> accountProviders,
   ) {
     if (isDesktop) {
-      return _buildDesktopLayout(currentUser, emails, emailNotifier, emailParams, padding);
+      return _buildDesktopLayout(currentUser, emails, emailNotifier, emailParams, padding, account, accountProviders);
     } else {
-      return _buildMobileLayout(currentUser, emails, emailNotifier, emailParams, padding);
+      return _buildMobileLayout(currentUser, emails, emailNotifier, emailParams, padding, account, accountProviders);
     }
   }
 
@@ -296,6 +338,8 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
     EmailNotifier emailNotifier,
     EmailListParams emailParams,
     EdgeInsets padding,
+    EmailAccount account,
+    Map<int, EmailProvider> accountProviders,
   ) {
     final filteredEmails = _getFilteredEmails(emails);
     final selectedEmail = _getSelectedEmail(emails);
@@ -368,6 +412,8 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                           child: EmailList(
                             emails: filteredEmails,
                             selectedIndex: _selectedEmailIndex,
+                            provider: account.provider,
+                            accountProviders: accountProviders,
                             onEmailSelected: (index) {
                               setState(() {
                                 _selectedEmailIndex = index;
@@ -418,6 +464,8 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
     EmailNotifier emailNotifier,
     EmailListParams emailParams,
     EdgeInsets padding,
+    EmailAccount account,
+    Map<int, EmailProvider> accountProviders,
   ) {
     final filteredEmails = _getFilteredEmails(emails);
     final unreadCount = emails.where((e) => e.isUnread).length;
@@ -475,6 +523,8 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                       child: EmailList(
                         emails: filteredEmails,
                         selectedIndex: _selectedEmailIndex,
+                        provider: account.provider,
+                        accountProviders: accountProviders,
                         onEmailSelected: (index) {
                           setState(() {
                             _selectedEmailIndex = index;
