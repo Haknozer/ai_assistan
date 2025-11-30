@@ -172,8 +172,14 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
             if (error is ApiException) {
               errorMessage = error.message;
               detailedMessage = error.originalError?.toString();
-            } else if (error.toString().contains('UnauthorizedException')) {
-              errorMessage = 'Oturum süresi dolmuş. Lütfen Gmail bağlantısını yeniden yapın.';
+            } else if (error.toString().contains('UnauthorizedException') || 
+                       error.toString().contains('unauthorized') ||
+                       error.toString().contains('401')) {
+              if (error is ApiException && error.message.isNotEmpty) {
+                errorMessage = error.message;
+              } else {
+                errorMessage = 'Oturum süresi dolmuş. Lütfen Gmail bağlantısını yeniden yapın.\n\nAyarlar > E-posta Hesapları bölümünden Gmail hesabınızı yeniden bağlayabilirsiniz.';
+              }
             } else if (error.toString().contains('ForbiddenException')) {
               errorMessage = 'Gmail API erişim izni yok. Lütfen Google Cloud Console\'da Gmail API\'yi enable edin.';
             } else if (error.toString().contains('NetworkException') || error.toString().contains('Network error')) {
@@ -212,10 +218,27 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                         ),
                       ],
                       const SizedBox(height: 24),
-                      ElevatedButton.icon(
-                        onPressed: () => emailNotifier.refresh(),
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Yeniden Dene'),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: () => emailNotifier.refresh(),
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Yeniden Dene'),
+                          ),
+                          if (errorMessage.contains('Oturum süresi dolmuş') || 
+                              errorMessage.contains('Gmail bağlantısını yeniden yapın')) ...[
+                            const SizedBox(width: 12),
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                // Ayarlar sayfasına yönlendir
+                                context.push('/settings');
+                              },
+                              icon: const Icon(Icons.settings),
+                              label: const Text('Gmail Bağlantısını Yeniden Yap'),
+                            ),
+                          ],
+                        ],
                       ),
                     ],
                   ),

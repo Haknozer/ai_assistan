@@ -36,30 +36,64 @@ class EmailRepository {
         offset: offset,
         accessToken: accessToken,
       );
-    } on UnauthorizedException {
+    } on UnauthorizedException catch (e) {
       // 401 hatası - token expire olmuş, yenilemeyi dene
-      if (accountId != null && accessToken != null) {
+      if (accountId != null) {
         try {
           final newAccessToken = await _refreshTokenIfNeeded(accountId);
-          if (newAccessToken != null) {
+          if (newAccessToken != null && newAccessToken.isNotEmpty) {
             // Yeni token ile tekrar dene
-            return await _remoteDataSource.getEmails(
-              accountId: accountId,
-              folder: folder,
-              limit: limit,
-              offset: offset,
-              accessToken: newAccessToken,
+            try {
+              return await _remoteDataSource.getEmails(
+                accountId: accountId,
+                folder: folder,
+                limit: limit,
+                offset: offset,
+                accessToken: newAccessToken,
+              );
+            } on UnauthorizedException {
+              // Yeni token da geçersiz, bağlantıyı yeniden yapması gerekiyor
+              throw UnauthorizedException(
+                message: 'Oturum süresi dolmuş. Lütfen Gmail bağlantısını yeniden yapın.',
+                originalError: e.originalError,
+              );
+            }
+          } else {
+            // Token yenilenemedi - refresh token yok veya geçersiz
+            throw UnauthorizedException(
+              message: 'Oturum süresi dolmuş. Lütfen Gmail bağlantısını yeniden yapın.\n\nAyarlar > E-posta Hesapları bölümünden Gmail hesabınızı yeniden bağlayabilirsiniz.',
+              originalError: e.originalError,
             );
           }
+        } on ApiException catch (refreshError) {
+          // Token yenileme başarısız - daha açıklayıcı mesaj
+          String errorMessage = 'Token yenilenemedi. Lütfen Gmail bağlantısını yeniden yapın.';
+          
+          if (refreshError.message.contains('invalid_grant') || 
+              refreshError.message.contains('Refresh token geçersiz')) {
+            errorMessage = 'Oturum süresi dolmuş. Lütfen Gmail bağlantısını yeniden yapın.\n\nAyarlar > E-posta Hesapları bölümünden Gmail hesabınızı yeniden bağlayabilirsiniz.';
+          } else if (refreshError.message.contains('Client ID') || 
+                     refreshError.message.contains('Client Secret')) {
+            errorMessage = 'Gmail bağlantısı yapılandırılmamış. Lütfen Client ID ve Client Secret değerlerini kontrol edin.';
+          }
+          
+          throw UnauthorizedException(
+            message: errorMessage,
+            originalError: refreshError,
+          );
         } catch (refreshError) {
-          // Token yenileme başarısız, hatayı fırlat
-          throw ApiException(
-            message: 'Token yenilenemedi. Lütfen Gmail bağlantısını yeniden yapın.',
+          // Beklenmeyen token yenileme hatası
+          throw UnauthorizedException(
+            message: 'Oturum süresi dolmuş ve token yenilenemedi. Lütfen Gmail bağlantısını yeniden yapın.',
             originalError: refreshError,
           );
         }
       }
-      rethrow;
+      // accountId yoksa, mevcut hatayı fırlat
+      throw UnauthorizedException(
+        message: 'Oturum süresi dolmuş. Lütfen Gmail bağlantısını yeniden yapın.',
+        originalError: e.originalError,
+      );
     } on ApiException catch (e) {
       // API hatası durumunda (örn: api.example.com erişilemiyor)
       // Boş liste döndür ve hatayı logla
@@ -89,20 +123,29 @@ class EmailRepository {
       );
 
       if (accountMaps.isEmpty) {
-        return null;
+        throw ApiException(message: 'E-posta hesabı bulunamadı');
       }
 
       final account = EmailAccount.fromDatabase(accountMaps.first);
 
-      // Refresh token yoksa null döndür
+      // Refresh token yoksa hata fırlat
       if (account.refreshToken == null || account.refreshToken!.isEmpty) {
-        return null;
+        throw ApiException(
+          message: 'Refresh token bulunamadı. Lütfen Gmail bağlantısını yeniden yapın.',
+        );
+      }
+
+      // Client ID ve Secret kontrolü
+      if (AppConfig.googleClientId.isEmpty || AppConfig.googleClientSecret.isEmpty) {
+        throw ApiException(
+          message: 'Gmail OAuth yapılandırılmamış. Lütfen Client ID ve Client Secret değerlerini kontrol edin.',
+        );
       }
 
       // Gmail OAuth service ile token yenile
       final gmailOAuth = GmailOAuthService(
-        clientId: AppConfig.googleClientId.isNotEmpty ? AppConfig.googleClientId : null,
-        clientSecret: AppConfig.googleClientSecret.isNotEmpty ? AppConfig.googleClientSecret : null,
+        clientId: AppConfig.googleClientId,
+        clientSecret: AppConfig.googleClientSecret,
       );
 
       final authResult = await gmailOAuth.refreshAccessToken(account.refreshToken!);
@@ -123,9 +166,15 @@ class EmailRepository {
       );
 
       return authResult.accessToken;
+    } on ApiException {
+      // API hatalarını yukarı fırlat
+      rethrow;
     } catch (e) {
-      // Token yenileme hatası
-      return null;
+      // Beklenmeyen hatalar
+      throw ApiException(
+        message: 'Token yenileme hatası: ${e.toString()}',
+        originalError: e,
+      );
     }
   }
 

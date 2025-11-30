@@ -62,7 +62,7 @@ class _WeatherCardState extends ConsumerState<WeatherCard> {
                   ),
                 )
               : weatherState.error != null
-                  ? _buildErrorState(context, isSmall)
+                  ? _buildErrorState(context, weatherState, isSmall)
                   : weatherState.weather == null
                       ? _buildEmptyState(context)
                       : _buildWeatherContent(context, weatherState.weather!, isSmall, spacing),
@@ -71,7 +71,9 @@ class _WeatherCardState extends ConsumerState<WeatherCard> {
     );
   }
 
-  Widget _buildErrorState(BuildContext context, bool isSmall) {
+  Widget _buildErrorState(BuildContext context, WeatherState weatherState, bool isSmall) {
+    final errorMessage = weatherState.error ?? 'Bilinmeyen hata';
+    
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -82,13 +84,37 @@ class _WeatherCardState extends ConsumerState<WeatherCard> {
             size: isSmall ? 24.0 : 32.0,
           ),
           const SizedBox(height: 8),
-          Text(
-            'Hava durumu yüklenemedi',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.white70,
-                  fontSize: isSmall ? 10.0 : 12.0,
-                ),
-            textAlign: TextAlign.center,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: Text(
+              errorMessage,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.white70,
+                    fontSize: isSmall ? 9.0 : 11.0,
+                  ),
+              textAlign: TextAlign.center,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: () {
+              ref.read(weatherProvider.notifier).loadCurrentLocationWeather();
+            },
+            icon: const Icon(Icons.refresh, size: 16, color: Colors.white70),
+            label: Text(
+              'Yeniden Dene',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.white70,
+                    fontSize: isSmall ? 9.0 : 11.0,
+                  ),
+            ),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
           ),
         ],
       ),

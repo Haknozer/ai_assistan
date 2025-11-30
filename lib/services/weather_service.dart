@@ -102,6 +102,13 @@ class WeatherService {
 
   /// Mevcut konuma göre hava durumunu al
   Future<Weather?> getCurrentLocationWeather() async {
+    // API anahtarı kontrolü
+    if (_apiKey.isEmpty) {
+      throw ApiException(
+        message: 'Hava durumu API anahtarı yapılandırılmamış',
+      );
+    }
+    
     final position = await _locationService.getCurrentLocation();
     if (position == null) {
       throw ApiException(

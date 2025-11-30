@@ -18,11 +18,48 @@ Future<void> main() async {
   }
 
   // Supabase'i başlat
-  await Supabase.initialize(
-    url: AppConfig.supabaseUrl,
-    anonKey: AppConfig.supabaseAnonKey,
-    debug: AppConfig.debugMode,
-  );
+  try {
+    await Supabase.initialize(
+      url: AppConfig.supabaseUrl,
+      anonKey: AppConfig.supabaseAnonKey,
+      debug: AppConfig.debugMode,
+      authOptions: const FlutterAuthClientOptions(
+        // Network hatalarını sessizce yönet
+        autoRefreshToken: true,
+      ),
+    );
+
+    // Auth state değişikliklerini dinle ve network hatalarını yönet
+    Supabase.instance.client.auth.onAuthStateChange.listen(
+      (data) {
+        final event = data.event;
+        
+        // Sadece önemli event'leri logla
+        if (event == AuthChangeEvent.signedIn || event == AuthChangeEvent.signedOut) {
+          if (kDebugMode) {
+            debugPrint('[Supabase Auth] Event: $event');
+          }
+        }
+      },
+      onError: (error) {
+        // Network hatalarını sessizce yönet (DNS lookup failures, connection errors, etc.)
+        // Bu hatalar Supabase'in otomatik token yenileme mekanizmasından kaynaklanır
+        // ve offline durumda normaldir
+        if (kDebugMode && AppConfig.debugMode) {
+          final errorStr = error.toString();
+          // Sadece network hataları değil, diğer önemli hataları logla
+          if (!errorStr.contains('Failed host lookup') &&
+              !errorStr.contains('SocketException') &&
+              !errorStr.contains('AuthRetryableFetchException')) {
+            debugPrint('[Supabase Auth] Error: $error');
+          }
+        }
+      },
+    );
+  } catch (e) {
+    // Network hatası durumunda uygulama çalışmaya devam etsin
+    debugPrint('Supabase initialization error (non-critical): $e');
+  }
 
   // Veritabanını başlatH
   try {

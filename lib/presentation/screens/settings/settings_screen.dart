@@ -254,9 +254,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _showIntegrationDialog(String integrationName, bool isConnected) async {
-    if (integrationName == 'Gmail' && !isConnected) {
-      // Gmail OAuth bağlantısı
-      await _connectGmail();
+    if (integrationName == 'Gmail') {
+      if (isConnected) {
+        // Gmail bağlıysa, bağlantıyı kes veya yeniden bağla seçenekleri sun
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Gmail Bağlantısı'),
+            content: const Text(
+              'Gmail hesabınız zaten bağlı. Ne yapmak istersiniz?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('İptal'),
+              ),
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _disconnectGmail();
+                },
+                child: const Text('Bağlantıyı Kes'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _connectGmail();
+                },
+                child: const Text('Yeniden Bağlan'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        // Gmail bağlı değilse, bağlan
+        await _connectGmail();
+      }
       return;
     }
 
@@ -289,6 +322,72 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _disconnectGmail() async {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null || currentUser.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Önce giriş yapmalısınız')),
+      );
+      return;
+    }
+
+    // Email account'ları al
+    final emailAccountsAsync = ref.read(emailAccountsProvider(EmailAccountsParams(
+      userId: currentUser.id,
+    )));
+
+    final accounts = await emailAccountsAsync.value ?? [];
+    final gmailAccount = accounts.firstWhere(
+      (account) => account.provider == EmailProvider.gmail,
+      orElse: () => throw Exception('Gmail hesabı bulunamadı'),
+    );
+
+    // Loading dialog göster
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      final emailAccountRepo = ref.read(emailAccountRepositoryProvider);
+      await emailAccountRepo.disconnectEmailAccount(gmailAccount.id!);
+
+      // Dialog'u kapat
+      if (mounted) {
+        Navigator.pop(context);
+
+        // Başarı mesajı göster
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Gmail bağlantısı kesildi'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+
+        // Listeyi yenile
+        ref.invalidate(emailAccountsProvider(EmailAccountsParams(
+          userId: currentUser.id,
+        )));
+      }
+    } catch (e) {
+      // Dialog'u kapat
+      if (mounted) {
+        Navigator.pop(context);
+
+        // Hata mesajı göster
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gmail bağlantısı kesilemedi: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _connectGmail() async {

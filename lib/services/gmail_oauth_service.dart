@@ -106,8 +106,8 @@ class GmailOAuthService {
       );
     }
 
-    // OAuth 2.0 parametreleri
-    const redirectUri = 'http://localhost:8080/oauth-callback';
+    // OAuth 2.0 parametreleri (port dinamik olacak)
+    String redirectUri = 'http://localhost:8080/oauth-callback';
     final scopes = [
       'email',
       'https://www.googleapis.com/auth/gmail.readonly',
@@ -119,9 +119,67 @@ class GmailOAuthService {
     HttpServer? server;
     String? authCode;
     String? error;
+    int port = 8080;
+    List<int> alternativePorts = [8081, 8082, 8083, 3000, 3001];
 
     try {
-      server = await HttpServer.bind('localhost', 8080);
+      // Port 8080'i dene, başarısız olursa alternatif portları dene
+      bool serverStarted = false;
+      SocketException? lastException;
+
+      try {
+        server = await HttpServer.bind('localhost', port);
+        serverStarted = true;
+        debugPrint('✅ HTTP server başlatıldı: localhost:$port');
+      } on SocketException catch (e) {
+        lastException = e;
+        debugPrint('⚠️ Port $port kullanılamıyor: ${e.message}');
+        
+        // Alternatif portları dene
+        for (final altPort in alternativePorts) {
+          try {
+            server = await HttpServer.bind('localhost', altPort);
+            port = altPort;
+            serverStarted = true;
+            debugPrint('✅ HTTP server alternatif portta başlatıldı: localhost:$port');
+            break;
+          } on SocketException catch (altE) {
+            debugPrint('⚠️ Port $altPort da kullanılamıyor: ${altE.message}');
+            lastException = altE;
+            continue;
+          }
+        }
+      }
+
+      if (!serverStarted || server == null) {
+        throw ApiException(
+          message: 'Localhost\'a bağlanılamadı. Portlar kullanımda olabilir veya firewall engelliyor olabilir.\n\n'
+              'Çözüm:\n'
+              '1. Diğer uygulamaları kapatın (port 8080, 8081, 8082, 8083, 3000, 3001 kullanıyor olabilir)\n'
+              '2. Windows Firewall ayarlarını kontrol edin\n'
+              '3. Uygulamayı yönetici olarak çalıştırmayı deneyin\n'
+              '4. Antivirus yazılımınızın localhost bağlantılarını engellemediğinden emin olun',
+          originalError: lastException,
+        );
+      }
+
+      // Port değiştiyse redirect URI'yi güncelle
+      if (port != 8080) {
+        redirectUri = 'http://localhost:$port/oauth-callback';
+        debugPrint('⚠️ Port değişti, redirect URI güncellendi: $redirectUri');
+        debugPrint('⚠️ ÖNEMLİ: Google Cloud Console\'da bu redirect URI\'yi eklemeniz gerekebilir: $redirectUri');
+        
+        // Kullanıcıya bilgi ver (sadece debug mode'da)
+        if (kDebugMode) {
+          debugPrint('💡 İPUCU: Tüm olası portları Google Cloud Console\'a ekleyerek bu sorunu önleyebilirsiniz:');
+          debugPrint('   - http://localhost:8080/oauth-callback');
+          debugPrint('   - http://localhost:8081/oauth-callback');
+          debugPrint('   - http://localhost:8082/oauth-callback');
+          debugPrint('   - http://localhost:8083/oauth-callback');
+          debugPrint('   - http://localhost:3000/oauth-callback');
+          debugPrint('   - http://localhost:3001/oauth-callback');
+        }
+      }
 
       // OAuth URL oluştur - query parametrelerini manuel olarak encode et
       // Uri.https bazen query parametrelerini kaybedebiliyor, bu yüzden manuel oluşturuyoruz
@@ -279,7 +337,14 @@ class GmailOAuthService {
         errorMessage = 'Authorization code geçersiz veya süresi dolmuş. Lütfen tekrar deneyin.';
       } else if (errorBody.contains('redirect_uri_mismatch')) {
         errorMessage =
-            'Redirect URI eşleşmiyor. Google Cloud Console\'da http://localhost:8080/oauth-callback ekli olduğundan emin olun.';
+            'Redirect URI eşleşmiyor. Google Cloud Console\'da şu redirect URI\'leri eklemeniz gerekiyor:\n\n'
+            '1. http://localhost:8080/oauth-callback\n'
+            '2. http://localhost:8081/oauth-callback\n'
+            '3. http://localhost:8082/oauth-callback\n'
+            '4. http://localhost:8083/oauth-callback\n'
+            '5. http://localhost:3000/oauth-callback\n'
+            '6. http://localhost:3001/oauth-callback\n\n'
+            'Google Cloud Console > APIs & Services > Credentials > OAuth 2.0 Client ID > Authorized redirect URIs';
       }
 
       throw ApiException(

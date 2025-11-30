@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseAuthService {
@@ -93,6 +95,23 @@ class SupabaseAuthService {
 
   // Hata yönetimi
   String _handleAuthException(dynamic e) {
+    // Network hatalarını kontrol et
+    if (e is SocketException || 
+        (e.toString().contains('Failed host lookup') || 
+         e.toString().contains('SocketException') ||
+         e.toString().contains('ClientException'))) {
+      return 'İnternet bağlantısı yok. Lütfen bağlantınızı kontrol edin.';
+    }
+
+    // AuthRetryableFetchException - network hataları için sessizce yönet
+    if (e.toString().contains('AuthRetryableFetchException') ||
+        e.toString().contains('Failed host lookup')) {
+      if (kDebugMode) {
+        debugPrint('[Supabase Auth] Network error (handled silently): $e');
+      }
+      return 'İnternet bağlantısı yok. Lütfen bağlantınızı kontrol edin.';
+    }
+
     if (e is AuthException) {
       switch (e.message.toLowerCase()) {
         case 'invalid login credentials':
