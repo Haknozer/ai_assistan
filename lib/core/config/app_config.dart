@@ -46,6 +46,17 @@ class AppConfig {
     defaultValue: '', // Google Cloud Console'dan alınacak (güvenlik için kullanılmayabilir)
   );
 
+  // Microsoft OAuth Configuration (Outlook için)
+  static const String microsoftClientId = String.fromEnvironment(
+    'MICROSOFT_CLIENT_ID',
+    defaultValue: '', // Azure Portal'dan alınacak - run_windows.bat script'i kullanın
+  );
+
+  static const String microsoftClientSecret = String.fromEnvironment(
+    'MICROSOFT_CLIENT_SECRET',
+    defaultValue: '', // Azure Portal'dan alınacak
+  );
+
   // Weather API Configuration
   static const String weatherApiKey = String.fromEnvironment(
     'WEATHER_API_KEY',

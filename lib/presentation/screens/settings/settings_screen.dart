@@ -11,8 +11,10 @@ import '../../widgets/settings/privacy_card.dart';
 import '../../../providers/user_provider.dart';
 import '../../../providers/email_account_provider.dart';
 import '../../../services/gmail_oauth_service.dart';
+import '../../../services/outlook_oauth_service.dart';
 import '../../../models/email_account.dart';
 import '../../../core/config/app_config.dart';
+import '../../../core/api/api_exceptions.dart';
 import '../../../utils/responsive_utils.dart';
 import 'data/settings_data.dart';
 
@@ -172,9 +174,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       userId: currentUser?.id,
     )));
 
-    // Gmail bağlı mı kontrol et
+    // Gmail ve Outlook bağlı mı kontrol et
     final isGmailConnected = emailAccountsAsync.when(
       data: (accounts) => accounts.any((account) => account.provider == EmailProvider.gmail),
+      loading: () => false,
+      error: (_, __) => false,
+    );
+
+    final isOutlookConnected = emailAccountsAsync.when(
+      data: (accounts) => accounts.any((account) => account.provider == EmailProvider.outlook),
       loading: () => false,
       error: (_, __) => false,
     );
@@ -183,7 +191,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final integrationsData = Map<String, List<Map<String, dynamic>>>.from(SettingsData.integrations);
     integrationsData['E-posta Entegrasyonları'] = [
       {'name': 'Gmail', 'connected': isGmailConnected},
-      {'name': 'Outlook', 'connected': false},
+      {'name': 'Outlook', 'connected': isOutlookConnected},
       {'name': 'Yahoo Mail', 'connected': false},
     ];
 
@@ -289,6 +297,45 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       } else {
         // Gmail bağlı değilse, bağlan
         await _connectGmail();
+      }
+      return;
+    }
+
+    if (integrationName == 'Outlook') {
+      if (isConnected) {
+        // Outlook bağlıysa, bağlantıyı kes veya yeniden bağla seçenekleri sun
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Outlook Bağlantısı'),
+            content: const Text(
+              'Outlook hesabınız zaten bağlı. Ne yapmak istersiniz?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('İptal'),
+              ),
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _disconnectOutlook();
+                },
+                child: const Text('Bağlantıyı Kes'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _connectOutlook();
+                },
+                child: const Text('Yeniden Bağlan'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        // Outlook bağlı değilse, bağlan
+        await _connectOutlook();
       }
       return;
     }
@@ -460,6 +507,164 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           SnackBar(
             content: Text('Gmail bağlantısı başarısız: ${e.toString()}'),
             backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _disconnectOutlook() async {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null || currentUser.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Önce giriş yapmalısınız')),
+      );
+      return;
+    }
+
+    // Email account'ları al
+    final emailAccountsAsync = ref.read(emailAccountsProvider(EmailAccountsParams(
+      userId: currentUser.id,
+    )));
+
+    final accounts = await emailAccountsAsync.value ?? [];
+    final outlookAccount = accounts.firstWhere(
+      (account) => account.provider == EmailProvider.outlook,
+      orElse: () => throw Exception('Outlook hesabı bulunamadı'),
+    );
+
+    // Loading dialog göster
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      final emailAccountRepo = ref.read(emailAccountRepositoryProvider);
+      await emailAccountRepo.disconnectEmailAccount(outlookAccount.id!);
+
+      // Dialog'u kapat
+      if (mounted) {
+        Navigator.pop(context);
+
+        // Başarı mesajı göster
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Outlook bağlantısı kesildi'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+
+        // Listeyi yenile
+        ref.invalidate(emailAccountsProvider(EmailAccountsParams(
+          userId: currentUser.id,
+        )));
+      }
+    } catch (e) {
+      // Dialog'u kapat
+      if (mounted) {
+        Navigator.pop(context);
+
+        // Hata mesajı göster
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Outlook bağlantısı kesilemedi: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _connectOutlook() async {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null || currentUser.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Önce giriş yapmalısınız')),
+      );
+      return;
+    }
+
+    // Loading dialog göster
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      // Debug: Client ID ve Secret kontrolü
+      debugPrint('Microsoft Client ID: ${AppConfig.microsoftClientId}');
+      debugPrint('Microsoft Client Secret: ${AppConfig.microsoftClientSecret.isNotEmpty ? "***GİZLİ***" : "BOŞ"}');
+
+      // Outlook OAuth servisi
+      final outlookOAuth = OutlookOAuthService(
+        clientId: AppConfig.microsoftClientId.isNotEmpty ? AppConfig.microsoftClientId : null,
+        clientSecret: AppConfig.microsoftClientSecret.isNotEmpty ? AppConfig.microsoftClientSecret : null,
+      );
+      final authResult = await outlookOAuth.connectOutlook();
+
+      // Email account repository
+      final emailAccountRepo = ref.read(emailAccountRepositoryProvider);
+
+      // Email account oluştur ve kaydet
+      await emailAccountRepo.connectEmailAccount(
+        userId: currentUser.id!,
+        emailAddress: authResult.email,
+        provider: EmailProvider.outlook,
+        accessToken: authResult.accessToken,
+        refreshToken: authResult.refreshToken,
+        displayName: authResult.displayName,
+      );
+
+      // Dialog'u kapat
+      if (mounted) {
+        Navigator.pop(context); // Loading dialog
+
+        // Başarı mesajı göster
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Outlook başarıyla bağlandı: ${authResult.email}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Listeyi yenile (state güncellemesi için)
+        ref.invalidate(emailAccountsProvider(EmailAccountsParams(
+          userId: currentUser.id,
+        )));
+      }
+    } catch (e) {
+      // Dialog'u kapat
+      if (mounted) {
+        Navigator.pop(context); // Loading dialog
+
+        // Hata mesajını daha kullanıcı dostu hale getir
+        String errorMessage = 'Outlook bağlantısı başarısız';
+        if (e is ApiException) {
+          errorMessage = e.message;
+        } else {
+          final errorStr = e.toString();
+          if (errorStr.contains('invalid_client')) {
+            errorMessage = 'Client ID veya Client Secret yanlış. Lütfen Azure Portal\'daki değerleri kontrol edin.';
+          } else if (errorStr.contains('timeout')) {
+            errorMessage = 'Bağlantı zaman aşımına uğradı. Lütfen tekrar deneyin.';
+          } else {
+            errorMessage = 'Outlook bağlantısı başarısız: ${e.toString()}';
+          }
+        }
+
+        // Hata mesajı göster
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
       }
