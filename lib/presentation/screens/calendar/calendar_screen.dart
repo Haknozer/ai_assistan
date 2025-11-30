@@ -17,6 +17,53 @@ import '../../widgets/calendar/events_list.dart';
 import '../../widgets/calendar/add_event_dialog.dart';
 import '../../widgets/calendar/event_notification_overlay.dart';
 
+/// Combined events provider parametreleri
+class _CombinedEventsParams {
+  final DateTime timeMin;
+  final DateTime timeMax;
+  final String? googleToken;
+  final String? outlookToken;
+  final int userId;
+
+  _CombinedEventsParams({
+    required this.timeMin,
+    required this.timeMax,
+    required this.googleToken,
+    required this.outlookToken,
+    required this.userId,
+  });
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is _CombinedEventsParams &&
+        other.timeMin == timeMin &&
+        other.timeMax == timeMax &&
+        other.googleToken == googleToken &&
+        other.outlookToken == outlookToken &&
+        other.userId == userId;
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(timeMin, timeMax, googleToken, outlookToken, userId);
+  }
+}
+
+/// Combined events provider (widget dışında tanımlı - sürekli yeniden oluşturulmasını önler)
+final _combinedEventsProvider = FutureProvider.autoDispose.family<List<CalendarEvent>, _CombinedEventsParams>((ref, params) async {
+  ref.keepAlive(); // Provider'ı keep alive yap (sürekli dispose olmasını önle)
+  final calendarRepo = ref.watch(calendarRepositoryProvider);
+  return await calendarRepo.getAllCombinedEvents(
+    calendarId: 'primary',
+    timeMin: params.timeMin,
+    timeMax: params.timeMax,
+    googleAccessToken: params.googleToken,
+    outlookAccessToken: params.outlookToken,
+    userId: params.userId,
+  );
+});
+
 /// Takvim ekranı - Etkinlik planlama ve yönetimi
 class CalendarScreen extends ConsumerStatefulWidget {
   const CalendarScreen({super.key});
@@ -29,6 +76,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   final int _selectedMenuIndex = 3;
   DateTime _currentMonth = DateTime(DateTime.now().year, DateTime.now().month, 1);
   DateTime? _selectedDay;
+  
 
   @override
   void initState() {
@@ -77,6 +125,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: calendarAccountsAsync.when(
         data: (accounts) {
+          // Google Calendar account'u bul
           CalendarAccount? googleAccount;
           try {
             googleAccount = accounts.firstWhere(
@@ -86,11 +135,22 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             googleAccount = null;
           }
 
+          // Outlook Calendar account'u bul
+          CalendarAccount? outlookAccount;
+          try {
+            outlookAccount = accounts.firstWhere(
+              (account) => account.provider == CalendarProvider.outlook && account.isActive,
+            );
+          } catch (e) {
+            outlookAccount = null;
+          }
+
           return _buildResponsiveLayout(
             currentUser,
             padding,
             isDesktop,
             googleAccount: googleAccount,
+            outlookAccount: outlookAccount,
           );
         },
         loading: () => const Scaffold(
@@ -103,6 +163,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             padding,
             isDesktop,
             googleAccount: null,
+            outlookAccount: null,
           );
         },
       ),
@@ -114,11 +175,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     EdgeInsets padding,
     bool isDesktop, {
     CalendarAccount? googleAccount,
+    CalendarAccount? outlookAccount,
   }) {
     if (isDesktop) {
-      return _buildDesktopLayout(currentUser, padding, googleAccount: googleAccount);
+      return _buildDesktopLayout(currentUser, padding, googleAccount: googleAccount, outlookAccount: outlookAccount);
     } else {
-      return _buildMobileLayout(currentUser, padding, googleAccount: googleAccount);
+      return _buildMobileLayout(currentUser, padding, googleAccount: googleAccount, outlookAccount: outlookAccount);
     }
   }
 
@@ -127,6 +189,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     dynamic currentUser,
     EdgeInsets padding, {
     CalendarAccount? googleAccount,
+    CalendarAccount? outlookAccount,
   }) {
     return Row(
       children: [
@@ -163,6 +226,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                     child: _buildCalendarView(
                       isDesktop: true,
                       googleAccount: googleAccount,
+                      outlookAccount: outlookAccount,
                       currentUser: currentUser,
                     ),
                   ),
@@ -180,6 +244,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     dynamic currentUser,
     EdgeInsets padding, {
     CalendarAccount? googleAccount,
+    CalendarAccount? outlookAccount,
   }) {
     return Scaffold(
       body: SafeArea(
@@ -210,6 +275,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 child: _buildCalendarView(
                   isDesktop: false,
                   googleAccount: googleAccount,
+                  outlookAccount: outlookAccount,
                   currentUser: currentUser,
                 ),
               ),
@@ -239,25 +305,30 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   Widget _buildCalendarView({
     required bool isDesktop,
     CalendarAccount? googleAccount,
+    CalendarAccount? outlookAccount,
     required dynamic currentUser,
   }) {
-    // Google Calendar event'lerini çek
-    if (googleAccount != null && googleAccount.accessToken != null && googleAccount.accessToken!.isNotEmpty) {
-      // Google Calendar'dan event'leri çek
-      final timeMin = DateTime(_currentMonth.year, _currentMonth.month, 1);
-      final timeMax = DateTime(_currentMonth.year, _currentMonth.month + 1, 1);
+    // Hem Google hem Outlook Calendar event'lerini çek ve birleştir
+    final timeMin = DateTime(_currentMonth.year, _currentMonth.month, 1);
+    final timeMax = DateTime(_currentMonth.year, _currentMonth.month + 1, 1);
 
-      final eventParams = EventListParams(
-        calendarId: 'primary',
+    final googleToken = googleAccount?.accessToken;
+    final outlookToken = outlookAccount?.accessToken;
+    
+    // Eğer en az bir calendar bağlıysa event'leri çek
+    if ((googleToken != null && googleToken.isNotEmpty) || (outlookToken != null && outlookToken.isNotEmpty)) {
+      // Provider parametrelerini oluştur
+      final params = _CombinedEventsParams(
         timeMin: timeMin,
         timeMax: timeMax,
-        accessToken: googleAccount.accessToken,
+        googleToken: googleToken,
+        outlookToken: outlookToken,
         userId: currentUser.id,
       );
 
-      final eventsAsync = ref.watch(calendarNotifierProvider(eventParams));
+      final eventsAsyncValue = ref.watch(_combinedEventsProvider(params));
 
-      return eventsAsync.when(
+      return eventsAsyncValue.when(
         data: (events) {
           final displayedEvents = _getDisplayedEvents(events);
 
@@ -365,7 +436,11 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           ],
         ),
         error: (error, stack) {
-          // Hata durumunda boş liste göster
+          // Hata durumunda boş liste göster (local event'ler varsa onları göster)
+          debugPrint('❌ Calendar Screen - Event yükleme hatası: $error');
+          debugPrint('  Stack: $stack');
+          
+          // Hata olsa bile local event'leri göster
           return Column(
             children: [
               MonthSelector(
@@ -392,25 +467,35 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                      const Icon(Icons.error_outline, size: 48, color: Colors.orange),
                       const SizedBox(height: 16),
                       Text(
-                        'Event\'ler yüklenemedi: ${error.toString()}',
-                        style: const TextStyle(color: Colors.grey),
+                        'Event\'ler yüklenemedi',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: Colors.grey,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        error.toString().length > 100 
+                          ? '${error.toString().substring(0, 100)}...'
+                          : error.toString(),
+                        style: const TextStyle(color: Colors.grey, fontSize: 12),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 16),
                       ElevatedButton.icon(
                         onPressed: () {
-                          // Refresh
-                          final eventParams = EventListParams(
-                            calendarId: 'primary',
-                            timeMin: DateTime(_currentMonth.year, _currentMonth.month, 1),
-                            timeMax: DateTime(_currentMonth.year, _currentMonth.month + 1, 1),
-                            accessToken: googleAccount.accessToken,
+                          // Provider'ı invalidate et ve yeniden çalıştır
+                          final refreshParams = _CombinedEventsParams(
+                            timeMin: timeMin,
+                            timeMax: timeMax,
+                            googleToken: googleToken,
+                            outlookToken: outlookToken,
                             userId: currentUser.id,
                           );
-                          ref.read(calendarNotifierProvider(eventParams).notifier).refresh();
+                          ref.invalidate(_combinedEventsProvider(refreshParams));
                         },
                         icon: const Icon(Icons.refresh),
                         label: const Text('Yeniden Dene'),
@@ -574,6 +659,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     )));
 
     calendarAccountsAsync.whenData((accounts) {
+      // Google Calendar account'u bul
       CalendarAccount? googleAccount;
       try {
         googleAccount = accounts.firstWhere(
@@ -582,6 +668,21 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       } catch (e) {
         googleAccount = null;
       }
+
+      // Outlook Calendar account'u bul
+      CalendarAccount? outlookAccount;
+      try {
+        outlookAccount = accounts.firstWhere(
+          (account) => account.provider == CalendarProvider.outlook && account.isActive,
+        );
+      } catch (e) {
+        outlookAccount = null;
+      }
+
+      // Önce Google, yoksa Outlook kullan
+      final activeAccount = googleAccount ?? outlookAccount;
+      final provider = googleAccount != null ? CalendarProvider.google : (outlookAccount != null ? CalendarProvider.outlook : null);
+      final providerName = googleAccount != null ? 'Google Calendar' : (outlookAccount != null ? 'Outlook Calendar' : null);
 
       showDialog(
         context: context,
@@ -592,12 +693,13 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
               Navigator.pop(dialogContext);
             }
             
-            // Google Calendar'a ekle
-            if (googleAccount != null && googleAccount.accessToken != null && googleAccount.accessToken!.isNotEmpty) {
+            // Calendar'a ekle (Google veya Outlook)
+            if (activeAccount != null && activeAccount.accessToken != null && activeAccount.accessToken!.isNotEmpty && provider != null) {
               try {
                 final eventParams = EventListParams(
                   calendarId: 'primary',
-                  accessToken: googleAccount.accessToken,
+                  accessToken: activeAccount.accessToken,
+                  provider: provider,
                   userId: currentUser.id,
                 );
                 final calendarNotifier = ref.read(calendarNotifierProvider(eventParams).notifier);
@@ -614,21 +716,16 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 if (mounted) {
                   EventNotificationOverlay.showEventAddedNotification(context, createdEvent);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Event Google Calendar\'a eklendi'),
+                    SnackBar(
+                      content: Text('Event $providerName\'a eklendi'),
                       backgroundColor: Colors.green,
                     ),
                   );
                   
-                  // Event listesini yenile
-                  final refreshParams = EventListParams(
-                    calendarId: 'primary',
-                    timeMin: DateTime(_currentMonth.year, _currentMonth.month, 1),
-                    timeMax: DateTime(_currentMonth.year, _currentMonth.month + 1, 1),
-                    accessToken: googleAccount.accessToken,
-                    userId: currentUser.id,
-                  );
-                  ref.read(calendarNotifierProvider(refreshParams).notifier).refresh();
+                  // Event listesini yenile - state'i yenile, provider otomatik olarak yeniden çalışacak
+                  setState(() {
+                    // State değiştiğinde provider yeniden çalışacak
+                  });
                 }
               } catch (e) {
                 if (mounted) {
@@ -652,12 +749,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 debugPrint('createEvent hatası: $e');
               }
             } else {
-              // Sadece local'e ekle (Google Calendar bağlı değil)
+              // Sadece local'e ekle (Calendar bağlı değil)
               if (mounted) {
                 EventNotificationOverlay.showEventAddedNotification(context, event);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Google Calendar bağlı değil. Event sadece local\'e kaydedildi.'),
+                    content: Text('Calendar bağlı değil. Event sadece local\'e kaydedildi.'),
                     backgroundColor: Colors.orange,
                   ),
                 );

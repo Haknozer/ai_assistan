@@ -14,6 +14,7 @@ import '../../../providers/calendar_account_provider.dart';
 import '../../../services/gmail_oauth_service.dart';
 import '../../../services/outlook_oauth_service.dart';
 import '../../../services/google_calendar_oauth_service.dart';
+import '../../../services/outlook_calendar_oauth_service.dart';
 import '../../../models/email_account.dart';
 import '../../../models/calendar_account.dart';
 import '../../../core/config/app_config.dart';
@@ -201,6 +202,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       error: (_, __) => false,
     );
 
+    final isOutlookCalendarConnected = calendarAccountsAsync.when(
+      data: (accounts) => accounts.any((account) => account.provider == CalendarProvider.outlook),
+      loading: () => false,
+      error: (_, __) => false,
+    );
+
     // Entegrasyon verilerini güncelle
     final integrationsData = Map<String, List<Map<String, dynamic>>>.from(SettingsData.integrations);
     integrationsData['E-posta Entegrasyonları'] = [
@@ -209,7 +216,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     ];
     integrationsData['Takvim Entegrasyonları'] = [
       {'name': 'Google Calendar', 'connected': isGoogleCalendarConnected},
-      {'name': 'Outlook Calendar', 'connected': false},
+      {'name': 'Outlook Calendar', 'connected': isOutlookCalendarConnected},
     ];
 
     return SingleChildScrollView(
@@ -392,6 +399,45 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       } else {
         // Google Calendar bağlı değilse, bağlan
         await _connectGoogleCalendar();
+      }
+      return;
+    }
+
+    if (integrationName == 'Outlook Calendar') {
+      if (isConnected) {
+        // Outlook Calendar bağlıysa, bağlantıyı kes veya yeniden bağla seçenekleri sun
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Outlook Calendar Bağlantısı'),
+            content: const Text(
+              'Outlook Calendar hesabınız zaten bağlı. Ne yapmak istersiniz?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('İptal'),
+              ),
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _disconnectOutlookCalendar();
+                },
+                child: const Text('Bağlantıyı Kes'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _connectOutlookCalendar();
+                },
+                child: const Text('Yeniden Bağlan'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        // Outlook Calendar bağlı değilse, bağlan
+        await _connectOutlookCalendar();
       }
       return;
     }
@@ -973,6 +1019,170 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             content: Text(errorMessage),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _connectOutlookCalendar() async {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null || currentUser.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Önce giriş yapmalısınız')),
+      );
+      return;
+    }
+
+    // Loading dialog göster
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      // Debug: Client ID ve Secret kontrolü
+      debugPrint('Microsoft Client ID: ${AppConfig.microsoftClientId}');
+      debugPrint('Microsoft Client Secret: ${AppConfig.microsoftClientSecret.isNotEmpty ? "***GİZLİ***" : "BOŞ"}');
+
+      // Outlook Calendar OAuth servisi
+      final calendarOAuth = OutlookCalendarOAuthService(
+        clientId: AppConfig.microsoftClientId.isNotEmpty ? AppConfig.microsoftClientId : null,
+        clientSecret: AppConfig.microsoftClientSecret.isNotEmpty ? AppConfig.microsoftClientSecret : null,
+      );
+      final authResult = await calendarOAuth.connectCalendar();
+
+      // Calendar account repository
+      final calendarAccountRepo = ref.read(calendarAccountRepositoryProvider);
+
+      // Calendar account oluştur ve kaydet
+      await calendarAccountRepo.connectCalendarAccount(
+        userId: currentUser.id!,
+        emailAddress: authResult.email,
+        provider: CalendarProvider.outlook,
+        accessToken: authResult.accessToken,
+        refreshToken: authResult.refreshToken,
+        displayName: authResult.displayName,
+      );
+
+      // Dialog'u kapat
+      if (mounted) {
+        Navigator.pop(context); // Loading dialog
+
+        // Başarı mesajı göster
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Outlook Calendar başarıyla bağlandı: ${authResult.email}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Listeyi yenile (state güncellemesi için)
+        ref.invalidate(calendarAccountsProvider(CalendarAccountsParams(
+          userId: currentUser.id,
+        )));
+      }
+    } catch (e) {
+      // Dialog'u kapat
+      if (mounted) {
+        Navigator.pop(context); // Loading dialog
+
+        // Hata mesajını daha kullanıcı dostu hale getir
+        String errorMessage = 'Outlook Calendar bağlantısı başarısız';
+        if (e is ApiException) {
+          errorMessage = e.message;
+        } else {
+          final errorStr = e.toString();
+          if (errorStr.contains('invalid_client')) {
+            errorMessage = 'Client ID veya Client Secret yanlış. Lütfen Azure Portal\'daki değerleri kontrol edin.';
+          } else if (errorStr.contains('timeout')) {
+            errorMessage = 'Bağlantı zaman aşımına uğradı. Lütfen tekrar deneyin.';
+          } else {
+            errorMessage = 'Outlook Calendar bağlantısı başarısız: ${e.toString()}';
+          }
+        }
+
+        // Hata mesajı göster
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _disconnectOutlookCalendar() async {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null || currentUser.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Önce giriş yapmalısınız')),
+      );
+      return;
+    }
+
+    // Calendar account repository
+    final calendarAccountRepo = ref.read(calendarAccountRepositoryProvider);
+
+    // Outlook Calendar account'u bul
+    final calendarAccountsAsync = ref.read(calendarAccountsProvider(CalendarAccountsParams(
+      userId: currentUser.id,
+    )));
+
+    final outlookAccount = calendarAccountsAsync.when(
+      data: (accounts) => accounts.firstWhere(
+        (account) => account.provider == CalendarProvider.outlook && account.isActive,
+        orElse: () => throw Exception('Outlook Calendar hesabı bulunamadı'),
+      ),
+      loading: () => throw Exception('Hesaplar yükleniyor...'),
+      error: (_, __) => throw Exception('Hesaplar yüklenemedi'),
+    );
+
+    // Loading dialog göster
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      // Outlook Calendar bağlantısını kes
+      await calendarAccountRepo.disconnectCalendarAccount(outlookAccount.id!);
+
+      // Dialog'u kapat
+      if (mounted) {
+        Navigator.pop(context);
+
+        // Başarı mesajı göster
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Outlook Calendar bağlantısı kesildi'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+
+        // Listeyi yenile
+        ref.invalidate(calendarAccountsProvider(CalendarAccountsParams(
+          userId: currentUser.id,
+        )));
+      }
+    } catch (e) {
+      // Dialog'u kapat
+      if (mounted) {
+        Navigator.pop(context);
+
+        // Hata mesajı göster
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Outlook Calendar bağlantısı kesilemedi: ${e.toString()}'),
+            backgroundColor: Colors.red,
           ),
         );
       }

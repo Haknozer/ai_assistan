@@ -14,6 +14,8 @@ class CalendarLocalRepository {
     int? userId,
     DateTime? timeMin,
     DateTime? timeMax,
+    EventSource? source,
+    List<String>? externalIdList,
   }) async {
     final db = await _databaseService.database;
 
@@ -33,6 +35,16 @@ class CalendarLocalRepository {
     if (timeMax != null) {
       query += ' AND end_time <= ?';
       whereArgs.add(timeMax.toIso8601String());
+    }
+
+    if (source != null) {
+      query += ' AND source = ?';
+      whereArgs.add(source.name);
+    }
+
+    if (externalIdList != null && externalIdList.isNotEmpty) {
+      query += ' AND external_id IN (${externalIdList.map((_) => '?').join(',')})';
+      whereArgs.addAll(externalIdList);
     }
 
     query += ' ORDER BY start_time ASC';

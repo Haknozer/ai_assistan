@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/repositories/calendar_repository.dart';
 import 'package:ai_asisstan/models/calendar_event.dart';
+import 'package:ai_asisstan/models/calendar_account.dart';
 
 /// Calendar repository provider
 final calendarRepositoryProvider = Provider<CalendarRepository>((ref) {
@@ -9,9 +10,12 @@ final calendarRepositoryProvider = Provider<CalendarRepository>((ref) {
 });
 
 /// Calendar listesi provider
-final calendarsProvider = FutureProvider.family<List<Map<String, dynamic>>, String>((ref, accessToken) async {
+final calendarsProvider = FutureProvider.family<List<Map<String, dynamic>>, Map<String, dynamic>>((ref, params) async {
   final repository = ref.watch(calendarRepositoryProvider);
-  return repository.getCalendars(accessToken: accessToken);
+  return repository.getCalendars(
+    accessToken: params['accessToken'] as String,
+    provider: params['provider'] as CalendarProvider,
+  );
 });
 
 /// Event listesi parametreleri
@@ -21,6 +25,7 @@ class EventListParams {
   final DateTime? timeMax;
   final int? maxResults;
   final String? accessToken;
+  final CalendarProvider? provider;
   final int? userId;
 
   EventListParams({
@@ -29,6 +34,7 @@ class EventListParams {
     this.timeMax,
     this.maxResults,
     this.accessToken,
+    this.provider,
     this.userId,
   });
 
@@ -38,6 +44,7 @@ class EventListParams {
     DateTime? timeMax,
     int? maxResults,
     String? accessToken,
+    CalendarProvider? provider,
     int? userId,
   }) {
     return EventListParams(
@@ -46,6 +53,7 @@ class EventListParams {
       timeMax: timeMax ?? this.timeMax,
       maxResults: maxResults ?? this.maxResults,
       accessToken: accessToken ?? this.accessToken,
+      provider: provider ?? this.provider,
       userId: userId ?? this.userId,
     );
   }
@@ -59,24 +67,29 @@ class EventListParams {
         other.timeMax == timeMax &&
         other.maxResults == maxResults &&
         other.accessToken == accessToken &&
+        other.provider == provider &&
         other.userId == userId;
   }
 
   @override
   int get hashCode {
-    return Object.hash(calendarId, timeMin, timeMax, maxResults, accessToken, userId);
+    return Object.hash(calendarId, timeMin, timeMax, maxResults, accessToken, provider, userId);
   }
 }
 
 /// Event listesi provider
 final eventsProvider = FutureProvider.family<List<CalendarEvent>, EventListParams>((ref, params) async {
   final repository = ref.watch(calendarRepositoryProvider);
+  if (params.provider == null || params.accessToken == null) {
+    return [];
+  }
   return repository.getEvents(
     calendarId: params.calendarId,
     timeMin: params.timeMin,
     timeMax: params.timeMax,
     maxResults: params.maxResults,
-    accessToken: params.accessToken ?? '',
+    accessToken: params.accessToken!,
+    provider: params.provider!,
     userId: params.userId,
   );
 });
@@ -88,6 +101,7 @@ final eventByIdProvider = FutureProvider.family<CalendarEvent?, Map<String, dyna
     eventId: params['eventId'] as String,
     calendarId: params['calendarId'] as String?,
     accessToken: params['accessToken'] as String,
+    provider: params['provider'] as CalendarProvider,
     userId: params['userId'] as int?,
   );
 });
@@ -104,13 +118,14 @@ class CalendarNotifier extends StateNotifier<AsyncValue<List<CalendarEvent>>> {
   Future<void> _loadEvents() async {
     state = const AsyncValue.loading();
     try {
-      // Local ve Google Calendar event'lerini birleştir
+      // Local ve Calendar event'lerini birleştir
       final events = await _repository.getCombinedEvents(
         calendarId: _params.calendarId,
         timeMin: _params.timeMin,
         timeMax: _params.timeMax,
         maxResults: _params.maxResults,
         accessToken: _params.accessToken,
+        provider: _params.provider,
         userId: _params.userId,
       );
       state = AsyncValue.data(events);
@@ -123,13 +138,14 @@ class CalendarNotifier extends StateNotifier<AsyncValue<List<CalendarEvent>>> {
   Future<void> refresh() async {
     state = const AsyncValue.loading();
     try {
-      // Local ve Google Calendar event'lerini birleştir
+      // Local ve Calendar event'lerini birleştir
       final events = await _repository.getCombinedEvents(
         calendarId: _params.calendarId,
         timeMin: _params.timeMin,
         timeMax: _params.timeMax,
         maxResults: _params.maxResults,
         accessToken: _params.accessToken,
+        provider: _params.provider,
         userId: _params.userId,
       );
       state = AsyncValue.data(events);
@@ -147,6 +163,9 @@ class CalendarNotifier extends StateNotifier<AsyncValue<List<CalendarEvent>>> {
     String? location,
     EventType? eventType,
   }) async {
+    if (_params.provider == null || _params.accessToken == null) {
+      throw Exception('Provider ve access token gerekli');
+    }
     try {
       final event = await _repository.createEvent(
         title: title,
@@ -156,7 +175,8 @@ class CalendarNotifier extends StateNotifier<AsyncValue<List<CalendarEvent>>> {
         location: location,
         eventType: eventType,
         calendarId: _params.calendarId,
-        accessToken: _params.accessToken ?? '',
+        accessToken: _params.accessToken!,
+        provider: _params.provider!,
         userId: _params.userId ?? 0,
       );
 
@@ -181,6 +201,9 @@ class CalendarNotifier extends StateNotifier<AsyncValue<List<CalendarEvent>>> {
     String? location,
     EventType? eventType,
   }) async {
+    if (_params.provider == null || _params.accessToken == null) {
+      throw Exception('Provider ve access token gerekli');
+    }
     try {
       final event = await _repository.updateEvent(
         eventId: eventId,
@@ -191,7 +214,8 @@ class CalendarNotifier extends StateNotifier<AsyncValue<List<CalendarEvent>>> {
         location: location,
         eventType: eventType,
         calendarId: _params.calendarId,
-        accessToken: _params.accessToken ?? '',
+        accessToken: _params.accessToken!,
+        provider: _params.provider!,
         userId: _params.userId ?? 0,
       );
 
@@ -214,6 +238,9 @@ class CalendarNotifier extends StateNotifier<AsyncValue<List<CalendarEvent>>> {
 
   /// Event sil
   Future<void> deleteEvent(String eventId) async {
+    if (_params.provider == null || _params.accessToken == null) {
+      throw Exception('Provider ve access token gerekli');
+    }
     try {
       // Optimistic update - event'i listeden çıkar
       final currentEvents = state.value ?? [];
@@ -223,7 +250,8 @@ class CalendarNotifier extends StateNotifier<AsyncValue<List<CalendarEvent>>> {
       await _repository.deleteEvent(
         eventId: eventId,
         calendarId: _params.calendarId,
-        accessToken: _params.accessToken ?? '',
+        accessToken: _params.accessToken!,
+        provider: _params.provider!,
       );
     } catch (e) {
       debugPrint('deleteEvent hatası: ${e.toString()}');

@@ -46,6 +46,20 @@ class ApiEndpoints {
   static String graphMailFolderById(String folderId) => '$graphApiBaseUrl/me/mailFolders/$folderId';
   static String graphMailFolderMessages(String folderId) => '$graphApiBaseUrl/me/mailFolders/$folderId/messages';
 
+  // Microsoft Graph API endpoints - Outlook Calendar için
+  static String get graphCalendars => '$graphApiBaseUrl/me/calendars';
+  static String graphCalendarById(String calendarId) => '$graphApiBaseUrl/me/calendars/$calendarId';
+  // Primary calendar için özel endpoint (calendar ID gerektirmez)
+  static String get graphPrimaryCalendarEvents => '$graphApiBaseUrl/me/calendar/events';
+  static String get graphPrimaryCalendarEventById => '$graphApiBaseUrl/me/calendar/events'; // eventId ile kullanılacak
+  static String get graphPrimaryCalendarCreateEvent => '$graphApiBaseUrl/me/calendar/events';
+  // Belirli bir calendar için endpoint'ler
+  static String graphCalendarEvents(String calendarId) => '$graphApiBaseUrl/me/calendars/$calendarId/events';
+  static String graphCalendarEventById(String calendarId, String eventId) => '$graphApiBaseUrl/me/calendars/$calendarId/events/$eventId';
+  static String graphCalendarCreateEvent(String calendarId) => '$graphApiBaseUrl/me/calendars/$calendarId/events';
+  static String graphCalendarUpdateEvent(String calendarId, String eventId) => '$graphApiBaseUrl/me/calendars/$calendarId/events/$eventId';
+  static String graphCalendarDeleteEvent(String calendarId, String eventId) => '$graphApiBaseUrl/me/calendars/$calendarId/events/$eventId';
+
   // Legacy endpoints (eski backend API için - şimdilik kullanılmıyor)
   static String get baseUrl => AppConfig.apiBaseUrl;
   static const String emails = '/api/v1/emails';
