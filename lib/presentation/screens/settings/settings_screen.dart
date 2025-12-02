@@ -9,6 +9,8 @@ import '../../widgets/settings/notifications_card.dart';
 import '../../widgets/settings/appearance_card.dart';
 import '../../widgets/settings/privacy_card.dart';
 import '../../../providers/user_provider.dart';
+import '../../../providers/user_setting_provider.dart';
+import '../../../models/user_setting.dart';
 import '../../../providers/email_account_provider.dart';
 import '../../../providers/calendar_account_provider.dart';
 import '../../../services/gmail_oauth_service.dart';
@@ -208,6 +210,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       error: (_, __) => false,
     );
 
+    // Kullanıcının WhatsApp entegrasyonu bağlı mı kontrol et
+    final userSettingsAsync = ref.watch(currentUserSettingsNotifierProvider);
+    final isWhatsappConnected = userSettingsAsync.when(
+      data: (settings) {
+        try {
+          final setting = settings.firstWhere((s) => s.settingKey == 'whatsapp_connected');
+          return setting.getBoolValue();
+        } catch (_) {
+          return false;
+        }
+      },
+      loading: () => false,
+      error: (_, __) => false,
+    );
+
     // Entegrasyon verilerini güncelle
     final integrationsData = Map<String, List<Map<String, dynamic>>>.from(SettingsData.integrations);
     integrationsData['E-posta Entegrasyonları'] = [
@@ -217,6 +234,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     integrationsData['Takvim Entegrasyonları'] = [
       {'name': 'Google Calendar', 'connected': isGoogleCalendarConnected},
       {'name': 'Outlook Calendar', 'connected': isOutlookCalendarConnected},
+    ];
+    integrationsData['İletişim'] = [
+      {'name': 'WhatsApp', 'connected': isWhatsappConnected},
+      {'name': 'Telegram', 'connected': false},
+      {'name': 'Slack', 'connected': false},
     ];
 
     return SingleChildScrollView(
@@ -286,6 +308,104 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _showIntegrationDialog(String integrationName, bool isConnected) async {
+    if (integrationName == 'WhatsApp') {
+      final currentUser = ref.read(currentUserProvider);
+      if (currentUser == null || currentUser.id == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Önce giriş yapmalısınız')),
+        );
+        return;
+      }
+
+      if (isConnected) {
+        // WhatsApp zaten bağlıysa bağlantıyı kesme diyaloğu
+        final shouldDisconnect = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('WhatsApp Bağlantısı'),
+            content: const Text(
+              'WhatsApp entegrasyonunu devre dışı bırakmak istiyor musunuz? Bu işlemden sonra WhatsApp üzerinden veri senkronu yapılmayacak.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Vazgeç'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Bağlantıyı Kes'),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldDisconnect == true) {
+          await ref
+              .read(userSettingNotifierProvider.notifier)
+              .updateBoolSetting(currentUser.id!, 'whatsapp_connected', false,
+                  category: SettingCategory.privacy);
+          await ref.read(currentUserSettingsNotifierProvider.notifier).loadSettings(currentUser.id!);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('WhatsApp bağlantısı devre dışı bırakıldı.'),
+            ),
+          );
+        }
+      } else {
+        // WhatsApp bağlı değilse, kullanıcıdan onay alarak bağla
+        final accepted = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('WhatsApp\'a Bağlan'),
+            content: const SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'WhatsApp hesabınızı bu asistana bağlamak üzeresiniz.',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    '- Mesajlar Meta WhatsApp Business API üzerinden, uygulamanın kendi iş numarası ile gönderilir.\n'
+                    '- Sizin kişisel WhatsApp hesabınız API\'ye bağlanmaz; sadece kime mesaj atmak istediğiniz numara kullanılır.\n'
+                    '- Gizlilik ayarlarından \"Bulut Senkronizasyonu\" açık ise, mesaj geçmişiniz bulut ile senkronize edilebilir.\n'
+                    '- Bulut senkron kapalı ise, veriler mümkün olduğunca sadece cihazınızda tutulur.',
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Vazgeç'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Kabul ediyorum ve bağla'),
+              ),
+            ],
+          ),
+        );
+
+        if (accepted == true) {
+          await ref
+              .read(userSettingNotifierProvider.notifier)
+              .updateBoolSetting(currentUser.id!, 'whatsapp_connected', true,
+                  category: SettingCategory.privacy);
+          await ref.read(currentUserSettingsNotifierProvider.notifier).loadSettings(currentUser.id!);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('WhatsApp entegrasyonu aktifleştirildi.'),
+            ),
+          );
+        }
+      }
+      return;
+    }
+
     if (integrationName == 'Gmail') {
       if (isConnected) {
         // Gmail bağlıysa, bağlantıyı kes veya yeniden bağla seçenekleri sun

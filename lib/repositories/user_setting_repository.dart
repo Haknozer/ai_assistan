@@ -221,6 +221,15 @@ class UserSettingRepository {
         category: SettingCategory.privacy,
         updatedAt: DateTime.now(),
       ),
+      // Uygulama genel bulut senkronizasyon anahtarı
+      UserSetting(
+        userId: userId,
+        settingKey: 'privacy_cloud_sync',
+        // Varsayılan: kapalı, kullanıcı isterse açar
+        settingValue: 'false',
+        category: SettingCategory.privacy,
+        updatedAt: DateTime.now(),
+      ),
     ];
 
     try {
