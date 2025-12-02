@@ -8,12 +8,14 @@ class WhatsAppThreadPanel extends StatefulWidget {
   final MessageModel? selectedMessage;
   final List<MessageModel> allMessages;
   final Future<void> Function(String phoneNumber, String displayName)? onEditContact;
+  final bool canSend;
 
   const WhatsAppThreadPanel({
     super.key,
     required this.selectedMessage,
     required this.allMessages,
     this.onEditContact,
+    this.canSend = true,
   });
 
   @override
@@ -186,6 +188,7 @@ class _WhatsAppThreadPanelState extends State<WhatsAppThreadPanel> {
               controller: _controller,
               minLines: 1,
               maxLines: 4,
+              enabled: widget.canSend,
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => _handleSend(),
               decoration: InputDecoration(
@@ -216,7 +219,7 @@ class _WhatsAppThreadPanelState extends State<WhatsAppThreadPanel> {
           ),
           const SizedBox(width: 8),
           IconButton(
-            onPressed: _isSending ? null : _handleSend,
+            onPressed: !_isSending && widget.canSend ? _handleSend : null,
             icon: _isSending
                 ? const SizedBox(
                     width: 18,
@@ -237,6 +240,13 @@ class _WhatsAppThreadPanelState extends State<WhatsAppThreadPanel> {
   Future<void> _handleSend() async {
     final text = _controller.text.trim();
     if (text.isEmpty || widget.selectedMessage == null) return;
+
+    if (!widget.canSend) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('WhatsApp entegrasyonu kapalı. Önce Ayarlar > Entegrasyonlar\'dan bağlayın.')),
+      );
+      return;
+    }
 
     setState(() {
       _isSending = true;

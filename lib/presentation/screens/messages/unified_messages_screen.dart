@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../utils/responsive_utils.dart';
 import '../../../providers/user_provider.dart';
+import '../../../providers/user_setting_provider.dart';
 import 'models/message_model.dart';
 import '../../widgets/messages/page_header.dart';
 import '../../widgets/messages/search_and_filter_bar.dart';
@@ -26,9 +27,10 @@ class _UnifiedMessagesScreenState extends ConsumerState<UnifiedMessagesScreen> {
   String _selectedFilter = 'Tümü';
   int? _selectedMessageIndex;
   String _searchQuery = '';
-  bool _isLoading = true;
+  bool _isLoading = false;
   List<MessageModel> _allMessages = [];
   Map<String, String> _contacts = {}; // fromNumber -> displayName
+  bool _hasRequestedMessagesLoad = false;
 
   // Menu handler için
   final int _selectedMenuIndex = 1; // Birleşik Mesajlar indeksi
@@ -36,12 +38,7 @@ class _UnifiedMessagesScreenState extends ConsumerState<UnifiedMessagesScreen> {
   @override
   void initState() {
     super.initState();
-    _initData();
-  }
-
-  Future<void> _initData() async {
-    await _loadContacts();
-    await _loadMessages();
+    _loadContacts();
   }
 
   Future<void> _loadContacts() async {
@@ -60,6 +57,10 @@ class _UnifiedMessagesScreenState extends ConsumerState<UnifiedMessagesScreen> {
 
   Future<void> _loadMessages() async {
     try {
+      setState(() {
+        _isLoading = true;
+      });
+
       final client = Supabase.instance.client;
       final supabaseUser = client.auth.currentUser;
       final response = await client
@@ -211,6 +212,41 @@ class _UnifiedMessagesScreenState extends ConsumerState<UnifiedMessagesScreen> {
       );
     }
 
+    // Kullanıcının WhatsApp entegrasyonu bağlı mı kontrol et
+    final userSettingsAsync = ref.watch(currentUserSettingsNotifierProvider);
+    final isWhatsappConnected = userSettingsAsync.when(
+      data: (settings) {
+        try {
+          final setting = settings.firstWhere((s) => s.settingKey == 'whatsapp_connected');
+          return setting.getBoolValue();
+        } catch (_) {
+          return false;
+        }
+      },
+      loading: () => false,
+      error: (_, __) => false,
+    );
+
+    // Bağlantı AÇIK ve henüz mesajlar için istek atılmadıysa, mesajları Supabase'ten çek
+    if (isWhatsappConnected && !_hasRequestedMessagesLoad) {
+      _hasRequestedMessagesLoad = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadMessages();
+      });
+    }
+
+    // Bağlantı KAPALI ise, lokal mesaj listesini temizle ve tekrar yükleme
+    if (!isWhatsappConnected && (_hasRequestedMessagesLoad || _allMessages.isNotEmpty)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setState(() {
+          _allMessages = [];
+          _hasRequestedMessagesLoad = false;
+          _isLoading = false;
+          _selectedMessageIndex = null;
+        });
+      });
+    }
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Row(
@@ -334,6 +370,7 @@ class _UnifiedMessagesScreenState extends ConsumerState<UnifiedMessagesScreen> {
                                     selectedMessage: _selectedMessage,
                                     allMessages: _allMessages,
                                     onEditContact: _handleEditContact,
+                                    canSend: isWhatsappConnected,
                                   ),
                                 ),
                               ],

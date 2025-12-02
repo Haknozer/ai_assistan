@@ -46,6 +46,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void initState() {
     super.initState();
     _notificationStates = Map.from(SettingsData.defaultNotificationStates);
+
+    // Ayarlar ekranı açıldığında mevcut kullanıcının ayarlarını da yükle
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final currentUser = ref.read(currentUserProvider);
+      if (currentUser != null && currentUser.id != null) {
+        ref.read(currentUserSettingsNotifierProvider.notifier).loadSettings(currentUser.id!);
+      }
+    });
   }
 
   @override
