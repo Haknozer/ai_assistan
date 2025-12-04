@@ -68,4 +68,43 @@ class AppConstants {
   static const String errorNotFound = 'Kayıt bulunamadı';
   static const String errorServer = 'Sunucu hatası';
   static const String errorUnknown = 'Bilinmeyen bir hata oluştu';
+
+  // UI Constants
+  static const double defaultBorderRadius = 16.0;
+  static const double defaultPadding = 16.0;
+  static const double defaultMargin = 8.0;
+  static const double defaultIconSize = 24.0;
+  static const double defaultElevation = 2.0;
+
+  // Animation Durations
+  static const Duration animationDurationShort = Duration(milliseconds: 200);
+  static const Duration animationDurationMedium = Duration(milliseconds: 300);
+  static const Duration animationDurationLong = Duration(milliseconds: 500);
+
+  // Snackbar Durations
+  static const Duration snackbarDurationShort = Duration(seconds: 2);
+  static const Duration snackbarDurationMedium = Duration(seconds: 3);
+  static const Duration snackbarDurationLong = Duration(seconds: 4);
+
+  // WhatsApp Constants
+  static const double whatsappBubbleMaxWidth = 0.6; // %60 of screen width
+  static const double whatsappBubbleMinWidth = 40.0;
+  static const double whatsappBubbleCharWidth = 11.0; // Estimated character width
+
+  // OAuth Constants
+  static const int oauthServerPreferredPort = 8080;
+  static const List<int> oauthServerAlternativePorts = [8081, 8082, 8083, 3000, 3001];
+  static const String oauthCallbackPath = '/oauth-callback';
+
+  // Platform Names
+  static const String platformWhatsApp = 'WhatsApp';
+  static const String platformTelegram = 'Telegram';
+  static const String platformGmail = 'Gmail';
+  static const String platformOutlook = 'Outlook';
+  static const String platformGoogleCalendar = 'Google Calendar';
+  static const String platformOutlookCalendar = 'Outlook Calendar';
+
+  // Message Constants
+  static const int messagePreviewLength = 30;
+  static const int messageSubjectMaxLength = 100;
 }

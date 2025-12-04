@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,6 +18,8 @@ import '../../widgets/layout/side_menu.dart';
 import '../../../services/telegram_bot_service.dart';
 import '../../../services/n8n_forwarder_service.dart';
 import '../../../core/config/app_config.dart';
+import '../../../core/utils/logger.dart';
+import '../../../core/utils/error_handler.dart';
 
 /// Birleşik mesajlar ekranı - Tüm platformlardan mesajları tek yerden yönetin
 class UnifiedMessagesScreen extends ConsumerStatefulWidget {
@@ -128,9 +129,7 @@ class _UnifiedMessagesScreenState extends ConsumerState<UnifiedMessagesScreen> {
           isOutgoing: isOutgoing,
           dateTime: fullDateTime,
         );
-        if (kDebugMode) {
-          debugPrint('n8n incoming response: $n8nResponse');
-        }
+        AppLogger.debug('n8n incoming response: $n8nResponse', 'N8N');
       }
 
       // Unified listeye ekle ve lokal olarak sakla
@@ -564,13 +563,9 @@ class _UnifiedMessagesScreenState extends ConsumerState<UnifiedMessagesScreen> {
                                           if (message.isUnread && message.id != null) {
                                             try {
                                               final client = Supabase.instance.client;
-                                              final res = await client
+                                              await client
                                                   .from('messages')
                                                   .update({'is_read': true}).eq('id', message.id!);
-
-                                              // Debug: güncelleme sonucu
-                                              // // ignore: avoid_print
-                                              print('UPDATE messages.is_read result (desktop): $res');
 
                                               // Local state'i de güncelle
                                               setState(() {
@@ -582,9 +577,14 @@ class _UnifiedMessagesScreenState extends ConsumerState<UnifiedMessagesScreen> {
                                                 }).toList();
                                                 _selectedMessageIndex = index;
                                               });
+                                              AppLogger.database('Message marked as read: ${message.id}', 'Messages');
                                             } catch (e) {
-                                              // // ignore: avoid_print
-                                              print('UPDATE messages.is_read error (desktop): $e');
+                                              AppLogger.error(
+                                                'Failed to mark message as read',
+                                                tag: 'Messages',
+                                                error: e,
+                                              );
+                                              ErrorHandler.logError(e, tag: 'Messages');
                                               setState(() {
                                                 _selectedMessageIndex = index;
                                               });
@@ -625,13 +625,7 @@ class _UnifiedMessagesScreenState extends ConsumerState<UnifiedMessagesScreen> {
                                     if (message.isUnread && message.id != null) {
                                       try {
                                         final client = Supabase.instance.client;
-                                        final res = await client
-                                            .from('messages')
-                                            .update({'is_read': true}).eq('id', message.id!);
-
-                                        // Debug: güncelleme sonucu
-                                        // // ignore: avoid_print
-                                        print('UPDATE messages.is_read result (mobile): $res');
+                                        await client.from('messages').update({'is_read': true}).eq('id', message.id!);
 
                                         setState(() {
                                           _allMessages = _allMessages.map((m) {
@@ -642,9 +636,14 @@ class _UnifiedMessagesScreenState extends ConsumerState<UnifiedMessagesScreen> {
                                           }).toList();
                                           _selectedMessageIndex = index;
                                         });
+                                        AppLogger.database('Message marked as read: ${message.id}', 'Messages');
                                       } catch (e) {
-                                        // // ignore: avoid_print
-                                        print('UPDATE messages.is_read error (mobile): $e');
+                                        AppLogger.error(
+                                          'Failed to mark message as read',
+                                          tag: 'Messages',
+                                          error: e,
+                                        );
+                                        ErrorHandler.logError(e, tag: 'Messages');
                                         setState(() {
                                           _selectedMessageIndex = index;
                                         });

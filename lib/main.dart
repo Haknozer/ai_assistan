@@ -7,6 +7,7 @@ import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
 import 'core/database/database_service.dart';
 import 'core/config/app_config.dart';
+import 'core/utils/logger.dart';
 import 'providers/theme_provider.dart';
 
 Future<void> main() async {
@@ -36,36 +37,33 @@ Future<void> main() async {
         
         // Sadece önemli event'leri logla
         if (event == AuthChangeEvent.signedIn || event == AuthChangeEvent.signedOut) {
-          if (kDebugMode) {
-            debugPrint('[Supabase Auth] Event: $event');
-          }
+          AppLogger.info('Auth event: $event', 'Supabase');
         }
       },
       onError: (error) {
         // Network hatalarını sessizce yönet (DNS lookup failures, connection errors, etc.)
         // Bu hatalar Supabase'in otomatik token yenileme mekanizmasından kaynaklanır
         // ve offline durumda normaldir
-        if (kDebugMode && AppConfig.debugMode) {
-          final errorStr = error.toString();
-          // Sadece network hataları değil, diğer önemli hataları logla
-          if (!errorStr.contains('Failed host lookup') &&
-              !errorStr.contains('SocketException') &&
-              !errorStr.contains('AuthRetryableFetchException')) {
-            debugPrint('[Supabase Auth] Error: $error');
-          }
+        final errorStr = error.toString();
+        // Sadece network hataları değil, diğer önemli hataları logla
+        if (!errorStr.contains('Failed host lookup') &&
+            !errorStr.contains('SocketException') &&
+            !errorStr.contains('AuthRetryableFetchException')) {
+          AppLogger.warning('Auth state change error', 'Supabase', error);
         }
       },
     );
   } catch (e) {
     // Network hatası durumunda uygulama çalışmaya devam etsin
-    debugPrint('Supabase initialization error (non-critical): $e');
+    AppLogger.warning('Supabase initialization error (non-critical)', 'Supabase', e);
   }
 
-  // Veritabanını başlatH
+  // Veritabanını başlat
   try {
     await DatabaseService.instance.database;
+    AppLogger.info('Database initialized successfully', 'Database');
   } catch (e) {
-    debugPrint('Database initialization error: $e');
+    AppLogger.error('Database initialization error', tag: 'Database', error: e);
   }
 
   runApp(

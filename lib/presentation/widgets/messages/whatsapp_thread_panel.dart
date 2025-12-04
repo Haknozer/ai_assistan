@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import '../../screens/messages/models/message_model.dart';
 import 'empty_message_state.dart';
 import '../../../services/whatsapp_service.dart';
 import '../../../services/telegram_bot_service.dart';
 import '../../../services/n8n_forwarder_service.dart';
+import '../../../core/utils/logger.dart';
+import '../../../core/utils/error_handler.dart';
 import 'whatsapp/whatsapp_thread_header.dart';
 import 'whatsapp/whatsapp_message_list.dart';
 import 'whatsapp/whatsapp_input_area.dart';
@@ -104,17 +105,13 @@ class _WhatsAppThreadPanelState extends State<WhatsAppThreadPanel> {
       try {
         final telegramService = TelegramBotService();
         if (!telegramService.isConfigured) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Telegram bot yapılandırılmamış. Bot token kontrol edin.')),
-          );
+          ErrorHandler.showInfo(context, 'Telegram bot yapılandırılmamış. Bot token kontrol edin.');
           return;
         }
 
         final chatId = int.tryParse(widget.selectedMessage!.fromNumber);
         if (chatId == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Geçersiz Telegram chat id.')),
-          );
+          ErrorHandler.showInfo(context, 'Geçersiz Telegram chat id.');
           return;
         }
 
@@ -137,9 +134,7 @@ class _WhatsAppThreadPanelState extends State<WhatsAppThreadPanel> {
             dateTime: now,
           );
 
-          if (kDebugMode) {
-            debugPrint('n8n response: $n8nResponse');
-          }
+          AppLogger.debug('n8n response: $n8nResponse', 'N8N');
 
           // Şimdilik debug amaçlı olarak cevabı ekranda göster.
           if (mounted && n8nResponse != null) {
@@ -184,8 +179,11 @@ class _WhatsAppThreadPanelState extends State<WhatsAppThreadPanel> {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Telegram mesajı gönderilemedi: $e')),
+          ErrorHandler.handleError(
+            context,
+            e,
+            tag: 'Telegram',
+            onRetry: () => _handleSend(),
           );
         }
       } finally {
@@ -201,9 +199,7 @@ class _WhatsAppThreadPanelState extends State<WhatsAppThreadPanel> {
 
     // WhatsApp için mevcut davranış
     if (!widget.canSend) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('WhatsApp entegrasyonu kapalı. Önce Ayarlar > Entegrasyonlar\'dan bağlayın.')),
-      );
+      ErrorHandler.showInfo(context, 'WhatsApp entegrasyonu kapalı. Önce Ayarlar > Entegrasyonlar\'dan bağlayın.');
       return;
     }
 
@@ -248,10 +244,11 @@ class _WhatsAppThreadPanelState extends State<WhatsAppThreadPanel> {
     } catch (e) {
       // Hata durumunda kullanıcıya bilgi ver
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Mesaj gönderilemedi: $e'),
-          ),
+        ErrorHandler.handleError(
+          context,
+          e,
+          tag: 'WhatsApp',
+          onRetry: () => _handleSend(),
         );
       }
     } finally {
