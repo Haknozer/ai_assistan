@@ -27,34 +27,23 @@ class WhatsAppThreadHeader extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        message.sender,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (onEditPressed != null)
-                      IconButton(
-                        icon: const Icon(Icons.edit, size: 18),
-                        tooltip: 'İsmi düzenle',
-                        onPressed: onEditPressed,
-                      ),
-                  ],
+                Expanded(
+                  child: Text(
+                    message.sender,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                Text(
-                  message.fromNumber,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.grey[600],
-                      ),
-                ),
+                if (onEditPressed != null)
+                  IconButton(
+                    icon: const Icon(Icons.edit, size: 18),
+                    tooltip: 'İsmi düzenle',
+                    onPressed: onEditPressed,
+                  ),
               ],
             ),
           ),

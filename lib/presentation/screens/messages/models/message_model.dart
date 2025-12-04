@@ -75,5 +75,61 @@ class MessageModel {
       isOutgoing: isOutgoing ?? this.isOutgoing,
     );
   }
+
+  /// JSON'a çevir (lokal saklama için - UI'ya özel alanları hariç)
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'platform': platform,
+      'fromNumber': fromNumber,
+      'sender': sender,
+      'subject': subject,
+      'preview': preview,
+      'content': content,
+      'time': time,
+      'date': date,
+      'isUnread': isUnread,
+      'isOutgoing': isOutgoing,
+    };
+  }
+
+  /// JSON'dan model oluştur (platform'a göre icon ve color atar)
+  factory MessageModel.fromJson(Map<String, dynamic> json) {
+    final platform = (json['platform'] as String?) ?? 'Unknown';
+
+    IconData icon;
+    Color color;
+
+    switch (platform) {
+      case 'Telegram':
+        icon = Icons.telegram;
+        color = Colors.blue;
+        break;
+      case 'WhatsApp':
+        icon = Icons.message;
+        color = Colors.green;
+        break;
+      default:
+        icon = Icons.message;
+        color = Colors.grey;
+        break;
+    }
+
+    return MessageModel(
+      id: json['id'] as String?,
+      platform: platform,
+      fromNumber: (json['fromNumber'] as String?) ?? '',
+      sender: (json['sender'] as String?) ?? '',
+      subject: (json['subject'] as String?) ?? '',
+      preview: (json['preview'] as String?) ?? '',
+      content: json['content'] as String?,
+      time: (json['time'] as String?) ?? '',
+      date: json['date'] as String?,
+      isUnread: (json['isUnread'] as bool?) ?? false,
+      icon: icon,
+      color: color,
+      isOutgoing: (json['isOutgoing'] as bool?) ?? false,
+    );
+  }
 }
 

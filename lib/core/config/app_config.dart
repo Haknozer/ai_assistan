@@ -63,6 +63,25 @@ class AppConfig {
     defaultValue: '', // OpenWeatherMap API key - https://openweathermap.org/api
   );
 
+  // Telegram Bot Configuration
+  static const String telegramBotToken = String.fromEnvironment(
+    'TELEGRAM_BOT_TOKEN',
+    defaultValue: '',
+  );
+
+  // n8n Webhook URL (Telegram mesajlarını iletmek için)
+  static const String n8nTelegramWebhookUrl = String.fromEnvironment(
+    'N8N_TELEGRAM_WEBHOOK_URL',
+    defaultValue: '',
+  );
+
+  // Telegram polling feature flag
+  // Varsayılan olarak KAPALI gelir; sadece ENABLE_TELEGRAM_POLLING=true dersen açılır.
+  static const bool enableTelegramPolling = bool.fromEnvironment(
+    'ENABLE_TELEGRAM_POLLING',
+    defaultValue: false,
+  );
+
   // Debug Configuration
   static const bool debugMode = bool.fromEnvironment('DEBUG', defaultValue: false);
   static const bool enableLogging = bool.fromEnvironment('ENABLE_LOGGING', defaultValue: true);

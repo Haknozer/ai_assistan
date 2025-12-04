@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../../screens/messages/models/message_model.dart';
 import 'empty_message_state.dart';
 import '../../../services/whatsapp_service.dart';
+import '../../../services/telegram_bot_service.dart';
+import '../../../services/n8n_forwarder_service.dart';
 import 'whatsapp/whatsapp_thread_header.dart';
 import 'whatsapp/whatsapp_message_list.dart';
 import 'whatsapp/whatsapp_input_area.dart';
@@ -12,6 +15,10 @@ class WhatsAppThreadPanel extends StatefulWidget {
   final List<MessageModel> allMessages;
   final Future<void> Function(String phoneNumber, String displayName)? onEditContact;
   final bool canSend;
+  final String? currentUserId;
+  // Telegram mesajları değiştiğinde (örneğin optimistic olarak yeni mesaj eklendiğinde)
+  // üst seviyeye haber vermek için callback. Üst seviye bu sayede lokal persist işlemi yapabilir.
+  final Future<void> Function()? onTelegramMessagesChanged;
 
   const WhatsAppThreadPanel({
     super.key,
@@ -19,6 +26,8 @@ class WhatsAppThreadPanel extends StatefulWidget {
     required this.allMessages,
     this.onEditContact,
     this.canSend = true,
+    this.currentUserId,
+    this.onTelegramMessagesChanged,
   });
 
   @override
@@ -84,6 +93,113 @@ class _WhatsAppThreadPanelState extends State<WhatsAppThreadPanel> {
     final text = _controller.text.trim();
     if (text.isEmpty || widget.selectedMessage == null) return;
 
+    final platform = widget.selectedMessage!.platform;
+
+    // Telegram sohbeti ise Telegram üzerinden gönder
+    if (platform == 'Telegram') {
+      setState(() {
+        _isSending = true;
+      });
+
+      try {
+        final telegramService = TelegramBotService();
+        if (!telegramService.isConfigured) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Telegram bot yapılandırılmamış. Bot token kontrol edin.')),
+          );
+          return;
+        }
+
+        final chatId = int.tryParse(widget.selectedMessage!.fromNumber);
+        if (chatId == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Geçersiz Telegram chat id.')),
+          );
+          return;
+        }
+
+        await telegramService.sendMessage(
+          chatId: chatId,
+          text: text,
+        );
+
+        final now = DateTime.now();
+        final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+
+        // Gönderdiğimiz mesajı da n8n'e ilet ve cevabı almak istersek burada yakalayabiliriz.
+        if (widget.currentUserId != null) {
+          final n8nResponse = await N8nForwarderService().forwardTelegramMessageAndWait(
+            userId: widget.currentUserId!,
+            chatId: chatId,
+            senderName: widget.selectedMessage!.sender,
+            text: text,
+            isOutgoing: true,
+            dateTime: now,
+          );
+
+          if (kDebugMode) {
+            debugPrint('n8n response: $n8nResponse');
+          }
+
+          // Şimdilik debug amaçlı olarak cevabı ekranda göster.
+          if (mounted && n8nResponse != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  n8nResponse.toString(),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                duration: const Duration(seconds: 4),
+              ),
+            );
+          }
+        }
+
+        // Telegram için optimistic UI: hemen sağ tarafta kendi gönderdiğimiz mesajı göster
+        setState(() {
+          widget.allMessages.add(
+            MessageModel(
+              id: null,
+              platform: 'Telegram',
+              fromNumber: widget.selectedMessage!.fromNumber,
+              sender: widget.selectedMessage!.sender,
+              subject: text.length > 30 ? text.substring(0, 30) : text,
+              preview: text,
+              content: text,
+              time: timeStr,
+              date: null,
+              isUnread: false,
+              icon: Icons.telegram,
+              color: Colors.blue,
+              isOutgoing: true,
+            ),
+          );
+          _controller.clear();
+        });
+
+        // Lokal persist işlemi için üst seviyeyi bilgilendir
+        if (widget.onTelegramMessagesChanged != null) {
+          await widget.onTelegramMessagesChanged!();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Telegram mesajı gönderilemedi: $e')),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isSending = false;
+          });
+        }
+      }
+
+      return;
+    }
+
+    // WhatsApp için mevcut davranış
     if (!widget.canSend) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('WhatsApp entegrasyonu kapalı. Önce Ayarlar > Entegrasyonlar\'dan bağlayın.')),

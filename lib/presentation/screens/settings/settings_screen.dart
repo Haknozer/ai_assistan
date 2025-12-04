@@ -218,12 +218,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       error: (_, __) => false,
     );
 
-    // Kullanıcının WhatsApp entegrasyonu bağlı mı kontrol et
+    // Kullanıcının WhatsApp ve Telegram entegrasyonu bağlı mı kontrol et
     final userSettingsAsync = ref.watch(currentUserSettingsNotifierProvider);
     final isWhatsappConnected = userSettingsAsync.when(
       data: (settings) {
         try {
           final setting = settings.firstWhere((s) => s.settingKey == 'whatsapp_connected');
+          return setting.getBoolValue();
+        } catch (_) {
+          return false;
+        }
+      },
+      loading: () => false,
+      error: (_, __) => false,
+    );
+
+    final isTelegramConnected = userSettingsAsync.when(
+      data: (settings) {
+        try {
+          final setting = settings.firstWhere((s) => s.settingKey == 'telegram_connected');
           return setting.getBoolValue();
         } catch (_) {
           return false;
@@ -245,7 +258,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     ];
     integrationsData['İletişim'] = [
       {'name': 'WhatsApp', 'connected': isWhatsappConnected},
-      {'name': 'Telegram', 'connected': false},
+      {'name': 'Telegram', 'connected': isTelegramConnected},
       {'name': 'Slack', 'connected': false},
     ];
 
@@ -407,6 +420,115 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('WhatsApp entegrasyonu aktifleştirildi.'),
+            ),
+          );
+        }
+      }
+      return;
+    }
+
+    if (integrationName == 'Telegram') {
+      final currentUser = ref.read(currentUserProvider);
+      if (currentUser == null || currentUser.id == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Önce giriş yapmalısınız')),
+        );
+        return;
+      }
+
+      // Bot token kontrolü
+      if (AppConfig.telegramBotToken.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Telegram bot token yapılandırılmamış. Lütfen run_windows.bat dosyasında TELEGRAM_BOT_TOKEN değerini ayarlayın.'),
+            duration: Duration(seconds: 5),
+          ),
+        );
+        return;
+      }
+
+      if (isConnected) {
+        // Telegram zaten bağlıysa bağlantıyı kesme diyaloğu
+        final shouldDisconnect = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Telegram Bağlantısı'),
+            content: const Text(
+              'Telegram entegrasyonunu devre dışı bırakmak istiyor musunuz? Bu işlemden sonra Telegram üzerinden mesaj senkronu yapılmayacak.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Vazgeç'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Bağlantıyı Kes'),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldDisconnect == true) {
+          await ref
+              .read(userSettingNotifierProvider.notifier)
+              .updateBoolSetting(currentUser.id!, 'telegram_connected', false,
+                  category: SettingCategory.privacy);
+          await ref.read(currentUserSettingsNotifierProvider.notifier).loadSettings(currentUser.id!);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Telegram bağlantısı devre dışı bırakıldı.'),
+            ),
+          );
+        }
+      } else {
+        // Telegram bağlı değilse, kullanıcıdan onay alarak bağla
+        final accepted = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Telegram\'a Bağlan'),
+            content: const SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Telegram bot entegrasyonunu aktifleştirmek üzeresiniz.',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    '- Telegram bot token\'ınız yapılandırılmış olmalıdır.\n'
+                    '- Bot\'unuzun dahil olduğu gruplardan ve özel mesajlardan veri çekilecektir.\n'
+                    '- Gizlilik ayarlarından \"Bulut Senkronizasyonu\" açık ise, mesaj geçmişiniz bulut ile senkronize edilebilir.\n'
+                    '- Bulut senkron kapalı ise, veriler mümkün olduğunca sadece cihazınızda tutulur.',
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Vazgeç'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Kabul ediyorum ve bağla'),
+              ),
+            ],
+          ),
+        );
+
+        if (accepted == true) {
+          await ref
+              .read(userSettingNotifierProvider.notifier)
+              .updateBoolSetting(currentUser.id!, 'telegram_connected', true,
+                  category: SettingCategory.privacy);
+          await ref.read(currentUserSettingsNotifierProvider.notifier).loadSettings(currentUser.id!);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Telegram entegrasyonu aktifleştirildi.'),
             ),
           );
         }

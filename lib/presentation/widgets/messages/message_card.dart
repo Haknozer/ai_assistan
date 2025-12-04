@@ -108,9 +108,9 @@ class MessageCard extends StatelessWidget {
 
                   // Mesaj İçeriği
                   Text(
-                    message.platform == 'WhatsApp'
-                        ? message.preview
-                        : '${message.subject} - ${message.preview}',
+                    // Telegram'da "Test - Test" gibi çift yazmayı engelle:
+                    // Tüm platformlarda sadece preview göster.
+                    message.preview,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 14,
