@@ -17,6 +17,7 @@ import '../../widgets/messages/whatsapp_thread_panel.dart';
 import '../../widgets/layout/side_menu.dart';
 import '../../../services/telegram_bot_service.dart';
 import '../../../services/n8n_forwarder_service.dart';
+import '../../../services/n8n_response_storage_service.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/utils/logger.dart';
 import '../../../core/utils/error_handler.dart';
@@ -39,6 +40,8 @@ class _UnifiedMessagesScreenState extends ConsumerState<UnifiedMessagesScreen> {
   bool _hasRequestedMessagesLoad = false;
   StreamSubscription<Map<String, dynamic>>? _telegramBotSub;
   bool _hasLoadedLocalTelegramMessages = false;
+  final Set<String> _forwardedTelegramMessageIds = {}; // Forward edilen Telegram mesajlarını takip et
+  static const String _forwardedTelegramMessagesKey = 'n8n_forwarded_telegram_message_ids';
 
   // Menu handler için
   final int _selectedMenuIndex = 1; // Birleşik Mesajlar indeksi
@@ -48,6 +51,7 @@ class _UnifiedMessagesScreenState extends ConsumerState<UnifiedMessagesScreen> {
     super.initState();
     _loadContacts();
     _loadLocalTelegramMessages();
+    _loadForwardedTelegramMessageIds();
 
     // Ayarları yükle ki entegrasyon durumu doğru okunabilsin
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -62,6 +66,44 @@ class _UnifiedMessagesScreenState extends ConsumerState<UnifiedMessagesScreen> {
   void dispose() {
     _telegramBotSub?.cancel();
     super.dispose();
+  }
+
+  /// SharedPreferences'tan forward edilen Telegram mesaj ID'lerini yükle
+  Future<void> _loadForwardedTelegramMessageIds() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonString = prefs.getString(_forwardedTelegramMessagesKey);
+      if (jsonString != null && jsonString.isNotEmpty) {
+        final List<dynamic> decoded = jsonDecode(jsonString);
+        _forwardedTelegramMessageIds.addAll(decoded.map((e) => e.toString()));
+        AppLogger.debug('Forward edilen ${_forwardedTelegramMessageIds.length} Telegram mesaj ID yüklendi', 'N8N');
+      }
+    } catch (e) {
+      AppLogger.error('Forward edilen Telegram mesaj ID\'leri yüklenirken hata', tag: 'N8N', error: e);
+    }
+  }
+
+  /// Forward edilen Telegram mesaj ID'lerini SharedPreferences'a kaydet
+  Future<void> _saveForwardedTelegramMessageIds() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonString = jsonEncode(_forwardedTelegramMessageIds.toList());
+      await prefs.setString(_forwardedTelegramMessagesKey, jsonString);
+    } catch (e) {
+      AppLogger.error('Forward edilen Telegram mesaj ID\'leri kaydedilirken hata', tag: 'N8N', error: e);
+    }
+  }
+
+  /// Forward edilen Telegram mesaj ID'lerini temizle (tüm mesajlar tekrar forward edilebilir)
+  Future<void> clearForwardedTelegramMessageIds() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_forwardedTelegramMessagesKey);
+      _forwardedTelegramMessageIds.clear();
+      AppLogger.info('Forward edilen Telegram mesaj ID\'leri temizlendi', 'N8N');
+    } catch (e) {
+      AppLogger.error('Forward edilen Telegram mesaj ID\'leri temizlenirken hata', tag: 'N8N', error: e);
+    }
   }
 
   /// Telegram Bot API'den gelen raw update'i unified mesaja çevirir
@@ -117,10 +159,17 @@ class _UnifiedMessagesScreenState extends ConsumerState<UnifiedMessagesScreen> {
       }
 
       final isOutgoing = msg['from']?['is_bot'] == true;
+      final messageId = msg['message_id']?.toString() ?? '';
+
+      // Daha önce forward edilmişse tekrar forward etme
+      if (messageId.isNotEmpty && _forwardedTelegramMessageIds.contains(messageId)) {
+        AppLogger.debug('Telegram mesajı zaten forward edilmiş, atlanıyor: $messageId', 'N8N');
+        return;
+      }
 
       // n8n'e forward et ve cevabı debug için al
       final currentUser = ref.read(currentUserProvider);
-      if (currentUser != null) {
+      if (currentUser != null && messageId.isNotEmpty) {
         final n8nResponse = await N8nForwarderService().forwardTelegramMessageAndWait(
           userId: currentUser.id!.toString(),
           chatId: int.tryParse(chatIdStr) ?? 0,
@@ -130,6 +179,17 @@ class _UnifiedMessagesScreenState extends ConsumerState<UnifiedMessagesScreen> {
           dateTime: fullDateTime,
         );
         AppLogger.debug('n8n incoming response: $n8nResponse', 'N8N');
+        
+        // n8n response'u kalıcı olarak kaydet
+        if (n8nResponse != null) {
+          await N8nResponseStorageService().saveTelegramResponse(messageId, n8nResponse);
+        }
+        
+        // Forward edildi olarak işaretle ve kalıcı olarak kaydet
+        _forwardedTelegramMessageIds.add(messageId);
+        _saveForwardedTelegramMessageIds().catchError((e) {
+          AppLogger.error('Forward edilen Telegram mesaj ID kaydedilemedi', tag: 'N8N', error: e);
+        });
       }
 
       // Unified listeye ekle ve lokal olarak sakla

@@ -45,7 +45,10 @@ class MessageDetailPanel extends StatelessWidget {
             MessageDetailContent(message: message!),
 
             // AI Özeti
-            AiSummaryCard(message: message!),
+            AiSummaryCard(
+              key: ValueKey('message_ai_${message!.id ?? message!.fromNumber}'),
+              message: message!,
+            ),
 
             // Yanıtla Bölümü
             ReplySection(

@@ -1,8 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../data/repositories/email_repository.dart';
 import 'package:ai_asisstan/models/email.dart';
 import 'package:ai_asisstan/core/api/api_exceptions.dart';
+import 'package:ai_asisstan/services/n8n_forwarder_service.dart';
+import 'package:ai_asisstan/services/n8n_response_storage_service.dart';
+import 'package:ai_asisstan/core/utils/logger.dart';
 
 /// Email repository provider
 final emailRepositoryProvider = Provider<EmailRepository>((ref) {
@@ -80,9 +85,51 @@ class EmailListParams {
 class EmailNotifier extends StateNotifier<AsyncValue<List<Email>>> {
   final EmailRepository _repository;
   final EmailListParams _params;
+  final Set<String> _forwardedEmailIds = {}; // Forward edilen email'leri takip et
+  final N8nForwarderService _n8nForwarder = N8nForwarderService();
+  static const String _forwardedEmailsKey = 'n8n_forwarded_email_ids';
 
   EmailNotifier(this._repository, this._params) : super(const AsyncValue.loading()) {
+    _loadForwardedEmailIds();
     _loadEmails();
+  }
+
+  /// SharedPreferences'tan forward edilen email ID'lerini yükle
+  Future<void> _loadForwardedEmailIds() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonString = prefs.getString(_forwardedEmailsKey);
+      if (jsonString != null && jsonString.isNotEmpty) {
+        final List<dynamic> decoded = jsonDecode(jsonString);
+        _forwardedEmailIds.addAll(decoded.map((e) => e.toString()));
+        AppLogger.debug('Forward edilen ${_forwardedEmailIds.length} email ID yüklendi', 'N8N');
+      }
+    } catch (e) {
+      AppLogger.error('Forward edilen email ID\'leri yüklenirken hata', tag: 'N8N', error: e);
+    }
+  }
+
+  /// Forward edilen email ID'lerini SharedPreferences'a kaydet
+  Future<void> _saveForwardedEmailIds() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonString = jsonEncode(_forwardedEmailIds.toList());
+      await prefs.setString(_forwardedEmailsKey, jsonString);
+    } catch (e) {
+      AppLogger.error('Forward edilen email ID\'leri kaydedilirken hata', tag: 'N8N', error: e);
+    }
+  }
+
+  /// Forward edilen email ID'lerini temizle (tüm email'ler tekrar forward edilebilir)
+  Future<void> clearForwardedEmailIds() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_forwardedEmailsKey);
+      _forwardedEmailIds.clear();
+      AppLogger.info('Forward edilen email ID\'leri temizlendi', 'N8N');
+    } catch (e) {
+      AppLogger.error('Forward edilen email ID\'leri temizlenirken hata', tag: 'N8N', error: e);
+    }
   }
 
   Future<void> _loadEmails() async {
@@ -96,8 +143,61 @@ class EmailNotifier extends StateNotifier<AsyncValue<List<Email>>> {
         accessToken: _params.accessToken,
       );
       state = AsyncValue.data(emails);
+      
+      // Yeni email'leri n8n'e forward et
+      _forwardNewEmails(emails).catchError((e) {
+        AppLogger.error('Error forwarding emails to n8n', tag: 'N8N', error: e);
+      });
     } catch (e, stack) {
       state = AsyncValue.error(e, stack);
+    }
+  }
+
+  /// Yeni email'leri n8n'e forward et (daha önce forward edilmemiş olanlar)
+  Future<void> _forwardNewEmails(List<Email> emails) async {
+    for (final email in emails) {
+      // Daha önce forward edilmişse atla
+      final emailId = email.messageId ?? email.id?.toString() ?? '';
+      if (emailId.isEmpty || _forwardedEmailIds.contains(emailId)) {
+        continue;
+      }
+
+      // Sadece inbox'taki okunmamış email'leri forward et (isteğe bağlı - tüm email'leri forward etmek için bu kontrolü kaldırabilirsiniz)
+      // if (email.folder != EmailFolder.inbox || email.isRead) {
+      //   continue;
+      // }
+
+      // Forward et ve n8n'den dönen cevabı logla
+      final n8nResponse = await _n8nForwarder.forwardEmailMessageAndWait(
+        userId: email.userId.toString(),
+        accountId: email.accountId,
+        messageId: emailId,
+        fromEmail: email.fromEmail,
+        fromName: email.fromName,
+        subject: email.subject,
+        plainText: email.plainText,
+        htmlContent: email.htmlContent,
+        toEmails: email.toEmails,
+        ccEmails: email.ccEmails,
+        bccEmails: email.bccEmails,
+        receivedDate: email.receivedDate,
+        isRead: email.isRead,
+        folder: email.folder.name, // EmailFolder.inbox -> inbox
+      );
+
+      // n8n'den dönen cevabı console'a yazdır
+      AppLogger.debug('n8n email response: $n8nResponse', 'N8N');
+
+      // n8n response'u kalıcı olarak kaydet
+      if (n8nResponse != null) {
+        await N8nResponseStorageService().saveEmailResponse(emailId, n8nResponse);
+      }
+
+      // Forward edildi olarak işaretle ve kalıcı olarak kaydet
+      _forwardedEmailIds.add(emailId);
+      _saveForwardedEmailIds().catchError((e) {
+        AppLogger.error('Forward edilen email ID kaydedilemedi', tag: 'N8N', error: e);
+      });
     }
   }
 
@@ -113,6 +213,11 @@ class EmailNotifier extends StateNotifier<AsyncValue<List<Email>>> {
         accessToken: _params.accessToken,
       );
       state = AsyncValue.data(emails);
+      
+      // Yeni email'leri n8n'e forward et
+      _forwardNewEmails(emails).catchError((e) {
+        AppLogger.error('Error forwarding emails to n8n', tag: 'N8N', error: e);
+      });
     } catch (e, stack) {
       state = AsyncValue.error(e, stack);
     }

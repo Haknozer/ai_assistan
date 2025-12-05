@@ -75,6 +75,12 @@ class AppConfig {
     defaultValue: '',
   );
 
+  // n8n Webhook URL (Email mesajlarını iletmek için)
+  static const String n8nEmailWebhookUrl = String.fromEnvironment(
+    'N8N_EMAIL_WEBHOOK_URL',
+    defaultValue: '',
+  );
+
   // Telegram polling feature flag
   // Varsayılan olarak KAPALI gelir; sadece ENABLE_TELEGRAM_POLLING=true dersen açılır.
   static const bool enableTelegramPolling = bool.fromEnvironment(

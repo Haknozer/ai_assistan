@@ -5,6 +5,7 @@ import 'email_detail_subject_sender.dart';
 import 'email_detail_content.dart';
 import 'email_detail_attachments.dart';
 import 'email_detail_actions.dart';
+import 'email_ai_suggestions_card.dart';
 
 /// E-posta detay paneli - Gmail tarzı sade ve modern tasarım
 class EmailDetailPanel extends StatelessWidget {
@@ -54,6 +55,12 @@ class EmailDetailPanel extends StatelessWidget {
 
                   // E-posta içeriği - Gmail tarzı tam HTML render
                   EmailDetailContent(email: email!),
+
+                  // AI Önerileri - n8n'den dönen öneriler
+                  EmailAiSuggestionsCard(
+                    key: ValueKey('email_ai_${email!.messageId ?? email!.id}'),
+                    email: email!,
+                  ),
 
                   // Ekler - Gmail tarzı minimal
                   EmailDetailAttachments(email: email!),
