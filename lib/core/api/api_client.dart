@@ -162,7 +162,7 @@ class ApiClient {
       }
 
       // Response'u parse et
-      return _handleResponse(response);
+      return _handleResponse(response, url.toString());
     } on http.ClientException catch (e) {
       throw NetworkException(
         message: 'Network error: ${e.message}',
@@ -185,7 +185,7 @@ class ApiClient {
   }
 
   /// Response'u işle ve hataları yönet
-  Map<String, dynamic> _handleResponse(http.Response response) {
+  Map<String, dynamic> _handleResponse(http.Response response, [String? endpoint]) {
     final statusCode = response.statusCode;
 
     // Başarılı response'lar
@@ -243,26 +243,48 @@ class ApiClient {
           originalError: response.body,
         );
       case 403:
-        // Gmail API için daha açıklayıcı hata mesajı
+        // API tipine göre hata mesajı oluştur
         String forbiddenMessage = errorMessage;
         try {
           final errorJson = jsonDecode(response.body) as Map<String, dynamic>;
           final errorDetail = errorJson['error'] as Map<String, dynamic>?;
+
+          // Endpoint'e bakarak API tipini belirle
+          final endpointUrl = endpoint ?? response.request?.url.toString() ?? '';
+          final isGmailApi = endpointUrl.contains('gmail.googleapis.com');
+          final isGraphApi = endpointUrl.contains('graph.microsoft.com');
+
           if (errorDetail != null) {
             final reason = errorDetail['reason'] as String? ?? '';
             final message = errorDetail['message'] as String? ?? '';
-            
-            if (reason.contains('accessNotConfigured') || message.contains('Gmail API')) {
-              forbiddenMessage = 'Gmail API etkin değil. Lütfen Google Cloud Console\'da Gmail API\'yi enable edin:\n'
-                  '1. https://console.cloud.google.com/ adresine gidin\n'
-                  '2. Projenizi seçin\n'
-                  '3. "APIs & Services" > "Library" bölümüne gidin\n'
-                  '4. "Gmail API" arayın ve "Enable" butonuna tıklayın\n'
-                  '5. Birkaç dakika bekleyip tekrar deneyin';
-            } else if (reason.contains('insufficientPermissions') || message.contains('permission')) {
-              forbiddenMessage = 'Gmail API için yeterli izin yok. Lütfen Gmail bağlantısını yeniden yapın ve tüm izinleri verin.';
+
+            if (isGmailApi) {
+              // Gmail API hata mesajları
+              if (reason.contains('accessNotConfigured') || message.contains('Gmail API')) {
+                forbiddenMessage = 'Gmail API etkin değil. Lütfen Google Cloud Console\'da Gmail API\'yi enable edin:\n'
+                    '1. https://console.cloud.google.com/ adresine gidin\n'
+                    '2. Projenizi seçin\n'
+                    '3. "APIs & Services" > "Library" bölümüne gidin\n'
+                    '4. "Gmail API" arayın ve "Enable" butonuna tıklayın\n'
+                    '5. Birkaç dakika bekleyip tekrar deneyin';
+              } else if (reason.contains('insufficientPermissions') || message.contains('permission')) {
+                forbiddenMessage =
+                    'Gmail API için yeterli izin yok. Lütfen Gmail bağlantısını yeniden yapın ve tüm izinleri verin.';
+              } else {
+                forbiddenMessage = 'Gmail API erişim hatası: $message\n\nDetay: $reason';
+              }
+            } else if (isGraphApi) {
+              // Microsoft Graph API hata mesajları
+              final errorCode = errorDetail['code'] as String? ?? '';
+              if (errorCode.contains('AccessDenied') || message.contains('access denied')) {
+                forbiddenMessage =
+                    'Microsoft Graph API erişim hatası: Erişim reddedildi. Lütfen Outlook bağlantısını yeniden yapın ve tüm izinleri verin.';
+              } else {
+                forbiddenMessage = 'Microsoft Graph API erişim hatası: $message\n\nDetay: $errorCode';
+              }
             } else {
-              forbiddenMessage = 'Gmail API erişim hatası: $message\n\nDetay: $reason';
+              // Genel hata mesajı
+              forbiddenMessage = 'API erişim hatası: $message\n\nDetay: $reason';
             }
           }
         } catch (e) {

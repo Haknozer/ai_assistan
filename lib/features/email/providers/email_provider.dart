@@ -94,6 +94,9 @@ class EmailNotifier extends StateNotifier<AsyncValue<List<Email>>> {
     _loadEmails();
   }
 
+  /// Account ID'yi döndürür
+  int? get accountId => _params.accountId;
+
   /// SharedPreferences'tan forward edilen email ID'lerini yükle
   Future<void> _loadForwardedEmailIds() async {
     try {
@@ -350,23 +353,66 @@ class EmailNotifier extends StateNotifier<AsyncValue<List<Email>>> {
     EmailImportance importance = EmailImportance.normal,
     String? accessToken,
   }) async {
-    final email = await _repository.sendEmail(
-      accountId: accountId,
-      toEmails: toEmails,
-      subject: subject,
-      plainText: plainText,
-      htmlContent: htmlContent,
-      ccEmails: ccEmails,
-      bccEmails: bccEmails,
-      importance: importance,
-      accessToken: accessToken,
-    );
+    try {
+      final email = await _repository.sendEmail(
+        accountId: accountId,
+        toEmails: toEmails,
+        subject: subject,
+        plainText: plainText,
+        htmlContent: htmlContent,
+        ccEmails: ccEmails,
+        bccEmails: bccEmails,
+        importance: importance,
+        accessToken: accessToken,
+      );
 
-    // Listeyi güncelle
-    final currentEmails = state.value ?? [];
-    state = AsyncValue.data([email, ...currentEmails]);
+      // Listeyi güncelle
+      final currentEmails = state.value ?? [];
+      state = AsyncValue.data([email, ...currentEmails]);
 
-    return email;
+      return email;
+    } catch (e) {
+      // Hata durumunda logla
+      AppLogger.error('Email gönderme hatası', tag: 'EMAIL', error: e);
+      rethrow;
+    }
+  }
+
+  /// Email taslağı kaydet
+  Future<Email> saveDraft({
+    required int accountId,
+    required String subject,
+    String? plainText,
+    String? htmlContent,
+    List<String>? toEmails,
+    List<String>? ccEmails,
+    List<String>? bccEmails,
+    int? draftId,
+    String? accessToken,
+  }) async {
+    try {
+      final email = await _repository.saveDraft(
+        accountId: accountId,
+        subject: subject,
+        plainText: plainText,
+        htmlContent: htmlContent,
+        toEmails: toEmails,
+        ccEmails: ccEmails,
+        bccEmails: bccEmails,
+        draftId: draftId,
+        accessToken: accessToken,
+      );
+
+      // Listeyi güncelle
+      final currentEmails = state.value ?? [];
+      state = AsyncValue.data([email, ...currentEmails]);
+
+      return email;
+    } catch (e) {
+      // Hata durumunda logla
+      AppLogger.error('Taslak kaydetme hatası', tag: 'EMAIL', error: e);
+      rethrow;
+    }
   }
 }
 

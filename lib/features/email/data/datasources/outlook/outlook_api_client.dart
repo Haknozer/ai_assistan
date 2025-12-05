@@ -113,5 +113,170 @@ class OutlookApiClient {
       return null;
     }
   }
+
+  /// Email gönderme (Microsoft Graph API)
+  Future<Email> sendEmail({
+    required int accountId,
+    required List<String> toEmails,
+    required String subject,
+    String? plainText,
+    String? htmlContent,
+    List<String>? ccEmails,
+    List<String>? bccEmails,
+    List<Map<String, dynamic>>? attachments,
+    EmailImportance importance = EmailImportance.normal,
+    required String accessToken,
+  }) async {
+    if (accessToken.isEmpty) {
+      throw ApiException(message: 'Access token required for Outlook API');
+    }
+
+    try {
+      // Microsoft Graph API için message body oluştur
+      final messageBody = <String, dynamic>{
+        'message': {
+          'toRecipients': toEmails.map((email) => {
+            'emailAddress': {'address': email}
+          }).toList(),
+          if (ccEmails != null && ccEmails.isNotEmpty)
+            'ccRecipients': ccEmails.map((email) => {
+              'emailAddress': {'address': email}
+            }).toList(),
+          if (bccEmails != null && bccEmails.isNotEmpty)
+            'bccRecipients': bccEmails.map((email) => {
+              'emailAddress': {'address': email}
+            }).toList(),
+          'subject': subject,
+          'importance': importance == EmailImportance.important 
+              ? 'high' 
+              : 'normal',
+          'body': {
+            'contentType': htmlContent != null ? 'html' : 'text',
+            'content': htmlContent ?? plainText ?? '',
+          },
+        },
+      };
+
+      // Microsoft Graph API sendMail endpoint'i response döndürmez (202 Accepted)
+      // Gönderilen email'i almak için sent items'dan çekmemiz gerekir
+      await _apiClient.post(
+        ApiEndpoints.graphSendMessage,
+        body: messageBody,
+        accessToken: accessToken,
+      );
+
+      // Sent items'dan en son gönderilen email'i çek
+      // Kısa bir bekleme ekleyelim ki email sent items'a kaydedilsin
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      final sentItemsResponse = await _apiClient.get(
+        '${ApiEndpoints.graphMailFolders}/sentitems/messages',
+        queryParameters: {
+          '\$top': 1,
+          '\$orderby': 'sentDateTime desc',
+          '\$select': 'id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,sentDateTime,isRead,importance,bodyPreview,body',
+        },
+        accessToken: accessToken,
+      );
+
+      final sentMessages = sentItemsResponse['value'] as List<dynamic>? ?? [];
+      if (sentMessages.isEmpty) {
+        throw ApiException(message: 'Email gönderildi ancak sent items\'dan alınamadı');
+      }
+
+      final sentMessage = sentMessages.first as Map<String, dynamic>;
+      final sentEmail = OutlookParser.parseOutlookMessage(
+        sentMessage,
+        userId: null,
+        accountId: accountId,
+        folder: 'sent',
+      );
+
+      if (sentEmail == null) {
+        throw ApiException(message: 'Email gönderildi ancak parse edilemedi');
+      }
+
+      return sentEmail;
+    } catch (e) {
+      if (e is ApiException) {
+        rethrow;
+      }
+      throw ApiException(
+        message: 'Failed to send email: ${e.toString()}',
+        originalError: e,
+      );
+    }
+  }
+
+  /// Email taslağı kaydetme (Microsoft Graph API)
+  Future<Email> saveDraft({
+    required int accountId,
+    required String subject,
+    String? plainText,
+    String? htmlContent,
+    List<String>? toEmails,
+    List<String>? ccEmails,
+    List<String>? bccEmails,
+    int? draftId,
+    required String accessToken,
+  }) async {
+    if (accessToken.isEmpty) {
+      throw ApiException(message: 'Access token required for Outlook API');
+    }
+
+    try {
+      // Microsoft Graph API için message body oluştur
+      final messageBody = <String, dynamic>{
+        'toRecipients': (toEmails ?? []).map((email) => {
+          'emailAddress': {'address': email}
+        }).toList(),
+        if (ccEmails != null && ccEmails.isNotEmpty)
+          'ccRecipients': ccEmails.map((email) => {
+            'emailAddress': {'address': email}
+          }).toList(),
+        if (bccEmails != null && bccEmails.isNotEmpty)
+          'bccRecipients': bccEmails.map((email) => {
+            'emailAddress': {'address': email}
+          }).toList(),
+        'subject': subject,
+        'body': {
+          'contentType': htmlContent != null ? 'html' : 'text',
+          'content': htmlContent ?? plainText ?? '',
+        },
+        'isDraft': true,
+      };
+
+      final endpoint = draftId != null
+          ? ApiEndpoints.graphMessageById(draftId.toString())
+          : ApiEndpoints.graphMessages;
+
+      final response = draftId != null
+          ? await _apiClient.put(endpoint, body: messageBody, accessToken: accessToken)
+          : await _apiClient.post(endpoint, body: messageBody, accessToken: accessToken);
+
+      final messageId = response['id'] as String?;
+      if (messageId == null) {
+        throw ApiException(message: 'Failed to save draft: No message ID returned');
+      }
+
+      final savedDraft = await getEmailDetails(
+        messageId: messageId,
+        accessToken: accessToken,
+        accountId: accountId,
+      );
+      if (savedDraft == null) {
+        throw ApiException(message: 'Failed to fetch saved draft');
+      }
+      return savedDraft;
+    } catch (e) {
+      if (e is ApiException) {
+        rethrow;
+      }
+      throw ApiException(
+        message: 'Failed to save draft: ${e.toString()}',
+        originalError: e,
+      );
+    }
+  }
 }
 

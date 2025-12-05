@@ -65,6 +65,7 @@ class OutlookOAuthService {
     String redirectUri = 'http://localhost:8080/oauth-callback';
     final scopes = [
       'https://graph.microsoft.com/Mail.Read',
+      'https://graph.microsoft.com/Mail.ReadWrite', // Taslak kaydetme için gerekli
       'https://graph.microsoft.com/Mail.Send',
       'https://graph.microsoft.com/User.Read',
       'offline_access',
@@ -339,7 +340,7 @@ class OutlookOAuthService {
         'client_secret': _clientSecret!,
         'redirect_uri': redirectUri,
         'grant_type': 'authorization_code',
-        'scope': 'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access',
+        'scope': 'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access',
       },
     );
 
@@ -444,7 +445,7 @@ class OutlookOAuthService {
           'client_secret': _clientSecret!,
           'refresh_token': refreshToken,
           'grant_type': 'refresh_token',
-          'scope': 'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access',
+          'scope': 'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/User.Read offline_access',
         },
       );
 

@@ -421,16 +421,25 @@ class GmailApiClient {
       };
 
       final endpoint = draftId != null
-          ? ApiEndpoints.labelById(draftId.toString())
-          : '${ApiEndpoints.labels}/drafts';
+          ? ApiEndpoints.draftById(draftId.toString())
+          : ApiEndpoints.drafts;
 
       final response = draftId != null
           ? await _apiClient.put(endpoint, body: body, accessToken: accessToken)
           : await _apiClient.post(endpoint, body: body, accessToken: accessToken);
 
-      final messageId = response['id'] as String?;
+      // Gmail API draft response'u: {id: "draft_id", message: {...}}
+      final draftIdFromResponse = response['id'] as String?;
+      final messageData = response['message'] as Map<String, dynamic>?;
+      
+      if (draftIdFromResponse == null || messageData == null) {
+        throw ApiException(message: 'Failed to save draft: Invalid response format');
+      }
+
+      // Message ID'yi message data'dan al
+      final messageId = messageData['id'] as String?;
       if (messageId == null) {
-        throw ApiException(message: 'Failed to save draft: No message ID returned');
+        throw ApiException(message: 'Failed to save draft: No message ID in response');
       }
 
       final savedDraft = await getEmailDetails(

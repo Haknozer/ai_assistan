@@ -105,8 +105,18 @@ class EmailRemoteDataSource {
     final emailProvider = provider ?? EmailProvider.gmail;
 
     if (emailProvider == EmailProvider.outlook) {
-      // Outlook send email henüz implement edilmedi
-      throw ApiException(message: 'Outlook send email not implemented yet');
+      return await _outlookClient.sendEmail(
+        accountId: accountId,
+        toEmails: toEmails,
+        subject: subject,
+        plainText: plainText,
+        htmlContent: htmlContent,
+        ccEmails: ccEmails,
+        bccEmails: bccEmails,
+        attachments: attachments,
+        importance: importance,
+        accessToken: accessToken,
+      );
     }
 
     return await _gmailClient.sendEmail(
@@ -255,8 +265,17 @@ class EmailRemoteDataSource {
     final emailProvider = provider ?? EmailProvider.gmail;
 
     if (emailProvider == EmailProvider.outlook) {
-      // Outlook save draft henüz implement edilmedi
-      throw ApiException(message: 'Outlook save draft not implemented yet');
+      return await _outlookClient.saveDraft(
+        accountId: accountId,
+        subject: subject,
+        plainText: plainText,
+        htmlContent: htmlContent,
+        toEmails: toEmails,
+        ccEmails: ccEmails,
+        bccEmails: bccEmails,
+        draftId: draftId,
+        accessToken: accessToken,
+      );
     }
 
     return await _gmailClient.saveDraft(

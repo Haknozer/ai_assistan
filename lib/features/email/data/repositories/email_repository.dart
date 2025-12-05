@@ -224,17 +224,100 @@ class EmailRepository {
     EmailImportance importance = EmailImportance.normal,
     String? accessToken,
   }) async {
-    return await _remoteDataSource.sendEmail(
-      accountId: accountId,
-      toEmails: toEmails,
-      subject: subject,
-      plainText: plainText,
-      htmlContent: htmlContent,
-      ccEmails: ccEmails,
-      bccEmails: bccEmails,
-      importance: importance,
-      accessToken: accessToken,
-    );
+    // Account bilgisini al (provider ve accessToken için)
+    // Her zaman account'tan güncel token'ı al (parametre olarak geçilen token eski olabilir)
+    EmailProvider? provider;
+    String? finalAccessToken;
+    
+    try {
+      final db = await _databaseService.database;
+      final accountMaps = await db.query(
+        'email_accounts',
+        where: 'id = ?',
+        whereArgs: [accountId],
+        limit: 1,
+      );
+      if (accountMaps.isNotEmpty) {
+        final account = EmailAccount.fromDatabase(accountMaps.first);
+        provider = account.provider;
+        // Her zaman account'tan güncel token'ı al
+        finalAccessToken = account.accessToken;
+      }
+    } catch (e) {
+      debugPrint('Account bilgisi alınamadı: $e');
+    }
+
+    // AccessToken hala yoksa hata fırlat
+    if (finalAccessToken == null || finalAccessToken.isEmpty) {
+      throw ApiException(
+        message: 'Access token bulunamadı. Lütfen Gmail bağlantısını yeniden yapın.',
+      );
+    }
+
+    try {
+      return await _remoteDataSource.sendEmail(
+        accountId: accountId,
+        toEmails: toEmails,
+        subject: subject,
+        plainText: plainText,
+        htmlContent: htmlContent,
+        ccEmails: ccEmails,
+        bccEmails: bccEmails,
+        importance: importance,
+        accessToken: finalAccessToken,
+        provider: provider,
+      );
+    } on UnauthorizedException catch (e) {
+      // 401 Unauthorized hatası durumunda token'ı yenile ve tekrar dene
+      try {
+        final newAccessToken = await _refreshTokenIfNeeded(accountId);
+        if (newAccessToken != null && newAccessToken.isNotEmpty) {
+          // Yenilenen token ile tekrar dene
+          try {
+            return await _remoteDataSource.sendEmail(
+              accountId: accountId,
+              toEmails: toEmails,
+              subject: subject,
+              plainText: plainText,
+              htmlContent: htmlContent,
+              ccEmails: ccEmails,
+              bccEmails: bccEmails,
+              importance: importance,
+              accessToken: newAccessToken,
+              provider: provider,
+            );
+          } on UnauthorizedException {
+            // Yeni token da geçersiz, bağlantıyı yeniden yapması gerekiyor
+            throw UnauthorizedException(
+              message: 'Oturum süresi dolmuş. Lütfen Gmail bağlantısını yeniden yapın.',
+              originalError: e.originalError,
+            );
+          }
+        } else {
+          // Token yenilenemedi - refresh token yok veya geçersiz
+          throw UnauthorizedException(
+            message: 'Oturum süresi dolmuş. Lütfen Gmail bağlantısını yeniden yapın.\n\nAyarlar > E-posta Hesapları bölümünden Gmail hesabınızı yeniden bağlayabilirsiniz.',
+            originalError: e.originalError,
+          );
+        }
+      } on ApiException catch (refreshError) {
+        // Token yenileme başarısız - daha açıklayıcı mesaj
+        String errorMessage = 'Token yenilenemedi. Lütfen Gmail bağlantısını yeniden yapın.';
+        
+        if (refreshError.message.contains('invalid_grant') || 
+            refreshError.message.contains('Refresh token geçersiz')) {
+          errorMessage = 'Oturum süresi dolmuş. Lütfen Gmail bağlantısını yeniden yapın.\n\nAyarlar > E-posta Hesapları bölümünden Gmail hesabınızı yeniden bağlayabilirsiniz.';
+        }
+        
+        throw UnauthorizedException(
+          message: errorMessage,
+          originalError: refreshError,
+        );
+      }
+    } on ApiException {
+      // Diğer API hatalarını olduğu gibi fırlat
+      rethrow;
+    }
   }
 
   /// Email'i okundu olarak işaretle
@@ -288,16 +371,115 @@ class EmailRepository {
     int? draftId,
     String? accessToken,
   }) async {
-    return await _remoteDataSource.saveDraft(
-      accountId: accountId,
-      subject: subject,
-      plainText: plainText,
-      htmlContent: htmlContent,
-      toEmails: toEmails,
-      ccEmails: ccEmails,
-      bccEmails: bccEmails,
-      draftId: draftId,
-      accessToken: accessToken,
-    );
+    // Account bilgisini al (provider ve accessToken için)
+    // Her zaman account'tan güncel token'ı al (parametre olarak geçilen token eski olabilir)
+    EmailProvider? provider;
+    String? finalAccessToken;
+    
+    try {
+      final db = await _databaseService.database;
+      final accountMaps = await db.query(
+        'email_accounts',
+        where: 'id = ?',
+        whereArgs: [accountId],
+        limit: 1,
+      );
+      if (accountMaps.isNotEmpty) {
+        final account = EmailAccount.fromDatabase(accountMaps.first);
+        provider = account.provider;
+        // Her zaman account'tan güncel token'ı al
+        finalAccessToken = account.accessToken;
+        
+        debugPrint('saveDraft - Account ID: $accountId, Provider: $provider, AccessToken: ${finalAccessToken != null && finalAccessToken.isNotEmpty ? "VAR (${finalAccessToken.length} karakter)" : "YOK"}');
+        
+        // Eğer accessToken yoksa veya boşsa, token yenilemeyi dene
+        if (finalAccessToken == null || finalAccessToken.isEmpty) {
+          debugPrint('saveDraft - AccessToken yok, token yenileme deneniyor...');
+          try {
+            finalAccessToken = await _refreshTokenIfNeeded(accountId);
+            debugPrint('saveDraft - Token yenileme sonucu: ${finalAccessToken != null ? "BAŞARILI" : "BAŞARISIZ"}');
+          } catch (e) {
+            debugPrint('saveDraft - Token yenileme hatası: $e');
+          }
+        }
+      } else {
+        debugPrint('saveDraft - Account bulunamadı: accountId=$accountId');
+      }
+    } catch (e) {
+      debugPrint('saveDraft - Account bilgisi alınamadı: $e');
+    }
+
+    // AccessToken hala yoksa hata fırlat
+    if (finalAccessToken == null || finalAccessToken.isEmpty) {
+      debugPrint('saveDraft - AccessToken bulunamadı, hata fırlatılıyor');
+      throw ApiException(
+        message: 'Access token bulunamadı. Lütfen Gmail bağlantısını yeniden yapın.',
+      );
+    }
+
+    try {
+      return await _remoteDataSource.saveDraft(
+        accountId: accountId,
+        subject: subject,
+        plainText: plainText,
+        htmlContent: htmlContent,
+        toEmails: toEmails,
+        ccEmails: ccEmails,
+        bccEmails: bccEmails,
+        draftId: draftId,
+        accessToken: finalAccessToken,
+        provider: provider,
+      );
+    } on UnauthorizedException catch (e) {
+      // 401 Unauthorized hatası durumunda token'ı yenile ve tekrar dene
+      try {
+        final newAccessToken = await _refreshTokenIfNeeded(accountId);
+        if (newAccessToken != null && newAccessToken.isNotEmpty) {
+          // Yenilenen token ile tekrar dene
+          try {
+            return await _remoteDataSource.saveDraft(
+              accountId: accountId,
+              subject: subject,
+              plainText: plainText,
+              htmlContent: htmlContent,
+              toEmails: toEmails,
+              ccEmails: ccEmails,
+              bccEmails: bccEmails,
+              draftId: draftId,
+              accessToken: newAccessToken,
+              provider: provider,
+            );
+          } on UnauthorizedException {
+            // Yeni token da geçersiz, bağlantıyı yeniden yapması gerekiyor
+            throw UnauthorizedException(
+              message: 'Oturum süresi dolmuş. Lütfen Gmail bağlantısını yeniden yapın.',
+              originalError: e.originalError,
+            );
+          }
+        } else {
+          // Token yenilenemedi - refresh token yok veya geçersiz
+          throw UnauthorizedException(
+            message: 'Oturum süresi dolmuş. Lütfen Gmail bağlantısını yeniden yapın.\n\nAyarlar > E-posta Hesapları bölümünden Gmail hesabınızı yeniden bağlayabilirsiniz.',
+            originalError: e.originalError,
+          );
+        }
+      } on ApiException catch (refreshError) {
+        // Token yenileme başarısız - daha açıklayıcı mesaj
+        String errorMessage = 'Token yenilenemedi. Lütfen Gmail bağlantısını yeniden yapın.';
+        
+        if (refreshError.message.contains('invalid_grant') || 
+            refreshError.message.contains('Refresh token geçersiz')) {
+          errorMessage = 'Oturum süresi dolmuş. Lütfen Gmail bağlantısını yeniden yapın.\n\nAyarlar > E-posta Hesapları bölümünden Gmail hesabınızı yeniden bağlayabilirsiniz.';
+        }
+        
+        throw UnauthorizedException(
+          message: errorMessage,
+          originalError: refreshError,
+        );
+      }
+    } on ApiException {
+      // Diğer API hatalarını olduğu gibi fırlat
+      rethrow;
+    }
   }
 }

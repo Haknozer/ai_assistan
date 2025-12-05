@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/email.dart';
+import '../../../models/email_account.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../screens/email/utils/email_utils.dart';
@@ -7,12 +8,22 @@ import '../../screens/email/utils/email_utils.dart';
 /// E-posta oluşturma dialog'u widget'ı
 class ComposeEmailDialog extends StatefulWidget {
   final Function(Email) onEmailSent;
+  final Function(Email)? onDraftSaved;
   final Email? replyTo;
+  final Email? forwardTo;
+  final int? accountId;
+  final int? userId;
+  final List<EmailAccount>? availableAccounts;
 
   const ComposeEmailDialog({
     super.key,
     required this.onEmailSent,
+    this.onDraftSaved,
     this.replyTo,
+    this.forwardTo,
+    this.accountId,
+    this.userId,
+    this.availableAccounts,
   });
 
   @override
@@ -27,14 +38,28 @@ class _ComposeEmailDialogState extends State<ComposeEmailDialog> {
 
   EmailImportance _importance = EmailImportance.normal;
   bool _isLoading = false;
+  int? _selectedAccountId;
 
   @override
   void initState() {
     super.initState();
+    // Seçili account ID'yi ayarla
+    _selectedAccountId = widget.accountId;
     if (widget.replyTo != null) {
+      // Reply modu
       _toController.text = widget.replyTo!.fromEmail;
       _subjectController.text =
           widget.replyTo!.subject.startsWith('Re:') ? widget.replyTo!.subject : 'Re: ${widget.replyTo!.subject}';
+      // Mesaj kutusu boş açılır, kullanıcı isterse kendisi ekleyebilir
+    } else if (widget.forwardTo != null) {
+      // Forward modu
+      _subjectController.text =
+          widget.forwardTo!.subject.startsWith('Fwd:') ? widget.forwardTo!.subject : 'Fwd: ${widget.forwardTo!.subject}';
+      // Forward için orijinal mesajı ekle
+      final originalText = widget.forwardTo!.plainText ?? widget.forwardTo!.htmlContent ?? '';
+      if (originalText.isNotEmpty) {
+        _bodyController.text = '\n\n--- İletilen Mesaj ---\nGönderen: ${widget.forwardTo!.fromDisplayName} <${widget.forwardTo!.fromEmail}>\nTarih: ${widget.forwardTo!.receivedDate?.toString() ?? ''}\nKonu: ${widget.forwardTo!.subject}\n\n${originalText}';
+      }
     }
   }
 
@@ -52,12 +77,24 @@ class _ComposeEmailDialogState extends State<ComposeEmailDialog> {
     setState(() => _isLoading = true);
 
     final now = DateTime.now();
+    
+    // To emails'i parse et (virgülle ayrılmış olabilir)
+    final toEmails = _toController.text
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    
     final newEmail = Email(
-      userId: 1, // TODO: Get from current user
-      accountId: 1, // TODO: Get from current user's account
-      fromEmail: 'me@company.com', // TODO: Get from current user
-      fromName: 'Ben', // TODO: Get from current user
-      toEmails: [_toController.text.trim()],
+      userId: widget.userId ?? 1,
+      accountId: _selectedAccountId ?? widget.accountId ?? 1,
+      fromEmail: widget.replyTo?.toEmails.isNotEmpty == true 
+          ? widget.replyTo!.toEmails.first 
+          : widget.forwardTo?.toEmails.isNotEmpty == true
+              ? widget.forwardTo!.toEmails.first
+              : '',
+      fromName: '', // Backend'den gelecek
+      toEmails: toEmails,
       subject: _subjectController.text.trim(),
       plainText: _bodyController.text.trim(),
       htmlContent: _bodyController.text.trim(),
@@ -72,6 +109,48 @@ class _ComposeEmailDialogState extends State<ComposeEmailDialog> {
 
     widget.onEmailSent(newEmail);
     setState(() => _isLoading = false);
+  }
+
+  void _saveDraft() {
+    // Validasyon yapmadan taslak olarak kaydet (boş da olabilir)
+    setState(() => _isLoading = true);
+
+    final now = DateTime.now();
+    
+    // To emails'i parse et (virgülle ayrılmış olabilir, boş da olabilir)
+    final toEmails = _toController.text
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    
+    final draftEmail = Email(
+      userId: widget.userId ?? 1,
+      accountId: _selectedAccountId ?? widget.accountId ?? 1,
+      fromEmail: widget.replyTo?.toEmails.isNotEmpty == true 
+          ? widget.replyTo!.toEmails.first 
+          : widget.forwardTo?.toEmails.isNotEmpty == true
+              ? widget.forwardTo!.toEmails.first
+              : '',
+      fromName: '', // Backend'den gelecek
+      toEmails: toEmails,
+      subject: _subjectController.text.trim(),
+      plainText: _bodyController.text.trim(),
+      htmlContent: _bodyController.text.trim(),
+      sentDate: null, // Taslak henüz gönderilmedi
+      status: EmailStatus.draft,
+      importance: _importance,
+      isRead: true,
+      folder: EmailFolder.drafts,
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    if (widget.onDraftSaved != null) {
+      widget.onDraftSaved!(draftEmail);
+    }
+    setState(() => _isLoading = false);
+    Navigator.pop(context);
   }
 
   @override
@@ -98,6 +177,11 @@ class _ComposeEmailDialogState extends State<ComposeEmailDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Account seçimi (birden fazla account varsa)
+                      if (widget.availableAccounts != null && widget.availableAccounts!.length > 1)
+                        _buildAccountSelector(context),
+                      if (widget.availableAccounts != null && widget.availableAccounts!.length > 1)
+                        const SizedBox(height: 16),
                       _buildToField(context),
                       const SizedBox(height: 16),
                       _buildSubjectField(context),
@@ -124,7 +208,11 @@ class _ComposeEmailDialogState extends State<ComposeEmailDialog> {
         const Icon(Icons.mail_outline, color: AppTheme.primaryColor, size: 28),
         const SizedBox(width: 12),
         Text(
-          widget.replyTo != null ? 'Yanıtla' : 'Yeni E-posta',
+          widget.replyTo != null
+              ? 'Yanıtla'
+              : widget.forwardTo != null
+                  ? 'Yönlendir'
+                  : 'Yeni E-posta',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: Theme.of(context).colorScheme.onSurface,
@@ -236,15 +324,42 @@ class _ComposeEmailDialogState extends State<ComposeEmailDialog> {
     );
   }
 
+  Widget _buildAccountSelector(BuildContext context) {
+    if (widget.availableAccounts == null || widget.availableAccounts!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return DropdownButtonFormField<int>(
+      value: _selectedAccountId ?? widget.accountId,
+      decoration: InputDecoration(
+        labelText: 'Gönderen Hesap',
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        filled: true,
+        fillColor: AppColors.getCardColor(context),
+      ),
+      items: widget.availableAccounts!.map((account) {
+        final providerName = account.provider == EmailProvider.gmail ? 'Gmail' : 'Outlook';
+        return DropdownMenuItem<int>(
+          value: account.id,
+          child: Text('$providerName - ${account.emailAddress}'),
+        );
+      }).toList(),
+      onChanged: (value) {
+        setState(() {
+          _selectedAccountId = value;
+        });
+      },
+    );
+  }
+
   Widget _buildActionButtons(BuildContext context) {
     return Row(
       children: [
         // Taslak Olarak Kaydet
         OutlinedButton.icon(
-          onPressed: () {
-            // TODO: Taslak kaydetme
-            Navigator.pop(context);
-          },
+          onPressed: _isLoading ? null : _saveDraft,
           icon: const Icon(Icons.drafts),
           label: const Text('Taslak'),
           style: OutlinedButton.styleFrom(

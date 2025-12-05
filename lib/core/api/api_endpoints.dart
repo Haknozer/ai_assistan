@@ -18,6 +18,10 @@ class ApiEndpoints {
   static String get labels => '$gmailApiBaseUrl/users/me/labels';
   static String labelById(String labelId) => '$gmailApiBaseUrl/users/me/labels/$labelId';
 
+  // Drafts (taslaklar için)
+  static String get drafts => '$gmailApiBaseUrl/users/me/drafts';
+  static String draftById(String draftId) => '$gmailApiBaseUrl/users/me/drafts/$draftId';
+
   // Base URL - Google Calendar API için
   static const String calendarApiBaseUrl = 'https://www.googleapis.com/calendar/v3';
 
