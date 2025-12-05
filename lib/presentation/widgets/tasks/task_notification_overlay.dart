@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../models/task.dart';
-import '../../screens/tasks/utils/task_utils.dart';
+import '../../../features/tasks/tasks_feature.dart';
 import '../../../core/theme/app_theme.dart';
 
 /// Görev bildirimi overlay widget'ı

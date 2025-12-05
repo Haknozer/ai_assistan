@@ -36,6 +36,17 @@ class WhatsAppThreadPanel extends StatefulWidget {
 
   @override
   State<WhatsAppThreadPanel> createState() => _WhatsAppThreadPanelState();
+
+  /// Forward edilen gönderilen mesajları temizle
+  static Future<void> clearForwardedSentMessages() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('n8n_forwarded_sent_telegram_messages');
+      AppLogger.info('Forward edilen gönderilen mesajlar temizlendi', 'N8N');
+    } catch (e) {
+      AppLogger.error('Forward edilen gönderilen mesajlar temizlenirken hata', tag: 'N8N', error: e);
+    }
+  }
 }
 
 class _WhatsAppThreadPanelState extends State<WhatsAppThreadPanel> {
@@ -79,17 +90,6 @@ class _WhatsAppThreadPanelState extends State<WhatsAppThreadPanel> {
       await prefs.setString(_forwardedSentMessagesKey, jsonString);
     } catch (e) {
       AppLogger.error('Forward edilen gönderilen mesajlar kaydedilirken hata', tag: 'N8N', error: e);
-    }
-  }
-
-  /// Forward edilen gönderilen mesajları temizle
-  static Future<void> clearForwardedSentMessages() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_forwardedSentMessagesKey);
-      AppLogger.info('Forward edilen gönderilen mesajlar temizlendi', 'N8N');
-    } catch (e) {
-      AppLogger.error('Forward edilen gönderilen mesajlar temizlenirken hata', tag: 'N8N', error: e);
     }
   }
 
@@ -185,12 +185,12 @@ class _WhatsAppThreadPanelState extends State<WhatsAppThreadPanel> {
           );
 
           AppLogger.debug('n8n response: $n8nResponse', 'N8N');
-          
+
           // n8n response'u kalıcı olarak kaydet (gönderilen mesajlar için timestamp + text hash kullan)
           if (n8nResponse != null) {
             await N8nResponseStorageService().saveTelegramResponse(sentMessageKey, n8nResponse);
           }
-          
+
           // Forward edildi olarak işaretle ve kalıcı olarak kaydet
           _forwardedSentMessages.add(sentMessageKey);
           _saveForwardedSentMessages().catchError((e) {

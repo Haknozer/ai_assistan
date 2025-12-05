@@ -1,5 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/utils/logger.dart';
+import '../presentation/widgets/messages/whatsapp_thread_panel.dart';
 
 /// n8n ile ilgili tüm SharedPreferences verilerini temizleyen servis
 class N8nCleanupService {
@@ -38,12 +39,14 @@ class N8nCleanupService {
   /// Sadece forward tracking verilerini temizle (response'ları koru)
   Future<void> clearForwardTracking() async {
     try {
+      // WhatsAppThreadPanel'den gönderilen mesajları temizle
+      await WhatsAppThreadPanel.clearForwardedSentMessages();
+      
       final prefs = await SharedPreferences.getInstance();
       
       final trackingKeys = [
         'n8n_forwarded_email_ids',
         'n8n_forwarded_telegram_message_ids',
-        'n8n_forwarded_sent_telegram_messages',
       ];
       
       int clearedCount = 0;
@@ -53,7 +56,7 @@ class N8nCleanupService {
         }
       }
       
-      AppLogger.info('$clearedCount forward tracking verisi temizlendi', 'N8N');
+      AppLogger.info('${clearedCount + 1} forward tracking verisi temizlendi', 'N8N');
     } catch (e) {
       AppLogger.error('Forward tracking verileri temizlenirken hata', tag: 'N8N', error: e);
       rethrow;

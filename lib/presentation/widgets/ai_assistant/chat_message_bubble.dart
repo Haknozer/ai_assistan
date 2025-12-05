@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../screens/ai_assistant/models/chat_message.dart';
+import '../../../features/ai/ai_feature.dart';
 
 /// Chat mesaj balonu widget'ı
 class ChatMessageBubble extends StatelessWidget {

@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../utils/responsive_utils.dart';
 import '../../widgets/layout/side_menu.dart';
 import '../../../providers/user_provider.dart';
-import 'data/mock_analytics.dart';
+import '../../../features/analytics/analytics_feature.dart';
 import '../../widgets/analytics/analytics_page_header.dart';
 import '../../widgets/analytics/stats_grid.dart';
 import '../../widgets/analytics/charts_section.dart';

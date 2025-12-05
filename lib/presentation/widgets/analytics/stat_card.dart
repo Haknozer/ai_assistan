@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../screens/analytics/data/mock_analytics.dart';
-import '../../screens/analytics/utils/analytics_utils.dart';
+import '../../../features/analytics/analytics_feature.dart';
 
 /// İstatistik kartı widget'ı - Analitik özet bilgileri gösterir
 class StatCard extends StatelessWidget {

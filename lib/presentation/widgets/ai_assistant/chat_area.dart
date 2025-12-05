@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../screens/ai_assistant/models/chat_message.dart';
+import '../../../features/ai/ai_feature.dart';
 import 'chat_message_bubble.dart';
 import 'chat_welcome_screen.dart';
 

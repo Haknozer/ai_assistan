@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../models/task.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../screens/tasks/utils/task_utils.dart';
+import '../../../features/tasks/tasks_feature.dart';
 
 /// Görev ekleme dialog'u widget'ı
 class AddTaskDialog extends StatefulWidget {

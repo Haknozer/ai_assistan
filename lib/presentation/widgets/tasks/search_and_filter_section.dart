@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../screens/tasks/utils/task_filter.dart';
+import '../../../features/tasks/tasks_feature.dart';
 
 /// Arama ve filtreleme bölümü widget'ı
 class SearchAndFilterSection extends StatelessWidget {

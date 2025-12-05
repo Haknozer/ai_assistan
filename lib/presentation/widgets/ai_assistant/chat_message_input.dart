@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../screens/ai_assistant/data/ai_responses.dart';
+import '../../../features/ai/ai_feature.dart';
 
 /// Chat mesaj giriş alanı widget'ı
 class ChatMessageInput extends StatelessWidget {

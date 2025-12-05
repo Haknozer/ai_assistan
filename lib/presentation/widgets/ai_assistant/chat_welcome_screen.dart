@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../screens/ai_assistant/data/ai_responses.dart';
+import '../../../features/ai/ai_feature.dart';
 import 'suggestion_chip_list.dart';
 
 /// Chat hoş geldiniz ekranı widget'ı - Boş state

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../screens/analytics/data/mock_analytics.dart';
-import '../../screens/analytics/utils/analytics_utils.dart';
+import '../../../features/analytics/analytics_feature.dart';
 import 'stat_card.dart';
 
 /// İstatistik kartları grid widget'ı - Responsive grid layout
