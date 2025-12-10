@@ -3,6 +3,18 @@ import 'package:flutter/services.dart';
 import 'app_colors.dart';
 
 class AppTheme {
+  // Tek noktadan yönetilen sayfa geçişleri (Windows'ta zoom efektini kapatır)
+  static const PageTransitionsTheme _pageTransitionsTheme = PageTransitionsTheme(
+    builders: {
+      TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+      TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.macOS: _NoTransitionsBuilder(),
+      TargetPlatform.windows: _NoTransitionsBuilder(),
+      TargetPlatform.linux: _NoTransitionsBuilder(),
+      TargetPlatform.fuchsia: _NoTransitionsBuilder(),
+    },
+  );
+
   // Ana Renkler
   static const Color primaryColor = AppColors.primaryColor;
   static const Color secondaryColor = AppColors.secondaryColor;
@@ -44,6 +56,7 @@ class AppTheme {
       colorScheme: lightColorScheme,
       brightness: Brightness.light,
       scaffoldBackgroundColor: AppColors.lightBackgroundColor,
+      pageTransitionsTheme: _pageTransitionsTheme,
 
       // AppBar Theme
       appBarTheme: const AppBarTheme(
@@ -212,6 +225,7 @@ class AppTheme {
       colorScheme: darkColorScheme,
       brightness: Brightness.dark,
       scaffoldBackgroundColor: AppColors.darkBackgroundColor,
+      pageTransitionsTheme: _pageTransitionsTheme,
 
       // AppBar Theme
       appBarTheme: const AppBarTheme(
@@ -428,4 +442,20 @@ class AppTheme {
           offset: const Offset(0, 4),
         ),
       ];
+}
+
+/// Basitçe mevcut sayfayı doğrudan gösteren geçiş oluşturur.
+class _NoTransitionsBuilder extends PageTransitionsBuilder {
+  const _NoTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return child;
+  }
 }

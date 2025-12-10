@@ -15,6 +15,8 @@ import '../../widgets/email/email_filter_section.dart';
 import '../../widgets/email/email_list.dart';
 import '../../widgets/email/email_detail_panel.dart';
 import '../../widgets/email/compose_email_dialog.dart';
+import '../../widgets/command_palette/command_palette_dialog.dart';
+import '../../../core/router/app_router.dart';
 import '../../../models/email_account.dart';
 
 /// E-posta ekranı - E-posta yönetimi ve filtreleme
@@ -628,8 +630,10 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
         context.go('/ai-assistant');
         break;
       case 7:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Komut Paleti geliştiriliyor...')),
+        showCommandPaletteDialog(
+          context,
+          router: GoRouter.of(context),
+          navigatorContext: rootNavigatorKey.currentContext,
         );
         break;
       case 8:

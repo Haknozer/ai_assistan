@@ -15,6 +15,8 @@ import '../calendar/calendar_screen.dart';
 import '../email/email_screen.dart';
 import '../analytics/analytics_screen.dart';
 import '../messages/unified_messages_screen.dart';
+import '../../widgets/command_palette/command_palette_dialog.dart';
+import '../../../core/router/app_router.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -34,7 +36,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     const EmailScreen(),
     const AnalyticsScreen(),
     Container(), // AI Asistan - TODO: Create page
-    Container(), // Komut Paleti - TODO: Create page
+    const SizedBox.shrink(), // Komut Paleti artık popup
     // Karanlık Mod bir sayfa değil, sadece toggle işlemi yapılıyor
   ];
 
@@ -52,6 +54,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             selectedIndex: _selectedIndex,
             pages: _pages,
             onMenuTap: (index) {
+              if (index == 7) {
+                _handleNavigation(index);
+                return;
+              }
               setState(() {
                 _selectedIndex = index;
               });
@@ -66,6 +72,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               selectedIndex: _selectedIndex,
               pages: _pages,
               onMenuTap: (index) {
+                if (index == 7) {
+                  _handleNavigation(index);
+                  return;
+                }
                 setState(() {
                   _selectedIndex = index;
                 });
@@ -371,9 +381,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         context.go('/ai-assistant');
         break;
       case 7:
-        // Komut Paleti - TODO: Create route
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Komut Paleti geliştiriliyor...')),
+        showCommandPaletteDialog(
+          context,
+          router: GoRouter.of(context),
+          navigatorContext: rootNavigatorKey.currentContext,
         );
         break;
       case 8:

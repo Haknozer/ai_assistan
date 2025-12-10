@@ -81,6 +81,12 @@ class AppConfig {
     defaultValue: '',
   );
 
+  // Chatbot webhook URL (AI asistan mesajları için)
+  static const String chatbotWebhookUrl = String.fromEnvironment(
+    'CHATBOT_WEBHOOK_URL',
+    defaultValue: 'https://hakanoer.app.n8n.cloud/webhook/bb831b87-a172-418d-b3e9-7d12b7192d90',
+  );
+
   // Telegram polling feature flag
   // Varsayılan olarak KAPALI gelir; sadece ENABLE_TELEGRAM_POLLING=true dersen açılır.
   static const bool enableTelegramPolling = bool.fromEnvironment(

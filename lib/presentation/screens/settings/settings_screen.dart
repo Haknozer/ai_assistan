@@ -23,6 +23,8 @@ import '../../../core/config/app_config.dart';
 import '../../../core/api/api_exceptions.dart';
 import '../../../utils/responsive_utils.dart';
 import 'data/settings_data.dart';
+import '../../widgets/command_palette/command_palette_dialog.dart';
+import '../../../core/router/app_router.dart';
 
 /// Ayarlar Ekranı - Entegrasyonlar, Bildirimler, Görünüm, Gizlilik
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -1110,8 +1112,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         context.go('/ai-assistant');
         break;
       case 7:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Komut Paleti geliştiriliyor...')),
+        showCommandPaletteDialog(
+          context,
+          router: GoRouter.of(context),
+          navigatorContext: rootNavigatorKey.currentContext,
         );
         break;
     }

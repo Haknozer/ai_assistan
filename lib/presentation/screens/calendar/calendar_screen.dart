@@ -16,6 +16,8 @@ import '../../widgets/calendar/calendar_grid.dart';
 import '../../widgets/calendar/events_list.dart';
 import '../../widgets/calendar/add_event_dialog.dart';
 import '../../widgets/calendar/event_notification_overlay.dart';
+import '../../widgets/command_palette/command_palette_dialog.dart';
+import '../../../core/router/app_router.dart';
 
 /// Combined events provider parametreleri
 class _CombinedEventsParams {
@@ -633,8 +635,10 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         context.go('/ai-assistant');
         break;
       case 7:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Komut Paleti geliştiriliyor...')),
+        showCommandPaletteDialog(
+          context,
+          router: GoRouter.of(context),
+          navigatorContext: rootNavigatorKey.currentContext,
         );
         break;
       case 8:

@@ -8,6 +8,13 @@ import '../../../features/ai/ai_feature.dart';
 import '../../widgets/ai_assistant/ai_page_header.dart';
 import '../../widgets/ai_assistant/chat_area.dart';
 import '../../widgets/ai_assistant/chat_message_input.dart';
+import '../../../providers/location_provider.dart';
+import '../../../services/chatbot_service.dart';
+import 'package:geolocator/geolocator.dart';
+import '../../widgets/command_palette/command_palette_dialog.dart';
+import '../../../core/router/app_router.dart';
+import '../../../services/chat_history_service.dart';
+import '../../../features/ai/models/chat_message.dart';
 
 /// AI Asistan Ekranı - Yapay zeka destekli chat
 class AIAssistantScreen extends ConsumerStatefulWidget {
@@ -21,11 +28,23 @@ class _AIAssistantScreenState extends ConsumerState<AIAssistantScreen> {
   final int _selectedMenuIndex = 6; // AI Assistant indeksi
   final TextEditingController _messageController = TextEditingController();
   final List<ChatMessage> _messages = [];
+  final ScrollController _scrollController = ScrollController();
   bool _isTyping = false;
+  Position? _currentPosition;
+  String? _supabaseUserId;
+  final ChatHistoryService _chatHistoryService = ChatHistoryService();
+
+  @override
+  void initState() {
+    super.initState();
+    _initLocation();
+    _loadSupabaseUserId();
+  }
 
   @override
   void dispose() {
     _messageController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -89,6 +108,7 @@ class _AIAssistantScreenState extends ConsumerState<AIAssistantScreen> {
                     child: ChatArea(
                       messages: _messages,
                       onSuggestionTap: _handleSuggestionTap,
+                      scrollController: _scrollController,
                     ),
                   ),
 
@@ -161,6 +181,7 @@ class _AIAssistantScreenState extends ConsumerState<AIAssistantScreen> {
                 child: ChatArea(
                   messages: _messages,
                   onSuggestionTap: _handleSuggestionTap,
+                  scrollController: _scrollController,
                 ),
               ),
             ),
@@ -202,6 +223,14 @@ class _AIAssistantScreenState extends ConsumerState<AIAssistantScreen> {
     final text = _messageController.text.trim();
     if (text.isEmpty || _isTyping) return;
 
+    final userId = _supabaseUserId ?? ref.read(supabaseAuthServiceProvider).getCurrentUser()?.id;
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kullanıcı oturumu bulunamadı. Lütfen tekrar giriş yapın.')),
+      );
+      return;
+    }
+
     setState(() {
       _messages.add(ChatMessage(
         text: text,
@@ -212,23 +241,95 @@ class _AIAssistantScreenState extends ConsumerState<AIAssistantScreen> {
       _isTyping = true;
     });
 
-    // Simulate AI response
-    _simulateAIResponse(text);
+    _sendToChatbot(text, userId);
   }
 
-  void _simulateAIResponse(String userMessage) {
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() {
-          _isTyping = false;
+  Future<void> _sendToChatbot(String text, String userId) async {
+    // Konum henüz alınamadıysa gönderim öncesi bir kez daha dene
+    _currentPosition ??= await ref.read(locationServiceProvider).getLastKnownLocation();
+
+    try {
+      final responseText = await ChatbotService().sendChatMessage(
+        text: text,
+        userId: userId,
+        latitude: _currentPosition?.latitude,
+        longitude: _currentPosition?.longitude,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _isTyping = false;
+        if (responseText != null && responseText.isNotEmpty) {
           _messages.add(ChatMessage(
-            text: AIResponses.generateResponse(userMessage),
+            text: responseText,
             isUser: false,
             timestamp: DateTime.now(),
           ));
-        });
-      }
+        }
+      });
+      _scrollToBottom();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isTyping = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Mesaj gönderilemedi: $e')),
+      );
+    }
+  }
+
+  Future<void> _initLocation() async {
+    final locationService = ref.read(locationServiceProvider);
+    final position = await locationService.getCurrentLocation();
+    if (!mounted) return;
+    setState(() {
+      _currentPosition = position;
     });
+  }
+
+  Future<void> _loadSupabaseUserId() async {
+    final supabaseUser = ref.read(supabaseAuthServiceProvider).getCurrentUser();
+    if (!mounted) return;
+    setState(() {
+      _supabaseUserId = supabaseUser?.id;
+    });
+    final userId = _supabaseUserId;
+    if (userId != null) {
+      // Cache varsa anında göster
+      final cached = _chatHistoryService.getCachedMessages(userId);
+      if (cached != null && cached.isNotEmpty) {
+        setState(() {
+          _messages
+            ..clear()
+            ..addAll(cached);
+        });
+        _scrollToBottom();
+      }
+      // Cache yüklü değilse tek sefer istek at
+      if (!_chatHistoryService.isLoaded(userId)) {
+        await _loadChatHistory(userId);
+      }
+    }
+  }
+
+  Future<void> _loadChatHistory(String userId) async {
+    try {
+      final history = await _chatHistoryService.fetchHistory(userId: userId, limit: 200);
+      if (!mounted) return;
+      setState(() {
+        _messages
+          ..clear()
+          ..addAll(history);
+      });
+      _scrollToBottom();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Geçmiş yüklenemedi: $e')),
+      );
+    }
   }
 
   void _handleMenuTap(int index) {
@@ -254,8 +355,10 @@ class _AIAssistantScreenState extends ConsumerState<AIAssistantScreen> {
         context.go('/analytics');
         break;
       case 7:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Komut Paleti geliştiriliyor...')),
+        showCommandPaletteDialog(
+          context,
+          router: GoRouter.of(context),
+          navigatorContext: rootNavigatorKey.currentContext,
         );
         break;
       case 8:
@@ -266,5 +369,16 @@ class _AIAssistantScreenState extends ConsumerState<AIAssistantScreen> {
 
   void _handleProfileTap() {
     context.go('/settings');
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
   }
 }

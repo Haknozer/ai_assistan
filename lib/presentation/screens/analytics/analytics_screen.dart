@@ -5,6 +5,8 @@ import '../../../utils/responsive_utils.dart';
 import '../../widgets/layout/side_menu.dart';
 import '../../../providers/user_provider.dart';
 import '../../../features/analytics/analytics_feature.dart';
+import '../../widgets/command_palette/command_palette_dialog.dart';
+import '../../../core/router/app_router.dart';
 import '../../widgets/analytics/analytics_page_header.dart';
 import '../../widgets/analytics/stats_grid.dart';
 import '../../widgets/analytics/charts_section.dart';
@@ -184,8 +186,10 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         context.go('/ai-assistant');
         break;
       case 7:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Komut Paleti geliştiriliyor...')),
+        showCommandPaletteDialog(
+          context,
+          router: GoRouter.of(context),
+          navigatorContext: rootNavigatorKey.currentContext,
         );
         break;
       case 8:

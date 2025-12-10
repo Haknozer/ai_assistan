@@ -9,6 +9,7 @@ import 'core/database/database_service.dart';
 import 'core/config/app_config.dart';
 import 'core/utils/logger.dart';
 import 'providers/theme_provider.dart';
+import 'presentation/widgets/global_hotkeys.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -88,6 +89,11 @@ class AIAssistantApp extends ConsumerWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: userTheme.themeMode,
       routerConfig: router,
+      builder: (context, child) {
+        return GlobalHotkeys(
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }

@@ -7,11 +7,13 @@ import 'chat_welcome_screen.dart';
 class ChatArea extends StatelessWidget {
   final List<ChatMessage> messages;
   final Function(String) onSuggestionTap;
+  final ScrollController scrollController;
 
   const ChatArea({
     super.key,
     required this.messages,
     required this.onSuggestionTap,
+    required this.scrollController,
   });
 
   @override
@@ -22,6 +24,7 @@ class ChatArea extends StatelessWidget {
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 16),
+      controller: scrollController,
       itemCount: messages.length,
       itemBuilder: (context, index) {
         return ChatMessageBubble(message: messages[index]);

@@ -21,6 +21,8 @@ import '../../../services/n8n_response_storage_service.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/utils/logger.dart';
 import '../../../core/utils/error_handler.dart';
+import '../../widgets/command_palette/command_palette_dialog.dart';
+import '../../../core/router/app_router.dart';
 
 /// Birleşik mesajlar ekranı - Tüm platformlardan mesajları tek yerden yönetin
 class UnifiedMessagesScreen extends ConsumerStatefulWidget {
@@ -755,8 +757,10 @@ class _UnifiedMessagesScreenState extends ConsumerState<UnifiedMessagesScreen> {
         context.go('/ai-assistant');
         break;
       case 7: // Komut Paleti
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Komut Paleti geliştiriliyor...')),
+        showCommandPaletteDialog(
+          context,
+          router: GoRouter.of(context),
+          navigatorContext: rootNavigatorKey.currentContext,
         );
         break;
       case 8:

@@ -13,10 +13,14 @@ import '../../presentation/screens/analytics/analytics_screen.dart';
 import '../../presentation/screens/ai_assistant/ai_assistant_screen.dart';
 import '../../presentation/screens/settings/settings_screen.dart';
 import '../../presentation/screens/settings/integrations_screen.dart';
+import '../../presentation/screens/command_palette/command_palette_screen.dart';
 import '../../providers/user_provider.dart';
+
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/',
     debugLogDiagnostics: true,
     redirect: (context, state) async {
@@ -103,6 +107,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/ai-assistant',
         name: 'ai-assistant',
         builder: (context, state) => const AIAssistantScreen(),
+      ),
+
+      // Command Palette
+      GoRoute(
+        path: '/command-palette',
+        name: 'command-palette',
+        builder: (context, state) => const CommandPaletteScreen(),
       ),
 
       // Settings Routes

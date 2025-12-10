@@ -11,6 +11,8 @@ import '../../widgets/tasks/search_and_filter_section.dart';
 import '../../widgets/tasks/kanban_board.dart';
 import '../../widgets/tasks/add_task_dialog.dart';
 import '../../widgets/tasks/task_notification_overlay.dart';
+import '../../widgets/command_palette/command_palette_dialog.dart';
+import '../../../core/router/app_router.dart';
 
 /// Görevler ekranı - Görev yönetimi ve Kanban board
 class TasksScreen extends ConsumerStatefulWidget {
@@ -243,8 +245,10 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
         context.go('/ai-assistant');
         break;
       case 7:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Komut Paleti geliştiriliyor...')),
+        showCommandPaletteDialog(
+          context,
+          router: GoRouter.of(context),
+          navigatorContext: rootNavigatorKey.currentContext,
         );
         break;
       case 8:
