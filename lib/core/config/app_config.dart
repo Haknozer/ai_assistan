@@ -94,6 +94,32 @@ class AppConfig {
     defaultValue: false,
   );
 
+  // Google Cloud Speech/Text settings
+  static const String googleApplicationCredentials = String.fromEnvironment(
+    'GOOGLE_APPLICATION_CREDENTIALS',
+    defaultValue: '',
+  );
+
+  static const String gcpProjectId = String.fromEnvironment(
+    'GCP_PROJECT_ID',
+    defaultValue: '',
+  );
+
+  static const String gcpSttLanguage = String.fromEnvironment(
+    'GCP_STT_LANGUAGE',
+    defaultValue: 'tr-TR',
+  );
+
+  static const String gcpTtsVoice = String.fromEnvironment(
+    'GCP_TTS_VOICE',
+    defaultValue: 'tr-TR-Standard-A', // Wavenet yerine Standard kullanımı (daha güvenli)
+  );
+
+  static const String gcpTtsEncoding = String.fromEnvironment(
+    'GCP_TTS_ENCODING',
+    defaultValue: 'MP3', // audioplayers MP3 header'ını tanır, LINEAR16 (RAW PCM) çalamaz
+  );
+
   // Debug Configuration
   static const bool debugMode = bool.fromEnvironment('DEBUG', defaultValue: false);
   static const bool enableLogging = bool.fromEnvironment('ENABLE_LOGGING', defaultValue: true);

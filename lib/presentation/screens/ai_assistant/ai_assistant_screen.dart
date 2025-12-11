@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:geolocator/geolocator.dart';
+
+import '../../../core/config/app_config.dart';
 import '../../../utils/responsive_utils.dart';
-import '../../widgets/layout/side_menu.dart';
 import '../../../providers/user_provider.dart';
 import '../../../features/ai/ai_feature.dart';
-import '../../widgets/ai_assistant/ai_page_header.dart';
-import '../../widgets/ai_assistant/chat_area.dart';
-import '../../widgets/ai_assistant/chat_message_input.dart';
 import '../../../providers/location_provider.dart';
-import '../../../services/chatbot_service.dart';
-import 'package:geolocator/geolocator.dart';
 import '../../widgets/command_palette/command_palette_dialog.dart';
 import '../../../core/router/app_router.dart';
 import '../../../services/chat_history_service.dart';
-import '../../../features/ai/models/chat_message.dart';
+import '../../widgets/voice/voice_command_sheet.dart';
+import '../../../services/voice/voice_command_helper.dart';
+import '../../widgets/ai_assistant/ai_assistant_desktop_layout.dart';
+import '../../widgets/ai_assistant/ai_assistant_mobile_layout.dart';
 
 /// AI Asistan Ekranı - Yapay zeka destekli chat
 class AIAssistantScreen extends ConsumerStatefulWidget {
@@ -68,149 +68,35 @@ class _AIAssistantScreenState extends ConsumerState<AIAssistantScreen> {
 
   Widget _buildResponsiveLayout(dynamic currentUser, EdgeInsets padding, bool isDesktop) {
     if (isDesktop) {
-      return _buildDesktopLayout(currentUser, padding);
-    } else {
-      return _buildMobileLayout(currentUser, padding);
+      return AiAssistantDesktopLayout(
+        currentUser: currentUser,
+        padding: padding,
+        selectedMenuIndex: _selectedMenuIndex,
+        onMenuTap: _handleMenuTap,
+        onProfileTap: _handleProfileTap,
+        onVoiceTap: _openVoiceSheet,
+        messages: _messages,
+        onSuggestionTap: _handleSuggestionTap,
+        scrollController: _scrollController,
+        messageController: _messageController,
+        onSendMessage: _sendMessage,
+        isTyping: _isTyping,
+      );
     }
-  }
 
-  /// Desktop Layout - Sol menü + içerik
-  Widget _buildDesktopLayout(dynamic currentUser, EdgeInsets padding) {
-    return Row(
-      children: [
-        // Sol Menü
-        SizedBox(
-          width: 280,
-          child: SideMenu(
-            userName: currentUser.name,
-            userEmail: currentUser.email,
-            selectedIndex: _selectedMenuIndex,
-            onMenuTap: _handleMenuTap,
-            onProfileTap: _handleProfileTap,
-          ),
-        ),
-        // Ana İçerik Alanı
-        Expanded(
-          child: SafeArea(
-            child: Padding(
-              padding: padding,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Sayfa Başlığı
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 24),
-                    child: AIPageHeader(),
-                  ),
-
-                  // Chat İçeriği
-                  Expanded(
-                    child: ChatArea(
-                      messages: _messages,
-                      onSuggestionTap: _handleSuggestionTap,
-                      scrollController: _scrollController,
-                    ),
-                  ),
-
-                  // Mesaj Girişi
-                  ChatMessageInput(
-                    controller: _messageController,
-                    onSend: _sendMessage,
-                    isTyping: _isTyping,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Mobile Layout - AppBar + Drawer + içerik
-  Widget _buildMobileLayout(dynamic currentUser, EdgeInsets padding) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'AI Asistan',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-        ),
-        automaticallyImplyLeading: false,
-        leading: Builder(
-          builder: (context) => IconButton(
-            onPressed: () => Scaffold.of(context).openDrawer(),
-            icon: const Icon(Icons.menu),
-          ),
-        ),
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        elevation: 1,
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Mobil Hoş Geldiniz Mesajı
-            Container(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Merhaba, ${currentUser.name.split(' ').first}!',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Size nasıl yardımcı olabilirim?',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                        ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Chat İçeriği
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: ChatArea(
-                  messages: _messages,
-                  onSuggestionTap: _handleSuggestionTap,
-                  scrollController: _scrollController,
-                ),
-              ),
-            ),
-
-            // Mesaj Girişi
-            ChatMessageInput(
-              controller: _messageController,
-              onSend: _sendMessage,
-              isTyping: _isTyping,
-            ),
-          ],
-        ),
-      ),
-      drawer: Drawer(
-        width: 280,
-        child: SideMenu(
-          userName: currentUser.name,
-          userEmail: currentUser.email,
-          selectedIndex: _selectedMenuIndex,
-          onMenuTap: (index) {
-            Navigator.pop(context);
-            _handleMenuTap(index);
-          },
-          onProfileTap: () {
-            Navigator.pop(context);
-            _handleProfileTap();
-          },
-        ),
-      ),
+    return AiAssistantMobileLayout(
+      currentUser: currentUser,
+      padding: padding,
+      selectedMenuIndex: _selectedMenuIndex,
+      onMenuTap: _handleMenuTap,
+      onProfileTap: _handleProfileTap,
+      onVoiceTap: _openVoiceSheet,
+      messages: _messages,
+      onSuggestionTap: _handleSuggestionTap,
+      scrollController: _scrollController,
+      messageController: _messageController,
+      onSendMessage: _sendMessage,
+      isTyping: _isTyping,
     );
   }
 
@@ -219,16 +105,29 @@ class _AIAssistantScreenState extends ConsumerState<AIAssistantScreen> {
     _sendMessage();
   }
 
-  void _sendMessage() {
+  Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty || _isTyping) return;
+    await _sendThroughChatFlow(text, clearController: true);
+  }
 
-    final userId = _supabaseUserId ?? ref.read(supabaseAuthServiceProvider).getCurrentUser()?.id;
+  Future<String?> _sendVoiceMessage(String text) async {
+    if (text.trim().isEmpty || _isTyping) return null;
+    return _sendThroughChatFlow(text, clearController: false);
+  }
+
+  Future<String?> _sendThroughChatFlow(String text, {bool clearController = false}) async {
+    final userId = ref.read(supabaseAuthServiceProvider).getCurrentUser()?.id ?? _supabaseUserId;
     if (userId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Kullanıcı oturumu bulunamadı. Lütfen tekrar giriş yapın.')),
-      );
-      return;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Kullanıcı oturumu bulunamadı. Lütfen tekrar giriş yapın.')),
+        );
+      }
+      setState(() {
+        _isTyping = false;
+      });
+      return null;
     }
 
     setState(() {
@@ -237,46 +136,51 @@ class _AIAssistantScreenState extends ConsumerState<AIAssistantScreen> {
         isUser: true,
         timestamp: DateTime.now(),
       ));
-      _messageController.clear();
+      if (clearController) {
+        _messageController.clear();
+      }
       _isTyping = true;
     });
 
-    _sendToChatbot(text, userId);
+    return _sendToChatbot(text, userId);
   }
 
-  Future<void> _sendToChatbot(String text, String userId) async {
+  Future<String?> _sendToChatbot(String text, String userId) async {
     // Konum henüz alınamadıysa gönderim öncesi bir kez daha dene
     _currentPosition ??= await ref.read(locationServiceProvider).getLastKnownLocation();
 
     try {
-      final responseText = await ChatbotService().sendChatMessage(
+      final assistantText = await VoiceCommandHelper.processVoiceCommand(
+        context: context,
         text: text,
         userId: userId,
         latitude: _currentPosition?.latitude,
         longitude: _currentPosition?.longitude,
       );
 
-      if (!mounted) return;
+      if (!mounted) return null;
 
       setState(() {
         _isTyping = false;
-        if (responseText != null && responseText.isNotEmpty) {
+        if (assistantText != null && assistantText.isNotEmpty) {
           _messages.add(ChatMessage(
-            text: responseText,
+            text: assistantText,
             isUser: false,
             timestamp: DateTime.now(),
           ));
         }
       });
       _scrollToBottom();
+      return assistantText;
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) return null;
       setState(() {
         _isTyping = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Mesaj gönderilemedi: $e')),
       );
+      return null;
     }
   }
 
@@ -364,6 +268,9 @@ class _AIAssistantScreenState extends ConsumerState<AIAssistantScreen> {
       case 8:
         context.go('/settings');
         break;
+      case 9:
+        _openVoiceSheet();
+        break;
     }
   }
 
@@ -380,5 +287,50 @@ class _AIAssistantScreenState extends ConsumerState<AIAssistantScreen> {
         curve: Curves.easeOut,
       );
     });
+  }
+
+  Future<void> _openVoiceSheet() async {
+    const servicePath = AppConfig.googleApplicationCredentials;
+    if (servicePath.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('GOOGLE_APPLICATION_CREDENTIALS tanımlı değil')),
+        );
+      }
+      return;
+    }
+
+    // Supabase ID zorunlu; yoksa gönderme
+    final userId = ref.read(supabaseAuthServiceProvider).getCurrentUser()?.id;
+    if (userId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Kullanıcı oturumu bulunamadı')),
+        );
+      }
+      return;
+    }
+
+    // Konum yoksa açmadan önce bir kez daha dene
+    if (_currentPosition == null) {
+      final freshPos = await ref.read(locationServiceProvider).getCurrentLocation();
+      if (freshPos != null) {
+        setState(() {
+          _currentPosition = freshPos;
+        });
+      }
+    }
+
+    await showVoiceCommandSheet(
+      context,
+      serviceAccountPath: servicePath,
+      languageCode: AppConfig.gcpSttLanguage,
+      voiceName: AppConfig.gcpTtsVoice,
+      audioEncoding: AppConfig.gcpTtsEncoding,
+      userId: userId,
+      latitude: _currentPosition?.latitude,
+      longitude: _currentPosition?.longitude,
+      onSendVoice: _sendVoiceMessage,
+    );
   }
 }

@@ -21,9 +21,10 @@ class ChatbotService {
   /// uyum için virgülle ayrılmış string'e çevrilir (37,2 gibi).
   Future<String?> sendChatMessage({
     required String text,
-    required String userId,
+    String? userId,
     double? latitude,
     double? longitude,
+    bool returnRawBody = false,
   }) async {
     if (!isConfigured) {
       throw Exception('Chatbot webhook URL tanımlı değil');
@@ -31,14 +32,20 @@ class ChatbotService {
 
     try {
       final uri = Uri.parse(_webhookUrl);
-      final payload = [
-        {
-          'text': text,
-          'lat': latitude != null ? _formatCoordinate(latitude) : '',
-          'lon': longitude != null ? _formatCoordinate(longitude) : '',
-          'user_id': userId,
-        }
-      ];
+      final body = <String, dynamic>{
+        'text': text,
+      };
+      if (latitude != null) {
+        body['lat'] = _formatCoordinate(latitude);
+      }
+      if (longitude != null) {
+        body['lon'] = _formatCoordinate(longitude);
+      }
+      if (userId != null && userId.isNotEmpty) {
+        body['user_id'] = userId;
+      }
+
+      final payload = [body];
 
       final response = await http.post(
         uri,
@@ -51,6 +58,7 @@ class ChatbotService {
       }
 
       if (response.body.isEmpty) return null;
+      if (returnRawBody) return response.body;
 
       final decoded = jsonDecode(response.body);
       if (decoded is String) return decoded;

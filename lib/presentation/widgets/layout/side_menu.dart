@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/config/app_config.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../widgets/circle_avatar_with_initials.dart';
+import '../../widgets/voice/voice_command_sheet.dart';
+import '../../../services/voice/voice_command_helper.dart';
 import '../../../../providers/theme_provider.dart';
+import '../../../../providers/user_provider.dart';
+import 'side_menu_header.dart';
+import 'side_menu_profile_card.dart';
+import 'side_menu_items.dart';
+import 'side_menu_menu_list.dart';
+import 'side_menu_bottom_section.dart';
 
 class SideMenu extends ConsumerWidget {
   final String userName;
@@ -10,6 +18,7 @@ class SideMenu extends ConsumerWidget {
   final int selectedIndex;
   final Function(int) onMenuTap;
   final VoidCallback onProfileTap;
+  final VoidCallback? onVoiceTap;
 
   const SideMenu({
     super.key,
@@ -18,10 +27,14 @@ class SideMenu extends ConsumerWidget {
     required this.selectedIndex,
     required this.onMenuTap,
     required this.onProfileTap,
+    this.onVoiceTap,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isDarkMode = ref.watch(themeProvider).isDarkMode;
+    final items = getSideMenuItems();
+
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -42,281 +55,61 @@ class SideMenu extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          // Header Section
-          _buildHeader(),
-
-          // User Profile Card
-          _buildUserProfileCard(),
-
+          const SideMenuHeader(),
+          SideMenuProfileCard(
+            userName: userName,
+            userEmail: userEmail,
+            onProfileTap: onProfileTap,
+          ),
           const SizedBox(height: 12),
-
-          // Menu Items
-          _buildMenuItems(ref),
-
-          // Bottom Section
-          _buildBottomSection(ref),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          SizedBox(height: 8),
-
-          // App Title
-          Text(
-            'AI Asistan',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
-            ),
+          SideMenuMenuList(
+            items: items,
+            selectedIndex: selectedIndex,
+            onMenuTap: onMenuTap,
           ),
-
-          SizedBox(height: 4),
-
-          // Subtitle
-          Text(
-            'Kişisel Yönetim',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              letterSpacing: 0.5,
-            ),
-          ),
-
-          SizedBox(height: 12),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildUserProfileCard() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.2),
-            width: 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            // Avatar
-            GestureDetector(
-              onTap: onProfileTap,
-              child: CircleAvatarWithInitials(
-                initials: userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                radius: 20,
-                backgroundColor: Colors.white,
-                textColor: AppColors.primaryColor,
-              ),
-            ),
-
-            const SizedBox(width: 8),
-
-            // User Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    userName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    userEmail,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMenuItems(WidgetRef ref) {
-    final menuItems = [
-      {'icon': Icons.dashboard_outlined, 'label': 'Ana Sayfa', 'index': 0},
-      {'icon': Icons.mark_email_unread_outlined, 'label': 'Birleşik Mesajlar', 'index': 1},
-      {'icon': Icons.task_outlined, 'label': 'Görevler', 'index': 2},
-      {'icon': Icons.calendar_today_outlined, 'label': 'Takvim', 'index': 3},
-      {'icon': Icons.email_outlined, 'label': 'E-Posta', 'index': 4},
-      {'icon': Icons.analytics_outlined, 'label': 'Analitik', 'index': 5},
-      {'icon': Icons.smart_toy_outlined, 'label': 'AI Asistan', 'index': 6},
-      {'icon': Icons.search, 'label': 'Komut Paleti', 'index': 7},
-      {'icon': Icons.settings_outlined, 'label': 'Ayarlar', 'index': 8},
-    ];
-
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: ListView.separated(
-          physics: const AlwaysScrollableScrollPhysics(),
-          itemCount: menuItems.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 2),
-          itemBuilder: (context, index) {
-            final item = menuItems[index];
-            final itemIndex = item['index'] as int;
-            final isSelected = selectedIndex == itemIndex;
-
-            return GestureDetector(
-              onTap: () => onMenuTap(itemIndex),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isSelected ? Colors.white.withValues(alpha: 0.1) : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                  border: isSelected
-                      ? Border.all(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          width: 1,
-                        )
-                      : null,
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      item['icon'] as IconData,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      item['label'] as String,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                      ),
-                    ),
-                    const Spacer(),
-                    if (isSelected)
-                      Container(
-                        width: 4,
-                        height: 4,
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomSection(WidgetRef ref) {
-    final themeState = ref.watch(themeProvider);
-
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          // Divider
-          Container(
-            height: 1,
-            color: Colors.white.withValues(alpha: 0.2),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Karanlık/Aydınlık Mod Butonu
-          GestureDetector(
-            onTap: () {
-              ref.read(themeProvider.notifier).toggleTheme();
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    themeState.isDarkMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
-                    color: Colors.white,
-                    size: 22,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    themeState.isDarkMode ? 'Açık Mod' : 'Karanlık Mod',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 10),
-
-          // Logout Button
-          GestureDetector(
-            onTap: () {
+          SideMenuBottomSection(
+            isDarkMode: isDarkMode,
+            onToggleTheme: () => ref.read(themeProvider.notifier).toggleTheme(),
+            onVoiceTap: onVoiceTap ?? () => _openVoiceSheetIfPossible(context, ref),
+            onLogout: () {
               // TODO: Implement logout
             },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Row(
-                children: [
-                  Icon(
-                    Icons.logout,
-                    color: Colors.white,
-                    size: 22,
-                  ),
-                  SizedBox(width: 12),
-                  Text(
-                    'Çıkış Yap',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ),
-
-          const SizedBox(height: 16),
         ],
       ),
     );
   }
+}
+
+void _openVoiceSheetIfPossible(BuildContext context, WidgetRef ref) {
+  const servicePath = AppConfig.googleApplicationCredentials;
+  if (servicePath.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('GOOGLE_APPLICATION_CREDENTIALS tanımlı değil')),
+    );
+    return;
+  }
+
+  final user = ref.read(currentUserProvider);
+  final userId = user?.id?.toString() ?? 'desktop-user';
+
+  showVoiceCommandSheet(
+    context,
+    serviceAccountPath: servicePath,
+    languageCode: AppConfig.gcpSttLanguage,
+    voiceName: AppConfig.gcpTtsVoice,
+    audioEncoding: AppConfig.gcpTtsEncoding,
+    userId: userId,
+    onSendVoice: (text) async {
+      return await VoiceCommandHelper.processVoiceCommand(
+        context: context,
+        text: text,
+        userId: userId,
+        // SideMenu içinde konum yok, null gönderiyoruz (veya servisten çekilebilir ama
+        // helper içinde konum çekme yok, basit tutuyoruz. Gerekirse eklenebilir)
+        latitude: null, // Konum gerekirse locationService'den çekilebilir
+        longitude: null,
+      );
+    },
+  );
 }

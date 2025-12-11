@@ -1,17 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 import '../../screens/messages/models/message_model.dart';
 import 'empty_message_state.dart';
 import '../../../services/whatsapp_service.dart';
-import '../../../services/telegram_bot_service.dart';
-import '../../../services/n8n_forwarder_service.dart';
-import '../../../services/n8n_response_storage_service.dart';
 import '../../../core/utils/logger.dart';
 import '../../../core/utils/error_handler.dart';
 import 'whatsapp/whatsapp_thread_header.dart';
 import 'whatsapp/whatsapp_message_list.dart';
 import 'whatsapp/whatsapp_input_area.dart';
+import 'whatsapp/forwarded_sent_store.dart';
+import 'whatsapp/telegram_message_sender.dart';
 
 /// WhatsApp tarzı sohbet paneli - Seçilen kişi (from_number) için tüm mesajları gösterir.
 class WhatsAppThreadPanel extends StatefulWidget {
@@ -36,24 +33,13 @@ class WhatsAppThreadPanel extends StatefulWidget {
 
   @override
   State<WhatsAppThreadPanel> createState() => _WhatsAppThreadPanelState();
-
-  /// Forward edilen gönderilen mesajları temizle
-  static Future<void> clearForwardedSentMessages() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('n8n_forwarded_sent_telegram_messages');
-      AppLogger.info('Forward edilen gönderilen mesajlar temizlendi', 'N8N');
-    } catch (e) {
-      AppLogger.error('Forward edilen gönderilen mesajlar temizlenirken hata', tag: 'N8N', error: e);
-    }
-  }
 }
 
 class _WhatsAppThreadPanelState extends State<WhatsAppThreadPanel> {
   final TextEditingController _controller = TextEditingController();
   bool _isSending = false;
   final Set<String> _forwardedSentMessages = {}; // Gönderilen mesajları takip et (timestamp + text hash)
-  static const String _forwardedSentMessagesKey = 'n8n_forwarded_sent_telegram_messages';
+  final ForwardedSentStore _forwardedStore = ForwardedSentStore();
 
   @override
   void initState() {
@@ -69,27 +55,14 @@ class _WhatsAppThreadPanelState extends State<WhatsAppThreadPanel> {
 
   /// SharedPreferences'tan forward edilen gönderilen mesajları yükle
   Future<void> _loadForwardedSentMessages() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final jsonString = prefs.getString(_forwardedSentMessagesKey);
-      if (jsonString != null && jsonString.isNotEmpty) {
-        final List<dynamic> decoded = jsonDecode(jsonString);
-        _forwardedSentMessages.addAll(decoded.map((e) => e.toString()));
-        AppLogger.debug('Forward edilen ${_forwardedSentMessages.length} gönderilen mesaj yüklendi', 'N8N');
-      }
-    } catch (e) {
-      AppLogger.error('Forward edilen gönderilen mesajlar yüklenirken hata', tag: 'N8N', error: e);
-    }
-  }
-
-  /// Forward edilen gönderilen mesajları SharedPreferences'a kaydet
-  Future<void> _saveForwardedSentMessages() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final jsonString = jsonEncode(_forwardedSentMessages.toList());
-      await prefs.setString(_forwardedSentMessagesKey, jsonString);
-    } catch (e) {
-      AppLogger.error('Forward edilen gönderilen mesajlar kaydedilirken hata', tag: 'N8N', error: e);
+    final loaded = await _forwardedStore.load();
+    setState(() {
+      _forwardedSentMessages
+        ..clear()
+        ..addAll(loaded);
+    });
+    if (loaded.isNotEmpty) {
+      AppLogger.debug('Forward edilen ${loaded.length} gönderilen mesaj yüklendi', 'N8N');
     }
   }
 
@@ -151,86 +124,20 @@ class _WhatsAppThreadPanelState extends State<WhatsAppThreadPanel> {
       });
 
       try {
-        final telegramService = TelegramBotService();
-        if (!telegramService.isConfigured) {
-          ErrorHandler.showInfo(context, 'Telegram bot yapılandırılmamış. Bot token kontrol edin.');
-          return;
-        }
-
-        final chatId = int.tryParse(widget.selectedMessage!.fromNumber);
-        if (chatId == null) {
-          ErrorHandler.showInfo(context, 'Geçersiz Telegram chat id.');
-          return;
-        }
-
-        await telegramService.sendMessage(
-          chatId: chatId,
+        final result = await TelegramMessageSender.send(
+          context: context,
           text: text,
+          selectedMessage: widget.selectedMessage!,
+          currentUserId: widget.currentUserId,
+          forwardedSentMessages: _forwardedSentMessages,
+          forwardedStore: _forwardedStore,
         );
 
-        final now = DateTime.now();
-        final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-
-        // Gönderdiğimiz mesajı da n8n'e ilet ve cevabı almak istersek burada yakalayabiliriz.
-        // Gönderilen mesajları tekrar işlemeyi önlemek için kontrol ekle
-        final sentMessageKey = '${now.millisecondsSinceEpoch}_${text.hashCode}';
-        if (widget.currentUserId != null && !_forwardedSentMessages.contains(sentMessageKey)) {
-          final n8nResponse = await N8nForwarderService().forwardTelegramMessageAndWait(
-            userId: widget.currentUserId!,
-            chatId: chatId,
-            senderName: widget.selectedMessage!.sender,
-            text: text,
-            isOutgoing: true,
-            dateTime: now,
-          );
-
-          AppLogger.debug('n8n response: $n8nResponse', 'N8N');
-
-          // n8n response'u kalıcı olarak kaydet (gönderilen mesajlar için timestamp + text hash kullan)
-          if (n8nResponse != null) {
-            await N8nResponseStorageService().saveTelegramResponse(sentMessageKey, n8nResponse);
-          }
-
-          // Forward edildi olarak işaretle ve kalıcı olarak kaydet
-          _forwardedSentMessages.add(sentMessageKey);
-          _saveForwardedSentMessages().catchError((e) {
-            AppLogger.error('Forward edilen gönderilen mesaj kaydedilemedi', tag: 'N8N', error: e);
-          });
-
-          // Şimdilik debug amaçlı olarak cevabı ekranda göster.
-          if (mounted && n8nResponse != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  n8nResponse.toString(),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                duration: const Duration(seconds: 4),
-              ),
-            );
-          }
-        }
+        if (result == null) return;
 
         // Telegram için optimistic UI: hemen sağ tarafta kendi gönderdiğimiz mesajı göster
         setState(() {
-          widget.allMessages.add(
-            MessageModel(
-              id: null,
-              platform: 'Telegram',
-              fromNumber: widget.selectedMessage!.fromNumber,
-              sender: widget.selectedMessage!.sender,
-              subject: text.length > 30 ? text.substring(0, 30) : text,
-              preview: text,
-              content: text,
-              time: timeStr,
-              date: null,
-              isUnread: false,
-              icon: Icons.telegram,
-              color: Colors.blue,
-              isOutgoing: true,
-            ),
-          );
+          widget.allMessages.add(result.optimisticMessage);
           _controller.clear();
         });
 

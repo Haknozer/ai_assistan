@@ -55,6 +55,17 @@ flutter test test/core/utils # core utils hızlı kontrol
 - Gerçek backend için `API_BASE_URL`’i kendi sunucunuza yönlendirin.
 - Hızlı deneme: JSON Server mock (bkz. `API_NASIL_HAZIR_OLACAK.md`).
 
+## Google Cloud Speech / TTS
+- Google Cloud’da Speech-to-Text ve Text-to-Speech API’lerini enable edin.
+- Bir Service Account oluşturup JSON anahtarını yerelde saklayın (repo dışı).
+- `run_windows.bat` içinde doldurun:
+  - `GOOGLE_APPLICATION_CREDENTIALS=C:\keys\gcp-service-account.json`
+  - `GCP_PROJECT_ID=proje-id`
+  - `GCP_STT_LANGUAGE=tr-TR` (veya ihtiyacınız)
+  - `GCP_TTS_VOICE=tr-TR-Wavenet-D` (veya seçtiğiniz voice)
+  - `GCP_TTS_ENCODING=MP3`
+- Masaüstü uygulamasında “Sesli Asistan” butonu ve kısayolu (Ctrl/Cmd + Shift + V) ile push-to-talk çalışır.
+
 ## Güvenlik
 - Örnek client secret / token değerlerini üretimde kullanmayın.
 - Ortam değişkenlerini `.env`/CI gizli değişkenleri veya platforma özel script’lerle geçirin.

@@ -12,11 +12,18 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.2
   http: ^1.1.0
+  googleapis_auth: ^1.6.0
+  record: ^6.1.2
+
+  audioplayers: ^6.0.0
+  # audioplayers_windows: ^5.0.0 # Transitive olarak çözülsün
+  # just_audio: ^0.10.5
+  # just_audio_windows: ^0.2.1
   # Veritabanı
   sqflite: ^2.3.0
   sqflite_common_ffi: ^2.3.0
   path: ^1.8.3
-  path_provider: ^2.1.1
+  path_provider: ^2.1.2
   # Şifreleme
   encrypt: ^5.0.1
   crypto: ^3.0.3

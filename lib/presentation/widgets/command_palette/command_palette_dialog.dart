@@ -1,25 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/theme/app_colors.dart';
-
-class CommandPaletteAction {
-  final String title;
-  final String description;
-  final IconData icon;
-  final String shortcutLabel;
-  final String? route;
-  final VoidCallback? onTap;
-
-  const CommandPaletteAction({
-    required this.title,
-    required this.description,
-    required this.icon,
-    required this.shortcutLabel,
-    this.route,
-    this.onTap,
-  });
-}
+import 'command_palette_action.dart';
+import 'command_palette_actions.dart';
+import 'command_palette_empty_result.dart';
+import 'command_palette_tile.dart';
 
 bool _isCommandPaletteOpen = false;
 
@@ -61,7 +46,7 @@ class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
   @override
   void initState() {
     super.initState();
-    _actions = _buildActions();
+    _actions = getCommandPaletteActions();
     _isCommandPaletteOpen = true;
   }
 
@@ -69,67 +54,6 @@ class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
   void dispose() {
     _controller.dispose();
     super.dispose();
-  }
-
-  List<CommandPaletteAction> _buildActions() {
-    return const [
-      CommandPaletteAction(
-        title: 'Ana Sayfa',
-        description: 'Genel görünüm ve panolar',
-        icon: Icons.dashboard_outlined,
-        shortcutLabel: 'Ctrl/Cmd + H',
-        route: '/home',
-      ),
-      CommandPaletteAction(
-        title: 'Birleşik Mesajlar',
-        description: 'Mesaj ve sohbet kutusu',
-        icon: Icons.mark_email_unread_outlined,
-        shortcutLabel: 'Ctrl/Cmd + M',
-        route: '/messages',
-      ),
-      CommandPaletteAction(
-        title: 'Görevler',
-        description: 'Görev listesi ve durumlar',
-        icon: Icons.task_outlined,
-        shortcutLabel: 'Ctrl/Cmd + T',
-        route: '/tasks',
-      ),
-      CommandPaletteAction(
-        title: 'Takvim',
-        description: 'Etkinlik ve toplantılar',
-        icon: Icons.calendar_today_outlined,
-        shortcutLabel: 'Ctrl/Cmd + C',
-        route: '/calendar',
-      ),
-      CommandPaletteAction(
-        title: 'E-Posta',
-        description: 'Kutular ve şablonlar',
-        icon: Icons.email_outlined,
-        shortcutLabel: 'Ctrl/Cmd + E',
-        route: '/email',
-      ),
-      CommandPaletteAction(
-        title: 'Analitik',
-        description: 'Performans ve raporlar',
-        icon: Icons.analytics_outlined,
-        shortcutLabel: 'Ctrl/Cmd + A',
-        route: '/analytics',
-      ),
-      CommandPaletteAction(
-        title: 'AI Asistan',
-        description: 'Prompt ve öneriler',
-        icon: Icons.smart_toy_outlined,
-        shortcutLabel: 'Ctrl/Cmd + I',
-        route: '/ai-assistant',
-      ),
-      CommandPaletteAction(
-        title: 'Ayarlar',
-        description: 'Genel ve entegrasyon ayarları',
-        icon: Icons.settings_outlined,
-        shortcutLabel: 'Ctrl/Cmd + S',
-        route: '/settings',
-      ),
-    ];
   }
 
   @override
@@ -175,13 +99,13 @@ class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
               const Divider(),
               Expanded(
                 child: filtered.isEmpty
-                    ? const _EmptyResult()
+                    ? const CommandPaletteEmptyResult()
                     : ListView.separated(
                         itemCount: filtered.length,
                         separatorBuilder: (_, __) => const Divider(height: 1),
                         itemBuilder: (context, index) {
                           final action = filtered[index];
-                          return _CommandTile(
+                          return CommandPaletteTile(
                             action: action,
                             onTap: () {
                               Navigator.of(context).pop();
@@ -204,80 +128,3 @@ class _CommandPaletteDialogState extends State<_CommandPaletteDialog> {
     );
   }
 }
-
-class _CommandTile extends StatelessWidget {
-  final CommandPaletteAction action;
-  final VoidCallback onTap;
-
-  const _CommandTile({required this.action, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return ListTile(
-      leading: Icon(action.icon, color: isDark ? Colors.white : AppColors.primaryColor),
-      title: Text(action.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-      subtitle: Text(action.description),
-      trailing: _ShortcutChip(label: action.shortcutLabel),
-      onTap: onTap,
-    );
-  }
-}
-
-class _ShortcutChip extends StatelessWidget {
-  final String label;
-
-  const _ShortcutChip({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.primaryColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.15) : AppColors.primaryColor.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          color: isDark ? Colors.white : AppColors.primaryColor,
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyResult extends StatelessWidget {
-  const _EmptyResult();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.search_off,
-            size: 48,
-            color: Theme.of(context).iconTheme.color?.withValues(alpha: 0.6),
-          ),
-          const SizedBox(height: 8),
-          const Text('Sonuç bulunamadı'),
-          const SizedBox(height: 4),
-          Text(
-            'Arama terimini değiştir veya kısayollara göz at',
-            style: TextStyle(
-              color: Theme.of(context).textTheme.bodySmall?.color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
