@@ -222,11 +222,12 @@ class PrivacyCard extends ConsumerWidget {
                       // Ayarı kaydet
                       await ref
                           .read(userSettingNotifierProvider.notifier)
-                          .updateBoolSetting(user.id!, 'privacy_cloud_sync', value,
-                              category: SettingCategory.privacy);
+                          .updateBoolSetting(user.id!, 'privacy_cloud_sync', value, category: SettingCategory.privacy);
 
                       // Mevcut kullanıcı ayarlarını yenile
                       await ref.read(currentUserSettingsNotifierProvider.notifier).loadSettings(user.id!);
+
+                      if (!context.mounted) return;
 
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(

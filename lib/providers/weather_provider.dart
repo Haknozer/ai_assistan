@@ -84,20 +84,19 @@ class WeatherNotifier extends StateNotifier<WeatherState> {
   /// Kullanıcı dostu hata mesajı oluştur
   String _getUserFriendlyErrorMessage(dynamic error) {
     final errorString = error.toString().toLowerCase();
-    
+
     // API anahtarı hataları
-    if (errorString.contains('api anahtarı yapılandırılmamış') ||
-        errorString.contains('api key')) {
+    if (errorString.contains('api anahtarı yapılandırılmamış') || errorString.contains('api key')) {
       return 'Hava durumu API anahtarı yapılandırılmamış. Lütfen WEATHER_API_KEY ortam değişkenini ayarlayın.';
     }
-    
+
     // Konum izni hataları
     if (errorString.contains('konum alınamadı') ||
         errorString.contains('location') ||
         errorString.contains('permission')) {
       return 'Konum izni gerekli. Lütfen uygulama ayarlarından konum iznini açın.';
     }
-    
+
     // Network hataları
     if (errorString.contains('ağ hatası') ||
         errorString.contains('network') ||
@@ -106,14 +105,14 @@ class WeatherNotifier extends StateNotifier<WeatherState> {
         errorString.contains('failed host lookup')) {
       return 'İnternet bağlantısı yok. Lütfen bağlantınızı kontrol edin.';
     }
-    
+
     // API abonelik hataları
     if (errorString.contains('abonelik gerekli') ||
         errorString.contains('subscription') ||
         errorString.contains('403')) {
       return 'OpenWeatherMap One Call API 3.0 için abonelik gerekli. Lütfen hesabınızı kontrol edin.';
     }
-    
+
     // API anahtarı geçersiz
     if (errorString.contains('geçersiz') ||
         errorString.contains('invalid') ||
@@ -121,12 +120,12 @@ class WeatherNotifier extends StateNotifier<WeatherState> {
         errorString.contains('unauthorized')) {
       return 'Hava durumu API anahtarı geçersiz. Lütfen API anahtarınızı kontrol edin.';
     }
-    
+
     // Varsayılan mesaj
     if (error is ApiException) {
       return error.message;
     }
-    
+
     return 'Hava durumu yüklenirken bir hata oluştu: ${error.toString()}';
   }
 
@@ -172,36 +171,8 @@ class WeatherNotifier extends StateNotifier<WeatherState> {
 
   /// Şehir adına göre hava durumunu yükle
   Future<void> loadWeatherByCity(String cityName) async {
-    state = state.copyWith(isLoading: true, error: null);
-
-    try {
-      final weather = await _weatherService.getWeatherByCityName(cityName);
-      if (weather != null) {
-        state = state.copyWith(
-          weather: weather,
-          isLoading: false,
-          lastUpdated: DateTime.now(),
-          error: null,
-        );
-      } else {
-        state = state.copyWith(
-          isLoading: false,
-          error: 'Hava durumu verisi alınamadı',
-        );
-      }
-    } on ApiException catch (e) {
-      String errorMessage = _getUserFriendlyErrorMessage(e);
-      state = state.copyWith(
-        isLoading: false,
-        error: errorMessage,
-      );
-    } catch (e) {
-      String errorMessage = _getUserFriendlyErrorMessage(e);
-      state = state.copyWith(
-        isLoading: false,
-        error: errorMessage,
-      );
-    }
+    state = state.copyWith(
+        isLoading: false, error: 'Şehir adına göre arama desteklenmiyor. Lütfen koordinat bazlı sorgu kullanın.');
   }
 
   /// Hava durumunu yenile

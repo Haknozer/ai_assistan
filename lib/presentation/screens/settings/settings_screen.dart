@@ -365,9 +365,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         if (shouldDisconnect == true) {
           await ref
               .read(userSettingNotifierProvider.notifier)
-              .updateBoolSetting(currentUser.id!, 'whatsapp_connected', false,
-                  category: SettingCategory.privacy);
+              .updateBoolSetting(currentUser.id!, 'whatsapp_connected', false, category: SettingCategory.privacy);
           await ref.read(currentUserSettingsNotifierProvider.notifier).loadSettings(currentUser.id!);
+
+          if (!mounted) return;
 
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -393,7 +394,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   Text(
                     '- Mesajlar Meta WhatsApp Business API üzerinden, uygulamanın kendi iş numarası ile gönderilir.\n'
                     '- Sizin kişisel WhatsApp hesabınız API\'ye bağlanmaz; sadece kime mesaj atmak istediğiniz numara kullanılır.\n'
-                    '- Gizlilik ayarlarından \"Bulut Senkronizasyonu\" açık ise, mesaj geçmişiniz bulut ile senkronize edilebilir.\n'
+                    '- Gizlilik ayarlarından "Bulut Senkronizasyonu" açık ise, mesaj geçmişiniz bulut ile senkronize edilebilir.\n'
                     '- Bulut senkron kapalı ise, veriler mümkün olduğunca sadece cihazınızda tutulur.',
                   ),
                 ],
@@ -415,9 +416,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         if (accepted == true) {
           await ref
               .read(userSettingNotifierProvider.notifier)
-              .updateBoolSetting(currentUser.id!, 'whatsapp_connected', true,
-                  category: SettingCategory.privacy);
+              .updateBoolSetting(currentUser.id!, 'whatsapp_connected', true, category: SettingCategory.privacy);
           await ref.read(currentUserSettingsNotifierProvider.notifier).loadSettings(currentUser.id!);
+
+          if (!mounted) return;
 
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -442,7 +444,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (AppConfig.telegramBotToken.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Telegram bot token yapılandırılmamış. Lütfen run_windows.bat dosyasında TELEGRAM_BOT_TOKEN değerini ayarlayın.'),
+            content: Text(
+                'Telegram bot token yapılandırılmamış. Lütfen run_windows.bat dosyasında TELEGRAM_BOT_TOKEN değerini ayarlayın.'),
             duration: Duration(seconds: 5),
           ),
         );
@@ -474,9 +477,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         if (shouldDisconnect == true) {
           await ref
               .read(userSettingNotifierProvider.notifier)
-              .updateBoolSetting(currentUser.id!, 'telegram_connected', false,
-                  category: SettingCategory.privacy);
+              .updateBoolSetting(currentUser.id!, 'telegram_connected', false, category: SettingCategory.privacy);
           await ref.read(currentUserSettingsNotifierProvider.notifier).loadSettings(currentUser.id!);
+
+          if (!mounted) return;
 
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -502,7 +506,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   Text(
                     '- Telegram bot token\'ınız yapılandırılmış olmalıdır.\n'
                     '- Bot\'unuzun dahil olduğu gruplardan ve özel mesajlardan veri çekilecektir.\n'
-                    '- Gizlilik ayarlarından \"Bulut Senkronizasyonu\" açık ise, mesaj geçmişiniz bulut ile senkronize edilebilir.\n'
+                    '- Gizlilik ayarlarından "Bulut Senkronizasyonu" açık ise, mesaj geçmişiniz bulut ile senkronize edilebilir.\n'
                     '- Bulut senkron kapalı ise, veriler mümkün olduğunca sadece cihazınızda tutulur.',
                   ),
                 ],
@@ -524,9 +528,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         if (accepted == true) {
           await ref
               .read(userSettingNotifierProvider.notifier)
-              .updateBoolSetting(currentUser.id!, 'telegram_connected', true,
-                  category: SettingCategory.privacy);
+              .updateBoolSetting(currentUser.id!, 'telegram_connected', true, category: SettingCategory.privacy);
           await ref.read(currentUserSettingsNotifierProvider.notifier).loadSettings(currentUser.id!);
+
+          if (!mounted) return;
 
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -739,7 +744,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       userId: currentUser.id,
     )));
 
-    final accounts = await emailAccountsAsync.value ?? [];
+    final accounts = emailAccountsAsync.value ?? [];
     final gmailAccount = accounts.firstWhere(
       (account) => account.provider == EmailProvider.gmail,
       orElse: () => throw Exception('Gmail hesabı bulunamadı'),
@@ -907,7 +912,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       userId: currentUser.id,
     )));
 
-    final accounts = await emailAccountsAsync.value ?? [];
+    final accounts = emailAccountsAsync.value ?? [];
     final outlookAccount = accounts.firstWhere(
       (account) => account.provider == EmailProvider.outlook,
       orElse: () => throw Exception('Outlook hesabı bulunamadı'),
@@ -1135,7 +1140,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       userId: currentUser.id,
     )));
 
-    final accounts = await calendarAccountsAsync.value ?? [];
+    final accounts = calendarAccountsAsync.value ?? [];
     final googleCalendarAccount = accounts.firstWhere(
       (account) => account.provider == CalendarProvider.google,
       orElse: () => throw Exception('Google Calendar hesabı bulunamadı'),
@@ -1259,7 +1264,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         } else {
           final errorStr = e.toString();
           if (errorStr.contains('invalid_client')) {
-            errorMessage = 'Client ID veya Client Secret yanlış. Lütfen Google Cloud Console\'daki değerleri kontrol edin.';
+            errorMessage =
+                'Client ID veya Client Secret yanlış. Lütfen Google Cloud Console\'daki değerleri kontrol edin.';
           } else if (errorStr.contains('timeout')) {
             errorMessage = 'Bağlantı zaman aşımına uğradı. Lütfen tekrar deneyin.';
           } else {

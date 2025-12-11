@@ -150,6 +150,7 @@ class _AIAssistantScreenState extends ConsumerState<AIAssistantScreen> {
     _currentPosition ??= await ref.read(locationServiceProvider).getLastKnownLocation();
 
     try {
+      if (!mounted) return null;
       final assistantText = await VoiceCommandHelper.processVoiceCommand(
         context: context,
         text: text,
@@ -320,6 +321,8 @@ class _AIAssistantScreenState extends ConsumerState<AIAssistantScreen> {
         });
       }
     }
+
+    if (!mounted) return;
 
     await showVoiceCommandSheet(
       context,

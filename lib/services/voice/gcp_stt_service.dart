@@ -6,6 +6,8 @@ import 'package:ai_asisstan/core/config/app_config.dart';
 import 'package:ai_asisstan/services/voice/gcp_auth_service.dart';
 import 'package:http/http.dart' as http;
 
+import '../../core/utils/logger.dart';
+
 /// Google Cloud Speech-to-Text entegrasyonu.
 class GcpSttService {
   final GcpAuthService authService;
@@ -38,7 +40,10 @@ class GcpSttService {
       },
     };
 
-    print('GcpSttService: Sending ${bytes.length} bytes to STT (config: ${payload['config']})');
+    AppLogger.debug(
+      'Sending ${bytes.length} bytes to STT (config: ${payload['config']})',
+      'VOICE_STT',
+    );
 
     final response = await http.post(
       uri,
@@ -50,16 +55,19 @@ class GcpSttService {
     );
 
     if (response.statusCode != 200) {
-      print('GcpSttService Error: ${response.statusCode} - ${response.body}');
+      AppLogger.error(
+        'GcpSttService Error: ${response.statusCode} - ${response.body}',
+        tag: 'VOICE_STT',
+      );
       throw Exception('STT failed: ${response.body}');
     }
 
-    print('GcpSttService Response: ${response.body}');
+    AppLogger.debug('GcpSttService Response: ${response.body}', 'VOICE_STT');
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     final results = body['results'] as List<dynamic>?;
     if (results == null || results.isEmpty) {
-      print('GcpSttService: Results list is empty or null.');
+      AppLogger.error('GcpSttService: Results list is empty or null.', tag: 'VOICE_STT');
       throw Exception('No transcription result');
     }
 
@@ -71,4 +79,3 @@ class GcpSttService {
     return (alternatives.first as Map<String, dynamic>)['transcript'] as String? ?? '';
   }
 }
-

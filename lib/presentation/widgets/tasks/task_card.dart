@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../models/task.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../features/tasks/tasks_feature.dart';

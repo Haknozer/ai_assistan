@@ -53,12 +53,14 @@ class _ComposeEmailDialogState extends State<ComposeEmailDialog> {
       // Mesaj kutusu boş açılır, kullanıcı isterse kendisi ekleyebilir
     } else if (widget.forwardTo != null) {
       // Forward modu
-      _subjectController.text =
-          widget.forwardTo!.subject.startsWith('Fwd:') ? widget.forwardTo!.subject : 'Fwd: ${widget.forwardTo!.subject}';
+      _subjectController.text = widget.forwardTo!.subject.startsWith('Fwd:')
+          ? widget.forwardTo!.subject
+          : 'Fwd: ${widget.forwardTo!.subject}';
       // Forward için orijinal mesajı ekle
       final originalText = widget.forwardTo!.plainText ?? widget.forwardTo!.htmlContent ?? '';
       if (originalText.isNotEmpty) {
-        _bodyController.text = '\n\n--- İletilen Mesaj ---\nGönderen: ${widget.forwardTo!.fromDisplayName} <${widget.forwardTo!.fromEmail}>\nTarih: ${widget.forwardTo!.receivedDate?.toString() ?? ''}\nKonu: ${widget.forwardTo!.subject}\n\n${originalText}';
+        _bodyController.text =
+            '\n\n--- İletilen Mesaj ---\nGönderen: ${widget.forwardTo!.fromDisplayName} <${widget.forwardTo!.fromEmail}>\nTarih: ${widget.forwardTo!.receivedDate?.toString() ?? ''}\nKonu: ${widget.forwardTo!.subject}\n\n$originalText';
       }
     }
   }
@@ -77,19 +79,15 @@ class _ComposeEmailDialogState extends State<ComposeEmailDialog> {
     setState(() => _isLoading = true);
 
     final now = DateTime.now();
-    
+
     // To emails'i parse et (virgülle ayrılmış olabilir)
-    final toEmails = _toController.text
-        .split(',')
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
-    
+    final toEmails = _toController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+
     final newEmail = Email(
       userId: widget.userId ?? 1,
       accountId: _selectedAccountId ?? widget.accountId ?? 1,
-      fromEmail: widget.replyTo?.toEmails.isNotEmpty == true 
-          ? widget.replyTo!.toEmails.first 
+      fromEmail: widget.replyTo?.toEmails.isNotEmpty == true
+          ? widget.replyTo!.toEmails.first
           : widget.forwardTo?.toEmails.isNotEmpty == true
               ? widget.forwardTo!.toEmails.first
               : '',
@@ -116,19 +114,15 @@ class _ComposeEmailDialogState extends State<ComposeEmailDialog> {
     setState(() => _isLoading = true);
 
     final now = DateTime.now();
-    
+
     // To emails'i parse et (virgülle ayrılmış olabilir, boş da olabilir)
-    final toEmails = _toController.text
-        .split(',')
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
-    
+    final toEmails = _toController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+
     final draftEmail = Email(
       userId: widget.userId ?? 1,
       accountId: _selectedAccountId ?? widget.accountId ?? 1,
-      fromEmail: widget.replyTo?.toEmails.isNotEmpty == true 
-          ? widget.replyTo!.toEmails.first 
+      fromEmail: widget.replyTo?.toEmails.isNotEmpty == true
+          ? widget.replyTo!.toEmails.first
           : widget.forwardTo?.toEmails.isNotEmpty == true
               ? widget.forwardTo!.toEmails.first
               : '',
@@ -330,7 +324,7 @@ class _ComposeEmailDialogState extends State<ComposeEmailDialog> {
     }
 
     return DropdownButtonFormField<int>(
-      value: _selectedAccountId ?? widget.accountId,
+      initialValue: _selectedAccountId ?? widget.accountId,
       decoration: InputDecoration(
         labelText: 'Gönderen Hesap',
         border: OutlineInputBorder(

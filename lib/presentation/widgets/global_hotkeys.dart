@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/config/app_config.dart';
 import '../../core/router/app_router.dart';
-import '../../providers/user_provider.dart';
 import '../../providers/user_provider.dart' as user_providers;
 import '../../providers/location_provider.dart';
-import '../../services/chatbot_service.dart';
 import 'voice/voice_command_sheet.dart';
 import '../../services/voice/voice_command_helper.dart';
 import 'command_palette/command_palette_dialog.dart';
@@ -105,7 +102,11 @@ class GlobalHotkeys extends ConsumerWidget {
               final locationService = ref.read(locationServiceProvider);
               final pos = await locationService.getLastKnownLocation() ?? await locationService.getCurrentLocation();
 
+              if (!buildContext.mounted) return null;
+
               final navContext = router.routerDelegate.navigatorKey.currentContext ?? buildContext;
+              if (!navContext.mounted) return null;
+
               await showVoiceCommandSheet(
                 navContext,
                 serviceAccountPath: servicePath,
@@ -116,6 +117,7 @@ class GlobalHotkeys extends ConsumerWidget {
                 latitude: pos?.latitude,
                 longitude: pos?.longitude,
                 onSendVoice: (text) async {
+                  if (!navContext.mounted) return null;
                   return await VoiceCommandHelper.processVoiceCommand(
                     context: navContext,
                     text: text,

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:ai_asisstan/core/config/app_config.dart';
+import 'package:ai_asisstan/core/utils/logger.dart';
 import 'package:ai_asisstan/services/voice/gcp_auth_service.dart';
 import 'package:http/http.dart' as http;
 
@@ -37,8 +38,11 @@ class GcpTtsService {
         },
       };
 
-      print('GcpTtsService: Requesting TTS for "${text.substring(0, text.length > 20 ? 20 : text.length)}..."');
-      print('GcpTtsService: Voice=$voiceName, Lang=$languageCode');
+      AppLogger.debug(
+        'Requesting TTS for "${text.substring(0, text.length > 20 ? 20 : text.length)}..."',
+        'VOICE_TTS',
+      );
+      AppLogger.debug('Voice=$voiceName, Lang=$languageCode', 'VOICE_TTS');
 
       final response = await http.post(
         uri,
@@ -50,8 +54,10 @@ class GcpTtsService {
       );
 
       if (response.statusCode != 200) {
-        print('GcpTtsService Error: ${response.statusCode}');
-        print('GcpTtsService Body: ${response.body}');
+        AppLogger.error(
+          'GcpTtsService Error: ${response.statusCode} body=${response.body}',
+          tag: 'VOICE_TTS',
+        );
         throw Exception('TTS failed (${response.statusCode}): ${response.body}');
       }
 
@@ -61,12 +67,11 @@ class GcpTtsService {
         throw Exception('No audio content returned from TTS');
       }
 
-      print('GcpTtsService: Success, audio length: ${audioContent.length}');
+      AppLogger.info('Success, audio length: ${audioContent.length}', 'VOICE_TTS');
       return base64Decode(audioContent);
     } catch (e) {
-      print('GcpTtsService Exception: $e');
+      AppLogger.error('GcpTtsService Exception', error: e, tag: 'VOICE_TTS');
       rethrow;
     }
   }
 }
-

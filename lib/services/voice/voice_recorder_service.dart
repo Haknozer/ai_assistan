@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
+import '../../core/utils/logger.dart';
+
 /// Basit push-to-talk kayıt servisi (WAV 16k mono) + sessizlik takibi.
 class VoiceRecorderService {
   final AudioRecorder _recorder = AudioRecorder();
@@ -25,7 +27,7 @@ class VoiceRecorderService {
 
     _ampSub = _recorder.onAmplitudeChanged(const Duration(milliseconds: 100)).listen((amp) async {
       onAmplitude(amp);
-      final levelDb = amp.current ?? 0;
+      final levelDb = amp.current;
       if (levelDb < silenceDb) {
         silentMs += 100;
       } else {
@@ -60,7 +62,7 @@ class VoiceRecorderService {
       final filePath = '${dir.path}${Platform.pathSeparator}voice_${DateTime.now().millisecondsSinceEpoch}.wav';
       _currentPath = filePath;
 
-      print('VoiceRecorderService: Starting recording to $filePath');
+      AppLogger.debug('Starting recording to $filePath', 'VOICE_RECORDER');
 
       await _recorder.start(
         const RecordConfig(
@@ -71,49 +73,49 @@ class VoiceRecorderService {
         path: filePath,
       );
     } catch (e) {
-      print('VoiceRecorderService start error: $e');
+      AppLogger.error('VoiceRecorderService start error', error: e, tag: 'VOICE_RECORDER');
       rethrow;
     }
   }
 
   /// Stops recording and returns the recorded file.
   Future<File> stop() async {
-    print('VoiceRecorderService: Stopping recording...');
+    AppLogger.debug('Stopping recording...', 'VOICE_RECORDER');
     await _ampSub?.cancel();
     _ampSub = null;
 
     try {
       final path = await _recorder.stop();
       final filePath = path ?? _currentPath;
-      
-      print('VoiceRecorderService: Stop returned path: $path, using: $filePath');
+
+      AppLogger.debug('Stop returned path: $path, using: $filePath', 'VOICE_RECORDER');
 
       if (filePath == null) {
         throw Exception('No recording path available.');
       }
-      
+
       final file = File(filePath);
-      
+
       // Wait a bit for file to be flushed if not exists immediately
       if (!await file.exists()) {
-        print('VoiceRecorderService: File not found immediately, waiting 200ms...');
+        AppLogger.debug('File not found immediately, waiting 200ms...', 'VOICE_RECORDER');
         await Future.delayed(const Duration(milliseconds: 200));
       }
 
       if (!await file.exists()) {
-        print('VoiceRecorderService: File still not found at $filePath');
+        AppLogger.error('File still not found at $filePath', tag: 'VOICE_RECORDER');
         throw Exception('Recording file not found at $filePath');
       }
-      
+
       final len = await file.length();
-      print('VoiceRecorderService: Recording saved, size: $len bytes');
+      AppLogger.info('Recording saved, size: $len bytes', 'VOICE_RECORDER');
       if (len == 0) {
-         print('VoiceRecorderService Warning: File is empty!');
+        AppLogger.warning('File is empty!', 'VOICE_RECORDER');
       }
 
       return file;
     } catch (e) {
-      print('VoiceRecorderService stop error: $e');
+      AppLogger.error('VoiceRecorderService stop error', error: e, tag: 'VOICE_RECORDER');
       rethrow;
     }
   }
@@ -123,4 +125,3 @@ class VoiceRecorderService {
     await _recorder.dispose();
   }
 }
-
