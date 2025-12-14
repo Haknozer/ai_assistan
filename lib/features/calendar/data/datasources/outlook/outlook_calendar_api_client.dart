@@ -3,6 +3,7 @@ import 'package:ai_asisstan/core/api/api_client.dart';
 import 'package:ai_asisstan/core/api/api_endpoints.dart';
 import 'package:ai_asisstan/core/api/api_exceptions.dart';
 import 'package:ai_asisstan/models/calendar_event.dart';
+import 'package:ai_asisstan/core/utils/html_stripper.dart';
 
 /// Outlook Calendar API client - Microsoft Graph API Calendar çağrılarını yönetir
 class OutlookCalendarApiClient {
@@ -355,15 +356,44 @@ class OutlookCalendarApiClient {
       final id = eventData['id'] as String?;
       final subject = eventData['subject'] as String? ?? 'Etkinlik';
       final body = eventData['body'] as Map<String, dynamic>?;
-      final description = body?['content'] as String?;
+      final bodyContent = body?['content'] as String?;
+      final bodyContentType = body?['contentType'] as String?;
+      
+      // Description'ı temizle - HTML içeriyorsa plain text'e çevir
+      String? description;
+      if (bodyContent != null && bodyContent.isNotEmpty) {
+        // HTML içeriyorsa (contentType html ise veya HTML tag'leri varsa) temizle
+        final isHtml = bodyContentType?.toLowerCase() == 'html' || 
+                       bodyContent.contains('<') && bodyContent.contains('>');
+        
+        if (isHtml) {
+          // HTML içeriği, plain text'e çevir
+          description = HtmlStripper.stripHtmlTags(bodyContent);
+          debugPrint('Outlook Calendar - HTML içerik temizlendi: ${description.length} karakter');
+        } else {
+          description = bodyContent;
+        }
+      }
+      
       final location = eventData['location'] as Map<String, dynamic>?;
       final locationName = location?['displayName'] as String?;
       
-      // Start time
+      // Start time - timezone-aware parsing
       final startData = eventData['start'] as Map<String, dynamic>?;
       DateTime startTime;
       if (startData?['dateTime'] != null) {
-        startTime = DateTime.parse(startData!['dateTime'] as String).toLocal();
+        final dateTimeStr = startData!['dateTime'] as String;
+        // Outlook API genellikle UTC gönderir, timezone bilgisi varsa kullan
+        final timeZone = startData['timeZone'] as String?;
+        if (timeZone != null && timeZone != 'UTC') {
+          // Timezone bilgisi varsa, UTC olarak parse et ve local'e çevir
+          startTime = DateTime.parse(dateTimeStr).toLocal();
+        } else {
+          // Timezone yoksa veya UTC ise, UTC olarak parse et ve local'e çevir
+          // Outlook genellikle UTC gönderir
+          final parsed = DateTime.parse(dateTimeStr);
+          startTime = parsed.isUtc ? parsed.toLocal() : DateTime.parse('${dateTimeStr}Z').toLocal();
+        }
       } else if (startData?['date'] != null) {
         // All-day event
         final dateStr = startData!['date'] as String;
@@ -372,11 +402,18 @@ class OutlookCalendarApiClient {
         startTime = DateTime.now();
       }
       
-      // End time
+      // End time - timezone-aware parsing
       final endData = eventData['end'] as Map<String, dynamic>?;
       DateTime endTime;
       if (endData?['dateTime'] != null) {
-        endTime = DateTime.parse(endData!['dateTime'] as String).toLocal();
+        final dateTimeStr = endData!['dateTime'] as String;
+        final timeZone = endData['timeZone'] as String?;
+        if (timeZone != null && timeZone != 'UTC') {
+          endTime = DateTime.parse(dateTimeStr).toLocal();
+        } else {
+          final parsed = DateTime.parse(dateTimeStr);
+          endTime = parsed.isUtc ? parsed.toLocal() : DateTime.parse('${dateTimeStr}Z').toLocal();
+        }
       } else if (endData?['date'] != null) {
         // All-day event
         final dateStr = endData!['date'] as String;
@@ -391,20 +428,53 @@ class OutlookCalendarApiClient {
       final createdAt = createdStr != null ? DateTime.parse(createdStr) : DateTime.now();
       final updatedAt = updatedStr != null ? DateTime.parse(updatedStr) : DateTime.now();
       
-      // Event type (Outlook Calendar'da direkt yok, description'dan çıkarabiliriz veya varsayılan)
+      // Event type - Önce categories'den çıkar (n8n'den gelen event'lerde kategori bilgisi burada)
+      // categories: ["Meeting"], ["Social"], ["Task"]
       EventType eventType = EventType.personal;
-      if (description != null) {
-        final descLower = description.toLowerCase();
-        if (descLower.contains('toplantı') || descLower.contains('meeting')) {
-          eventType = EventType.meeting;
-        } else if (descLower.contains('randevu') || descLower.contains('appointment')) {
-          eventType = EventType.appointment;
-        } else if (descLower.contains('görev') || descLower.contains('task')) {
-          eventType = EventType.task;
+      final categories = eventData['categories'] as List<dynamic>?;
+      if (categories != null && categories.isNotEmpty) {
+        final firstCategory = (categories[0] as String? ?? '').toLowerCase();
+        switch (firstCategory) {
+          case 'meeting':
+            eventType = EventType.meeting;
+            debugPrint('📅 Outlook Calendar - Category "Meeting" bulundu');
+            break;
+          case 'social':
+            eventType = EventType.personal; // Social -> Personal
+            debugPrint('📅 Outlook Calendar - Category "Social" bulundu');
+            break;
+          case 'task':
+            eventType = EventType.task;
+            debugPrint('📅 Outlook Calendar - Category "Task" bulundu');
+            break;
+          default:
+            // Category varsa ama tanınmıyorsa, description'dan çıkar
+            if (description != null) {
+              final descLower = description.toLowerCase();
+              if (descLower.contains('toplantı') || descLower.contains('meeting')) {
+                eventType = EventType.meeting;
+              } else if (descLower.contains('randevu') || descLower.contains('appointment')) {
+                eventType = EventType.appointment;
+              } else if (descLower.contains('görev') || descLower.contains('task')) {
+                eventType = EventType.task;
+              }
+            }
+        }
+      } else {
+        // Categories yoksa, description'dan çıkar (fallback)
+        if (description != null) {
+          final descLower = description.toLowerCase();
+          if (descLower.contains('toplantı') || descLower.contains('meeting')) {
+            eventType = EventType.meeting;
+          } else if (descLower.contains('randevu') || descLower.contains('appointment')) {
+            eventType = EventType.appointment;
+          } else if (descLower.contains('görev') || descLower.contains('task')) {
+            eventType = EventType.task;
+          }
         }
       }
 
-      return CalendarEvent(
+      final calendarEvent = CalendarEvent(
         id: null, // Local ID (Outlook Calendar ID externalId'de saklanacak)
         userId: userId ?? 0,
         title: subject,
@@ -418,10 +488,15 @@ class OutlookCalendarApiClient {
         createdAt: createdAt,
         updatedAt: updatedAt,
       );
+      
+      debugPrint('📅 Outlook Calendar Event - Title: $subject, EventType: ${eventType.name}');
+      
+      return calendarEvent;
     } catch (e) {
       debugPrint('Outlook event parse hatası: $e');
       return null;
     }
   }
+
 }
 

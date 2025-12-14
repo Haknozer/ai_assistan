@@ -15,6 +15,7 @@ import '../../widgets/calendar/month_selector.dart';
 import '../../widgets/calendar/calendar_grid.dart';
 import '../../widgets/calendar/events_list.dart';
 import '../../widgets/calendar/add_event_dialog.dart';
+import '../../widgets/calendar/event_detail_dialog.dart';
 import '../../widgets/calendar/event_notification_overlay.dart';
 import '../../widgets/command_palette/command_palette_dialog.dart';
 import '../../../core/router/app_router.dart';
@@ -379,7 +380,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                               title: _eventsListTitle,
                               events: displayedEvents,
                               onEventTap: (event) {
-                                // TODO: Göster etkinlik detayı
+                                _showEventDetail(event, eventsAsyncValue, params);
                               },
                             ),
                           ),
@@ -402,7 +403,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                               title: _eventsListTitle,
                               events: displayedEvents,
                               onEventTap: (event) {
-                                // TODO: Göster etkinlik detayı
+                                _showEventDetail(event, eventsAsyncValue, params);
                               },
                             ),
                           ),
@@ -650,6 +651,32 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   void _handleProfileTap() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Profil sayfasına yönlendiriliyor...')),
+    );
+  }
+
+  /// Event detay dialog'unu göster
+  void _showEventDetail(
+    CalendarEvent event,
+    AsyncValue<List<CalendarEvent>> eventsAsyncValue,
+    _CombinedEventsParams params,
+  ) {
+    // Tüm event listesini al (duplicate kontrolü için)
+    final allEvents = eventsAsyncValue.value ?? [];
+    
+    showDialog(
+      context: context,
+      builder: (context) => EventDetailDialog(
+        event: event,
+        allEvents: allEvents, // Tüm event listesini geç (duplicate kontrolü için)
+        onEventUpdated: () {
+          // Event listesini yenile - provider'ı invalidate et
+          ref.invalidate(_combinedEventsProvider(params));
+        },
+        onEventDeleted: () {
+          // Event listesini yenile - provider'ı invalidate et
+          ref.invalidate(_combinedEventsProvider(params));
+        },
+      ),
     );
   }
 

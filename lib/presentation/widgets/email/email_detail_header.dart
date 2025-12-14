@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/email.dart';
+import '../../../services/n8n_forwarder_service.dart';
+import '../../../services/n8n_response_storage_service.dart';
+import '../../../core/utils/logger.dart';
 
 /// E-posta detay header widget'ı - Gmail tarzı minimal
-class EmailDetailHeader extends StatelessWidget {
+class EmailDetailHeader extends ConsumerStatefulWidget {
   final Email email;
   final VoidCallback? onReply;
   final VoidCallback? onForward;
@@ -17,6 +21,83 @@ class EmailDetailHeader extends StatelessWidget {
     this.onDelete,
     this.onMarkAsImportant,
   });
+
+  @override
+  ConsumerState<EmailDetailHeader> createState() => _EmailDetailHeaderState();
+}
+
+class _EmailDetailHeaderState extends ConsumerState<EmailDetailHeader> {
+  bool _isSendingToN8n = false;
+
+  Future<void> _sendToN8n() async {
+    if (_isSendingToN8n) return;
+
+    setState(() => _isSendingToN8n = true);
+
+    try {
+      final n8nService = N8nForwarderService();
+      
+      final response = await n8nService.forwardEmailMessageAndWait(
+        userId: widget.email.userId.toString(),
+        accountId: widget.email.accountId,
+        messageId: widget.email.messageId ?? widget.email.id?.toString() ?? '',
+        fromEmail: widget.email.fromEmail,
+        fromName: widget.email.fromName,
+        subject: widget.email.subject,
+        plainText: widget.email.plainText,
+        htmlContent: widget.email.htmlContent,
+        toEmails: widget.email.toEmails,
+        ccEmails: widget.email.ccEmails,
+        bccEmails: widget.email.bccEmails,
+        receivedDate: widget.email.receivedDate,
+        isRead: widget.email.isRead,
+        folder: widget.email.folder.name,
+      );
+
+      if (mounted) {
+        if (response != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Email n8n\'e başarıyla gönderildi!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          
+          // Response'u kaydet
+          await N8nResponseStorageService().saveEmailResponse(
+            widget.email.messageId ?? widget.email.id?.toString() ?? '',
+            response,
+            receivedDate: widget.email.receivedDate,
+          );
+          
+          // Sayfayı yenile (AI önerileri güncellensin)
+          setState(() {});
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Email n8n\'e gönderildi ancak response alınamadı.\n\nn8n workflow\'unda "Respond to Webhook" node\'u olduğundan emin olun.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      AppLogger.error('n8n\'e email gönderilirken hata', tag: 'EmailDetailHeader', error: e);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Hata: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSendingToN8n = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,12 +116,12 @@ class EmailDetailHeader extends StatelessWidget {
         children: [
           // Önem butonu - Gmail tarzı
           IconButton(
-            onPressed: onMarkAsImportant,
+            onPressed: widget.onMarkAsImportant,
             icon: Icon(
-              email.importance == EmailImportance.important
+              widget.email.importance == EmailImportance.important
                   ? Icons.star
                   : Icons.star_border,
-              color: email.importance == EmailImportance.important
+              color: widget.email.importance == EmailImportance.important
                   ? Colors.amber
                   : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.54),
               size: 20,
@@ -52,7 +133,7 @@ class EmailDetailHeader extends StatelessWidget {
 
           // Diğer işlemler - Gmail tarzı
           IconButton(
-            onPressed: onReply,
+            onPressed: widget.onReply,
             icon: Icon(
               Icons.reply,
               size: 20,
@@ -63,7 +144,7 @@ class EmailDetailHeader extends StatelessWidget {
             tooltip: 'Yanıtla',
           ),
           IconButton(
-            onPressed: onForward,
+            onPressed: widget.onForward,
             icon: Icon(
               Icons.forward,
               size: 20,
@@ -74,7 +155,7 @@ class EmailDetailHeader extends StatelessWidget {
             tooltip: 'Yönlendir',
           ),
           IconButton(
-            onPressed: onDelete,
+            onPressed: widget.onDelete,
             icon: Icon(
               Icons.delete_outline,
               size: 20,
@@ -83,6 +164,24 @@ class EmailDetailHeader extends StatelessWidget {
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
             tooltip: 'Sil',
+          ),
+          // Test butonu - n8n'e gönder
+          IconButton(
+            onPressed: _isSendingToN8n ? null : _sendToN8n,
+            icon: _isSendingToN8n
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(
+                    Icons.send,
+                    size: 20,
+                    color: Colors.blue,
+                  ),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            tooltip: 'n8n\'e Gönder (Test)',
           ),
           const Spacer(),
           _buildMoreMenu(context),
@@ -96,13 +195,16 @@ class EmailDetailHeader extends StatelessWidget {
       onSelected: (value) {
         switch (value) {
           case 'reply':
-            onReply?.call();
+            widget.onReply?.call();
             break;
           case 'forward':
-            onForward?.call();
+            widget.onForward?.call();
             break;
           case 'delete':
-            onDelete?.call();
+            widget.onDelete?.call();
+            break;
+          case 'send_to_n8n':
+            _sendToN8n();
             break;
         }
       },
@@ -134,6 +236,17 @@ class EmailDetailHeader extends StatelessWidget {
               Icon(Icons.delete, size: 18, color: Colors.red),
               SizedBox(width: 8),
               Text('Sil', style: TextStyle(color: Colors.red)),
+            ],
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: 'send_to_n8n',
+          child: Row(
+            children: [
+              Icon(Icons.send, size: 18, color: Colors.blue),
+              SizedBox(width: 8),
+              Text('n8n\'e Gönder (Test)', style: TextStyle(color: Colors.blue)),
             ],
           ),
         ),

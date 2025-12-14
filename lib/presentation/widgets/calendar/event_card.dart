@@ -1,23 +1,58 @@
 import 'package:flutter/material.dart';
 import '../../../models/calendar_event.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/html_stripper.dart';
 import '../../screens/calendar/utils/calendar_utils.dart';
 
 /// Etkinlik kartı widget'ı
 class EventCard extends StatelessWidget {
   final CalendarEvent event;
+  final List<CalendarEvent> allEvents; // Tüm event listesi (duplicate kontrolü için)
   final VoidCallback? onTap;
 
   const EventCard({
     super.key,
     required this.event,
+    required this.allEvents,
     this.onTap,
   });
+
+  /// Aynı event'in başka source'lu versiyonu var mı kontrol et
+  List<EventSource> _getEventSources() {
+    final sources = <EventSource>{event.source};
+    
+    // Tüm event listesinde aynı event'in başka source'lu versiyonu var mı kontrol et
+    for (final otherEvent in allEvents) {
+      if (otherEvent.id == event.id) continue; // Aynı event
+      
+      // Başlık + saat aynı mı?
+      final sameTitleAndTime = otherEvent.title.toLowerCase().trim() == event.title.toLowerCase().trim() &&
+          otherEvent.startTime.year == event.startTime.year &&
+          otherEvent.startTime.month == event.startTime.month &&
+          otherEvent.startTime.day == event.startTime.day &&
+          otherEvent.startTime.hour == event.startTime.hour;
+      
+      // Veya detay + saat aynı mı?
+      final sameDescriptionAndTime = (otherEvent.description ?? '').isNotEmpty &&
+          (event.description ?? '').isNotEmpty &&
+          otherEvent.description?.toLowerCase().trim() == event.description?.toLowerCase().trim() &&
+          otherEvent.startTime.year == event.startTime.year &&
+          otherEvent.startTime.month == event.startTime.month &&
+          otherEvent.startTime.day == event.startTime.day &&
+          otherEvent.startTime.hour == event.startTime.hour;
+      
+      if (sameTitleAndTime || sameDescriptionAndTime) {
+        sources.add(otherEvent.source);
+      }
+    }
+    
+    return sources.toList();
+  }
 
   @override
   Widget build(BuildContext context) {
     final eventColor = CalendarUtils.getEventTypeColor(event.eventType);
-    final sourceColor = CalendarUtils.getEventSourceColor(event.source);
+    final sources = _getEventSources();
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -69,12 +104,18 @@ class EventCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  // Kaynak ikonu
-                  Icon(
-                    CalendarUtils.getEventSourceIcon(event.source),
-                    color: sourceColor,
-                    size: 16,
-                  ),
+                  // Kaynak ikonları (hem Google hem Outlook varsa ikisini de göster)
+                  ...sources.map((source) {
+                    final sourceColor = CalendarUtils.getEventSourceColor(source);
+                    return Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: Icon(
+                        CalendarUtils.getEventSourceIcon(source),
+                        color: sourceColor,
+                        size: 16,
+                      ),
+                    );
+                  }),
                 ],
               ),
 
@@ -141,7 +182,7 @@ class EventCard extends StatelessWidget {
                   event.description!.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Text(
-                  event.description!,
+                  HtmlStripper.cleanIfNeeded(event.description!),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context)
                             .colorScheme

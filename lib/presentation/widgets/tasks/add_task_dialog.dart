@@ -5,7 +5,7 @@ import '../../../features/tasks/tasks_feature.dart';
 
 /// Görev ekleme dialog'u widget'ı
 class AddTaskDialog extends StatefulWidget {
-  final Function(Task) onTaskAdded;
+  final Future<void> Function(Task) onTaskAdded;
 
   const AddTaskDialog({
     super.key,
@@ -81,14 +81,15 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
     }
   }
 
-  void _saveTask() {
+  void _saveTask() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
+    // Geçici task objesi - gerçek ID repository tarafından oluşturulacak
     final newTask = Task(
-      id: DateTime.now().millisecondsSinceEpoch,
-      userId: 1,
+      id: null, // Repository tarafından oluşturulacak
+      userId: 0, // Geçici değer, gerçek userId callback'te kullanılacak
       title: _titleController.text.trim(),
       description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
       status: _selectedStatus,
@@ -98,8 +99,13 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
       updatedAt: DateTime.now(),
     );
 
-    widget.onTaskAdded(newTask);
-    setState(() => _isLoading = false);
+    try {
+      await widget.onTaskAdded(newTask);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override

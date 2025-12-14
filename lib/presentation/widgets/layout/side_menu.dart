@@ -101,6 +101,7 @@ void _openVoiceSheetIfPossible(BuildContext context, WidgetRef ref) {
     audioEncoding: AppConfig.gcpTtsEncoding,
     userId: userId,
     onSendVoice: (text) async {
+      final connections = await VoiceCommandHelper.resolveEmailConnections(userId: null);
       return await VoiceCommandHelper.processVoiceCommand(
         context: context,
         text: text,
@@ -109,6 +110,8 @@ void _openVoiceSheetIfPossible(BuildContext context, WidgetRef ref) {
         // helper içinde konum çekme yok, basit tutuyoruz. Gerekirse eklenebilir)
         latitude: null, // Konum gerekirse locationService'den çekilebilir
         longitude: null,
+        gmailConnected: connections.gmail,
+        outlookConnected: connections.outlook,
       );
     },
   );

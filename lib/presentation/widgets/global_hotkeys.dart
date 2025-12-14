@@ -118,12 +118,15 @@ class GlobalHotkeys extends ConsumerWidget {
                 longitude: pos?.longitude,
                 onSendVoice: (text) async {
                   if (!navContext.mounted) return null;
+                  final connections = await VoiceCommandHelper.resolveEmailConnections(userId: null);
                   return await VoiceCommandHelper.processVoiceCommand(
                     context: navContext,
                     text: text,
                     userId: userId,
                     latitude: pos?.latitude,
                     longitude: pos?.longitude,
+                    gmailConnected: connections.gmail,
+                    outlookConnected: connections.outlook,
                   );
                 },
               );

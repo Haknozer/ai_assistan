@@ -7,6 +7,7 @@ import 'package:ai_asisstan/models/email.dart';
 import 'package:ai_asisstan/core/api/api_exceptions.dart';
 import 'package:ai_asisstan/services/n8n_forwarder_service.dart';
 import 'package:ai_asisstan/services/n8n_response_storage_service.dart';
+import 'package:ai_asisstan/services/task_auto_creation_service.dart';
 import 'package:ai_asisstan/core/utils/logger.dart';
 
 /// Email repository provider
@@ -191,9 +192,38 @@ class EmailNotifier extends StateNotifier<AsyncValue<List<Email>>> {
       // n8n'den dönen cevabı console'a yazdır
       AppLogger.debug('n8n email response: $n8nResponse', 'N8N');
 
-      // n8n response'u kalıcı olarak kaydet
+      // n8n response'u kalıcı olarak kaydet (timestamp ile)
       if (n8nResponse != null) {
-        await N8nResponseStorageService().saveEmailResponse(emailId, n8nResponse);
+        await N8nResponseStorageService().saveEmailResponse(
+          emailId,
+          n8nResponse,
+          receivedDate: email.receivedDate,
+        );
+
+        // Otomatik görev oluşturma (n8n response'undan)
+        try {
+          final taskService = TaskAutoCreationService();
+          final createdTasks = await taskService.createTasksFromN8nResponse(
+            userId: email.userId,
+            n8nResponse: n8nResponse,
+            sourceEmailId: emailId,
+            sourceEmailSubject: email.subject,
+            sourceEmail: email,
+          );
+
+          if (createdTasks.isNotEmpty) {
+            AppLogger.info(
+              '${createdTasks.length} otomatik görev oluşturuldu (Email: ${email.subject})',
+              'TaskAutoCreation',
+            );
+          }
+        } catch (e) {
+          AppLogger.error(
+            'Otomatik görev oluşturulurken hata',
+            tag: 'TaskAutoCreation',
+            error: e,
+          );
+        }
       }
 
       // Forward edildi olarak işaretle ve kalıcı olarak kaydet

@@ -78,6 +78,7 @@ class EventsList extends StatelessWidget {
                       final event = events[index];
                       return EventCard(
                         event: event,
+                        allEvents: events, // Tüm event listesini geç (duplicate kontrolü için)
                         onTap: () => onEventTap?.call(event),
                       );
                     },

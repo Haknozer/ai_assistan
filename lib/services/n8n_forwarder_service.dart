@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -304,36 +305,80 @@ class N8nForwarderService {
       );
       final body = jsonEncode(bodyData);
 
+      if (kDebugMode) {
+        debugPrint('📤 N8nForwarderService.forwardEmailMessageAndWait - URL: $_emailWebhookUrl');
+        debugPrint('📤 Request body length: ${body.length}');
+      }
+
       final res = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
         body: body,
+      ).timeout(
+        const Duration(seconds: 60), // 60 saniye timeout
+        onTimeout: () {
+          if (kDebugMode) {
+            debugPrint('⏱️ N8nForwarderService.forwardEmailMessageAndWait - Timeout (60 saniye)');
+          }
+          throw TimeoutException('n8n webhook timeout (60 saniye)');
+        },
       );
+
+      if (kDebugMode) {
+        debugPrint('📥 N8nForwarderService.forwardEmailMessageAndWait - Status: ${res.statusCode}');
+        debugPrint('📥 Response body length: ${res.body.length}');
+        if (res.body.length < 500) {
+          debugPrint('📥 Response body: ${res.body}');
+        }
+      }
 
       if (res.statusCode < 200 || res.statusCode >= 300) {
         if (kDebugMode) {
-          debugPrint('N8nForwarderService.forwardEmailMessageAndWait error: ${res.statusCode} ${res.body}');
+          debugPrint('❌ N8nForwarderService.forwardEmailMessageAndWait error: ${res.statusCode} ${res.body}');
         }
         return null;
       }
 
       if (res.body.isEmpty) {
+        if (kDebugMode) {
+          debugPrint('⚠️ N8nForwarderService.forwardEmailMessageAndWait - Response body boş');
+        }
         return null;
       }
 
-      final decoded = jsonDecode(res.body);
-      
-      // Eğer response bir array ise, ilk elemanı al
-      if (decoded is List && decoded.isNotEmpty) {
-        if (decoded[0] is Map<String, dynamic>) {
-          return decoded[0] as Map<String, dynamic>;
+      try {
+        final decoded = jsonDecode(res.body);
+        
+        if (kDebugMode) {
+          debugPrint('✅ N8nForwarderService.forwardEmailMessageAndWait - Response decoded, type: ${decoded.runtimeType}');
         }
+        
+        // Eğer response bir array ise, ilk elemanı al
+        if (decoded is List && decoded.isNotEmpty) {
+          if (decoded[0] is Map<String, dynamic>) {
+            return decoded[0] as Map<String, dynamic>;
+          }
+          // Eğer array içinde başka bir format varsa
+          if (kDebugMode) {
+            debugPrint('⚠️ N8nForwarderService.forwardEmailMessageAndWait - Array içinde beklenmeyen format: ${decoded[0].runtimeType}');
+          }
+        }
+        
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        }
+        
+        if (kDebugMode) {
+          debugPrint('⚠️ N8nForwarderService.forwardEmailMessageAndWait - Beklenmeyen response format: ${decoded.runtimeType}');
+        }
+        return null;
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('❌ N8nForwarderService.forwardEmailMessageAndWait - JSON decode hatası: $e');
+          debugPrint('❌ Response body (ilk 500 karakter): ${res.body.length > 500 ? res.body.substring(0, 500) : res.body}');
+        }
+        return null;
       }
-      
-      if (decoded is Map<String, dynamic>) {
-        return decoded;
-      }
-      return null;
     } catch (e) {
       if (kDebugMode) {
         debugPrint('N8nForwarderService.forwardEmailMessageAndWait exception: $e');

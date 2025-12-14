@@ -5,6 +5,7 @@ import '../../../utils/responsive_utils.dart';
 import '../../widgets/layout/side_menu.dart';
 import '../../../providers/user_provider.dart';
 import '../../../features/tasks/tasks_feature.dart';
+import '../../../features/tasks/providers/tasks_provider.dart';
 import '../../widgets/tasks/tasks_page_header.dart';
 import '../../widgets/tasks/search_and_filter_section.dart';
 import '../../widgets/tasks/kanban_board.dart';
@@ -29,22 +30,13 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
   // Menu handler için
   final int _selectedMenuIndex = 2; // Görevler indeksi
 
-  // Mock görev verileri (geçici)
-  late List<Task> _mockTasks;
-
-  @override
-  void initState() {
-    super.initState();
-    _mockTasks = List.from(MockTasks.tasks);
-  }
-
   // Filtrelenmiş görevleri döndürür
-  List<Task> get _filteredTasks {
-    List<Task> tasks = _mockTasks;
+  List<Task> _getFilteredTasks(List<Task> tasks) {
+    List<Task> filtered = tasks;
 
     // Arama filtresi
     if (_searchQuery.isNotEmpty) {
-      tasks = tasks.where((task) {
+      filtered = filtered.where((task) {
         return task.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
             (task.description?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false);
       }).toList();
@@ -53,24 +45,26 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     // Durum filtresi
     switch (_currentFilter) {
       case TaskFilter.pending:
-        return tasks.where((task) => task.status == TaskStatus.pending).toList();
+        return filtered.where((task) => task.status == TaskStatus.pending).toList();
       case TaskFilter.inProgress:
-        return tasks.where((task) => task.status == TaskStatus.inProgress).toList();
+        return filtered.where((task) => task.status == TaskStatus.inProgress).toList();
       case TaskFilter.completed:
-        return tasks.where((task) => task.status == TaskStatus.completed).toList();
+        return filtered.where((task) => task.status == TaskStatus.completed).toList();
       case TaskFilter.all:
-        return tasks;
+        return filtered;
     }
   }
 
   // Duruma göre görevleri grupla
-  Map<TaskStatus, List<Task>> get _tasksByStatus {
-    return MockTasks.groupByStatus(_filteredTasks);
+  Map<TaskStatus, List<Task>> _getTasksByStatus(List<Task> tasks) {
+    final filtered = _getFilteredTasks(tasks);
+    return groupTasksByStatus(filtered);
   }
 
   @override
   Widget build(BuildContext context) {
     final currentUser = ref.watch(currentUserProvider);
+    final tasksAsync = ref.watch(tasksNotifierProvider);
     final padding = ResponsiveUtils.getResponsivePadding(context);
     final isDesktop = ResponsiveUtils.isDesktop(context);
 
@@ -82,20 +76,40 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: _buildResponsiveLayout(currentUser, padding, isDesktop),
+      body: tasksAsync.when(
+        data: (tasks) => _buildResponsiveLayout(currentUser, padding, isDesktop, tasks),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stack) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.red),
+              const SizedBox(height: 16),
+              Text('Hata: $error'),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => ref.read(tasksNotifierProvider.notifier).refresh(),
+                child: const Text('Yeniden Dene'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _buildResponsiveLayout(dynamic currentUser, EdgeInsets padding, bool isDesktop) {
+  Widget _buildResponsiveLayout(dynamic currentUser, EdgeInsets padding, bool isDesktop, List<Task> tasks) {
     if (isDesktop) {
-      return _buildDesktopLayout(currentUser, padding);
+      return _buildDesktopLayout(currentUser, padding, tasks);
     } else {
-      return _buildMobileLayout(currentUser, padding);
+      return _buildMobileLayout(currentUser, padding, tasks);
     }
   }
 
   // Desktop Layout - Sol menü + içerik
-  Widget _buildDesktopLayout(dynamic currentUser, EdgeInsets padding) {
+  Widget _buildDesktopLayout(dynamic currentUser, EdgeInsets padding, List<Task> tasks) {
+    final tasksByStatus = _getTasksByStatus(tasks);
+    
     return Row(
       children: [
         // Sol Menü
@@ -142,7 +156,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                   // Kanban Board
                   Expanded(
                     child: KanbanBoard(
-                      tasksByStatus: _tasksByStatus,
+                      tasksByStatus: tasksByStatus,
                       onTaskStatusChanged: _updateTaskStatus,
                       isDesktop: true,
                     ),
@@ -157,7 +171,9 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
   }
 
   // Mobile Layout - AppBar + Drawer + içerik
-  Widget _buildMobileLayout(dynamic currentUser, EdgeInsets padding) {
+  Widget _buildMobileLayout(dynamic currentUser, EdgeInsets padding, List<Task> tasks) {
+    final tasksByStatus = _getTasksByStatus(tasks);
+    
     return Scaffold(
       appBar: AppBar(
         title: TasksPageHeader(
@@ -193,7 +209,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
               // Kanban Board (Mobil)
               Expanded(
                 child: KanbanBoard(
-                  tasksByStatus: _tasksByStatus,
+                  tasksByStatus: tasksByStatus,
                   onTaskStatusChanged: _updateTaskStatus,
                   isDesktop: false,
                 ),
@@ -263,19 +279,24 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
   }
 
   // Görev durumunu güncelle
-  void _updateTaskStatus(Task task, TaskStatus newStatus) {
-    setState(() {
-      final taskIndex = _mockTasks.indexWhere((t) => t.id == task.id);
-      if (taskIndex != -1) {
-        _mockTasks[taskIndex] = _mockTasks[taskIndex].copyWith(
-          status: newStatus,
-          updatedAt: DateTime.now(),
+  Future<void> _updateTaskStatus(Task task, TaskStatus newStatus) async {
+    if (task.id == null) return;
+    
+    try {
+      await ref.read(tasksNotifierProvider.notifier).updateTaskStatus(task.id!, newStatus);
+      // Bildirim göster
+      _showTaskUpdateNotification(task, newStatus);
+    } catch (e) {
+      // Hata durumunda kullanıcıya bildir
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Görev durumu güncellenirken hata oluştu: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
-    });
-
-    // Bildirim göster
-    _showTaskUpdateNotification(task, newStatus);
+    }
   }
 
   // Görev durumu güncelleme bildirimi
@@ -303,12 +324,37 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     showDialog(
       context: context,
       builder: (context) => AddTaskDialog(
-        onTaskAdded: (task) {
-          setState(() {
-            _mockTasks.add(task);
-          });
-          Navigator.pop(context);
-          _showTaskAddedNotification(task);
+        onTaskAdded: (task) async {
+          try {
+            final currentUser = ref.read(currentUserProvider);
+            if (currentUser == null || currentUser.id == null) {
+              throw Exception('Kullanıcı bulunamadı');
+            }
+            
+            // Repository üzerinden görev oluştur
+            final createdTask = await ref.read(tasksNotifierProvider.notifier).createTask(
+              title: task.title,
+              description: task.description,
+              status: task.status,
+              priority: task.priority,
+              dueDate: task.dueDate,
+            );
+            
+            if (mounted) {
+              Navigator.pop(context);
+              _showTaskAddedNotification(createdTask);
+            }
+          } catch (e) {
+            if (mounted) {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Görev eklenirken hata oluştu: $e'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          }
         },
       ),
     );

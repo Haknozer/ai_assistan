@@ -3,6 +3,7 @@ import 'package:ai_asisstan/core/api/api_client.dart';
 import 'package:ai_asisstan/core/api/api_endpoints.dart';
 import 'package:ai_asisstan/core/api/api_exceptions.dart';
 import 'package:ai_asisstan/models/calendar_event.dart';
+import 'package:ai_asisstan/core/utils/html_stripper.dart';
 
 /// Google Calendar API client - Google Calendar API çağrılarını yönetir
 class GoogleCalendarApiClient {
@@ -276,7 +277,18 @@ class GoogleCalendarApiClient {
   }) {
     final id = eventData['id'] as String?;
     final summary = eventData['summary'] as String? ?? 'Etkinlik';
-    final description = eventData['description'] as String?;
+    final rawDescription = eventData['description'] as String?;
+    
+    // Description'ı temizle - HTML içeriyorsa plain text'e çevir
+    String? description;
+    if (rawDescription != null && rawDescription.isNotEmpty) {
+      // HTML içeriyorsa (HTML tag'leri varsa) temizle
+      description = HtmlStripper.cleanIfNeeded(rawDescription);
+      if (HtmlStripper.containsHtmlTags(rawDescription)) {
+        debugPrint('Google Calendar - HTML içerik temizlendi: ${description.length} karakter');
+      }
+    }
+    
     final location = eventData['location'] as String?;
     
     // Start time
@@ -311,20 +323,52 @@ class GoogleCalendarApiClient {
     final createdAt = createdStr != null ? DateTime.parse(createdStr) : DateTime.now();
     final updatedAt = updatedStr != null ? DateTime.parse(updatedStr) : DateTime.now();
     
-    // Event type (Google Calendar'da direkt yok, description'dan çıkarabiliriz veya varsayılan)
+    // Event type - Önce colorId'den çıkar (n8n'den gelen event'lerde kategori bilgisi burada)
+    // colorId: "11" = meeting, "5" = social, "9" = task
     EventType eventType = EventType.personal;
-    if (description != null) {
-      final descLower = description.toLowerCase();
-      if (descLower.contains('toplantı') || descLower.contains('meeting')) {
-        eventType = EventType.meeting;
-      } else if (descLower.contains('randevu') || descLower.contains('appointment')) {
-        eventType = EventType.appointment;
-      } else if (descLower.contains('görev') || descLower.contains('task')) {
-        eventType = EventType.task;
+    final colorId = eventData['colorId'] as String?;
+    if (colorId != null && colorId.isNotEmpty) {
+      switch (colorId) {
+        case '11': // Meeting
+          eventType = EventType.meeting;
+          debugPrint('📅 Google Calendar - colorId 11 (meeting) bulundu');
+          break;
+        case '5': // Social
+          eventType = EventType.personal; // Social -> Personal
+          debugPrint('📅 Google Calendar - colorId 5 (social) bulundu');
+          break;
+        case '9': // Task
+          eventType = EventType.task;
+          debugPrint('📅 Google Calendar - colorId 9 (task) bulundu');
+          break;
+        default:
+          // colorId varsa ama tanınmıyorsa, description'dan çıkar
+          if (description != null) {
+            final descLower = description.toLowerCase();
+            if (descLower.contains('toplantı') || descLower.contains('meeting')) {
+              eventType = EventType.meeting;
+            } else if (descLower.contains('randevu') || descLower.contains('appointment')) {
+              eventType = EventType.appointment;
+            } else if (descLower.contains('görev') || descLower.contains('task')) {
+              eventType = EventType.task;
+            }
+          }
+      }
+    } else {
+      // colorId yoksa, description'dan çıkar (fallback)
+      if (description != null) {
+        final descLower = description.toLowerCase();
+        if (descLower.contains('toplantı') || descLower.contains('meeting')) {
+          eventType = EventType.meeting;
+        } else if (descLower.contains('randevu') || descLower.contains('appointment')) {
+          eventType = EventType.appointment;
+        } else if (descLower.contains('görev') || descLower.contains('task')) {
+          eventType = EventType.task;
+        }
       }
     }
 
-    return CalendarEvent(
+    final calendarEvent = CalendarEvent(
       id: null, // Local ID (Google Calendar ID externalId'de saklanacak)
       userId: userId ?? 0,
       title: summary,
@@ -338,6 +382,11 @@ class GoogleCalendarApiClient {
       createdAt: createdAt,
       updatedAt: updatedAt,
     );
+    
+    debugPrint('📅 Google Calendar Event - Title: $summary, EventType: ${eventType.name}');
+    
+    return calendarEvent;
   }
+
 }
 

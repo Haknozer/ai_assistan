@@ -32,7 +32,11 @@ class N8nResponseStorageService {
   }
 
   /// Email için n8n response'u kaydet
-  Future<void> saveEmailResponse(String emailId, Map<String, dynamic>? response) async {
+  Future<void> saveEmailResponse(
+    String emailId,
+    Map<String, dynamic>? response, {
+    DateTime? receivedDate,
+  }) async {
     if (emailId.isEmpty || response == null) return;
 
     try {
@@ -42,7 +46,10 @@ class N8nResponseStorageService {
           ? jsonDecode(existingJson) as Map<String, dynamic>
           : {};
 
-      responses[emailId] = response;
+      responses[emailId] = {
+        'data': response,
+        'timestamp': (receivedDate ?? DateTime.now()).toUtc().toIso8601String(),
+      };
       await prefs.setString(_emailResponsesKey, jsonEncode(responses));
       
       AppLogger.debug('Email $emailId için n8n response kaydedildi', 'N8N');
@@ -89,21 +96,115 @@ class N8nResponseStorageService {
       if (jsonString == null || jsonString.isEmpty) return null;
 
       final responses = jsonDecode(jsonString) as Map<String, dynamic>;
-      final response = responses[emailId];
-      
-      // Eğer response string ise, parse et
-      if (response is String) {
+      final stored = responses[emailId];
+
+      if (stored is Map<String, dynamic>) {
+        // Yeni format: { data: {...}, timestamp: ... }
+        if (stored.containsKey('data')) {
+          final data = stored['data'];
+          // Eğer data bir array ise, direkt array olarak döndür (parse işlemi widget'ta yapılacak)
+          if (data is List) {
+            AppLogger.debug('getEmailResponse - Data bir array, direkt döndürülüyor', 'N8N');
+            return {'_isArray': true, '_arrayData': data};
+          }
+          if (data is Map<String, dynamic>) return data;
+          if (data is String) {
+            try {
+              final decoded = jsonDecode(data);
+              // Eğer decode edilen bir array ise
+              if (decoded is List) {
+                AppLogger.debug('getEmailResponse - Decoded data bir array, direkt döndürülüyor', 'N8N');
+                return {'_isArray': true, '_arrayData': decoded};
+              }
+              // Eğer decode edilen bir map ise
+              if (decoded is Map<String, dynamic>) {
+                return decoded;
+              }
+            } catch (_) {
+              return null;
+            }
+          }
+        }
+        // Eski format veya fallback
+        return stored;
+      }
+
+      // Eski string format
+      if (stored is String) {
         try {
-          return jsonDecode(response) as Map<String, dynamic>;
+          return jsonDecode(stored) as Map<String, dynamic>;
         } catch (_) {
           return null;
         }
       }
-      
-      return response as Map<String, dynamic>?;
+
+      return null;
     } catch (e) {
       AppLogger.error('Email n8n response yüklenirken hata', tag: 'N8N', error: e);
       return null;
+    }
+  }
+
+  /// Belirli tarih aralığındaki (UTC) email response'larını getir
+  Future<List<Map<String, dynamic>>> getEmailResponsesByDateRange({
+    required DateTime startUtc,
+    required DateTime endUtc,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonString = prefs.getString(_emailResponsesKey);
+      if (jsonString == null || jsonString.isEmpty) return [];
+
+      final responses = jsonDecode(jsonString) as Map<String, dynamic>;
+      final List<Map<String, dynamic>> result = [];
+
+      for (final entry in responses.entries) {
+        final value = entry.value;
+        DateTime? ts;
+        Map<String, dynamic>? data;
+
+        if (value is Map<String, dynamic>) {
+          final tsStr = value['timestamp']?.toString();
+          if (tsStr != null && tsStr.isNotEmpty) {
+            try {
+              ts = DateTime.parse(tsStr).toUtc();
+            } catch (_) {}
+          }
+          if (value.containsKey('data')) {
+            final raw = value['data'];
+            if (raw is Map<String, dynamic>) {
+              data = raw;
+            } else if (raw is String) {
+              try {
+                data = jsonDecode(raw) as Map<String, dynamic>;
+              } catch (_) {}
+            }
+          } else {
+            data = value;
+          }
+        } else if (value is String) {
+          try {
+            data = jsonDecode(value) as Map<String, dynamic>;
+          } catch (_) {}
+        }
+
+        ts ??= DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+        data ??= {};
+
+        if (ts.isAfter(startUtc.subtract(const Duration(microseconds: 1))) &&
+            ts.isBefore(endUtc.add(const Duration(microseconds: 1)))) {
+          result.add({
+            'email_id': entry.key,
+            'timestamp': ts.toIso8601String(),
+            'data': data,
+          });
+        }
+      }
+
+      return result;
+    } catch (e) {
+      AppLogger.error('Email response tarih filtresi hatası', tag: 'N8N', error: e);
+      return [];
     }
   }
 
@@ -115,6 +216,48 @@ class N8nResponseStorageService {
     AppLogger.debug('extractAiSuggestions - Response: $response', 'N8N');
     AppLogger.debug('extractAiSuggestions - Response type: ${response.runtimeType}', 'N8N');
     AppLogger.debug('extractAiSuggestions - Response keys: ${response.keys.toList()}', 'N8N');
+
+    // n8n'den gelen cevap formatı (en yaygın format: {cevap: "...", tip: "...", islem_ozeti: {...}})
+    if (response.containsKey('cevap')) {
+      final cevapValue = response['cevap'];
+      if (cevapValue != null) {
+        final cevap = cevapValue.toString().trim();
+        if (cevap.isNotEmpty) {
+          AppLogger.debug('extractAiSuggestions - Found cevap: $cevap', 'N8N');
+          // Cevap içeriğini formatla - sadece önemli kısımları göster
+          final formatted = _formatCevapForDisplay(cevap);
+          if (formatted != null && formatted.isNotEmpty) {
+            return formatted;
+          }
+          return cevap;
+        }
+      }
+    }
+
+    // Özel görev formatı (ör: {mesaj, detay, gorev_adi, tarih, linkler, durum})
+    final taskMessage = response['mesaj']?.toString().trim();
+    final taskDetail = response['detay']?.toString().trim();
+    final taskName = response['gorev_adi']?.toString().trim();
+    final taskDate = response['tarih']?.toString().trim();
+    final status = response['durum']?.toString().trim();
+    String? taskLinks;
+    if (response['linkler'] is Map) {
+      final map = (response['linkler'] as Map).map((k, v) => MapEntry(k.toString(), v?.toString() ?? ''));
+      final nonEmpty = map.entries.where((e) => e.value.trim().isNotEmpty).toList();
+      if (nonEmpty.isNotEmpty) {
+        taskLinks = nonEmpty.map((e) => '${e.key}: ${e.value}').join(' | ');
+      }
+    }
+    final taskLines = <String>[];
+    if (status?.isNotEmpty == true) taskLines.add('Durum: $status');
+    if (taskName?.isNotEmpty == true) taskLines.add('Görev: $taskName');
+    if (taskMessage?.isNotEmpty == true) taskLines.add(taskMessage!);
+    if (taskDetail?.isNotEmpty == true) taskLines.add(taskDetail!);
+    if (taskDate?.isNotEmpty == true) taskLines.add('Tarih: $taskDate');
+    if (taskLinks?.isNotEmpty == true) taskLines.add(taskLinks!);
+    if (taskLines.isNotEmpty) {
+      return taskLines.join('\n');
+    }
 
     // Eğer response bir array içinde geliyorsa (n8n webhook response formatı)
     // Örnek: [{parts: [{text: "..."}], role: "model"}]
@@ -237,6 +380,13 @@ class N8nResponseStorageService {
 
     // Text bulunamadı, null döndür (JSON gösterme)
     return null;
+  }
+
+  /// Cevap içeriğini formatla - sadece önemli kısımları göster
+  String? _formatCevapForDisplay(String cevap) {
+    if (cevap.isEmpty) return null;
+    // Basit hal - direkt cevabı döndür
+    return cevap;
   }
 
   /// Tüm Telegram n8n response'larını temizle

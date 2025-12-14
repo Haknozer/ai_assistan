@@ -1,23 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../models/calendar_event.dart';
-import '../../../../core/theme/app_theme.dart';
 
 /// Takvim yardımcı fonksiyonları
 class CalendarUtils {
-  /// Etkinlik tipi rengini döndürür
+  /// Etkinlik tipi rengini döndürür (kategoriye göre)
   static Color getEventTypeColor(EventType type) {
     switch (type) {
       case EventType.meeting:
-        return AppTheme.primaryColor; // Mavi
+        return const Color(0xFF2196F3); // Canlı Mavi - Meeting
       case EventType.appointment:
-        return AppTheme.successColor; // Yeşil
+        return const Color(0xFF4CAF50); // Canlı Yeşil - Appointment
       case EventType.task:
-        return AppTheme.warningColor; // Turuncu
+        return const Color(0xFFFF9800); // Canlı Turuncu - Task
       case EventType.personal:
-        return Colors.purple;
+        return const Color(0xFF9C27B0); // Canlı Mor - Personal/Social
       case EventType.other:
-        return Colors.grey;
+        return const Color(0xFF757575); // Gri - Other
     }
   }
 

@@ -172,6 +172,7 @@ class CalendarRepository {
   }
 
   /// Hem Google hem Outlook Calendar event'lerini birleştir
+  /// NOT: Local database sadece cache olarak kullanılır, merge işlemi sadece API'lerden gelen event'ler arasında yapılır
   Future<List<CalendarEvent>> getAllCombinedEvents({
     String? calendarId,
     DateTime? timeMin,
@@ -184,20 +185,9 @@ class CalendarRepository {
     try {
       final allEvents = <CalendarEvent>[];
 
-      // Önce local database'den event'leri al
-      if (userId != null) {
-        try {
-          final localEvents = await _localRepository.getEvents(
-            userId: userId,
-            timeMin: timeMin,
-            timeMax: timeMax,
-          );
-          allEvents.addAll(localEvents);
-        } catch (e) {
-          debugPrint('⚠️ Local event\'ler getirilemedi: $e');
-        }
-      }
-
+      // ÖNEMLİ: Local database'den event'leri çekme - sadece API'lerden çekip merge edeceğiz
+      // Bu sayede duplicate'ler önlenir ve sadece gerçek API'lerden gelen event'ler gösterilir
+      
       // Google Calendar'dan event'leri çek
       if (googleAccessToken != null && googleAccessToken.isNotEmpty) {
         await _fetchAndMergeGoogleEvents(
@@ -224,7 +214,25 @@ class CalendarRepository {
         );
       }
 
-      debugPrint('✅ getAllCombinedEvents tamamlandı: ${allEvents.length} event');
+      // Eğer hiç API'den event gelmediyse, local database'den çek (fallback)
+      if (allEvents.isEmpty && userId != null) {
+        try {
+          debugPrint('⚠️ API\'lerden event gelmedi, local database\'den çekiliyor...');
+          final localEvents = await _localRepository.getEvents(
+            userId: userId,
+            timeMin: timeMin,
+            timeMax: timeMax,
+          );
+          // Local database'den gelen event'leri de merge et (duplicate kontrolü ile)
+          final mergedLocalEvents = EventMerger.mergeEvents([], localEvents);
+          allEvents.addAll(mergedLocalEvents);
+          debugPrint('✅ Local database\'den ${mergedLocalEvents.length} event alındı (duplicate\'ler temizlendi)');
+        } catch (e) {
+          debugPrint('⚠️ Local event\'ler getirilemedi: $e');
+        }
+      }
+
+      debugPrint('✅ getAllCombinedEvents tamamlandı: ${allEvents.length} event (Google: ${googleAccessToken != null && googleAccessToken.isNotEmpty ? "var" : "yok"}, Outlook: ${outlookAccessToken != null && outlookAccessToken.isNotEmpty ? "var" : "yok"})');
       return EventMerger.sortByDate(allEvents);
     } catch (e, stackTrace) {
       debugPrint('❌ getAllCombinedEvents kritik hata:');
@@ -267,7 +275,7 @@ class CalendarRepository {
         );
       }
 
-      // Event'leri birleştir
+      // Event'leri birleştir (duplicate kontrolü ile)
       final merged = EventMerger.mergeEvents(allEvents, googleEvents);
       allEvents.clear();
       allEvents.addAll(merged);
@@ -379,7 +387,7 @@ class CalendarRepository {
       // Local database'e kaydet
       try {
         await _localRepository.saveEvent(event);
-        debugPrint('✅ Event local database\'e kaydedildi: ${event.title} (externalId: ${event.externalId})');
+        debugPrint('✅ Event local database\'e kaydedildi: ${event.title} (externalId: ${event.externalId}, eventType: ${event.eventType.name})');
       } catch (e) {
         debugPrint('⚠️ Event local database\'e kaydedilemedi: $e');
       }

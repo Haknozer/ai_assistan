@@ -35,11 +35,21 @@ enum EventType {
         return EventType.task;
       case 'personal':
         return EventType.personal;
+      case 'social':
+        return EventType.personal; // Social -> Personal olarak map et
       case 'other':
         return EventType.other;
       default:
         return EventType.personal;
     }
+  }
+  
+  /// Kategori string'inden EventType'a çevir (n8n response için)
+  static EventType fromCategory(String? category) {
+    if (category == null || category.isEmpty) {
+      return EventType.personal;
+    }
+    return fromString(category);
   }
 }
 

@@ -16,15 +16,14 @@ class ChatbotService {
   bool get isConfigured => _webhookUrl.isNotEmpty;
 
   /// Chat mesajını webhook'a gönderir ve varsa dönen cevabı string olarak verir.
-  ///
-  /// [latitude] ve [longitude] geolocator'dan gelen değerlerdir. Webhook örneğine
-  /// uyum için virgülle ayrılmış string'e çevrilir (37,2 gibi).
   Future<String?> sendChatMessage({
     required String text,
     String? userId,
     double? latitude,
     double? longitude,
     bool returnRawBody = false,
+    bool gmailConnected = false,
+    bool outlookConnected = false,
   }) async {
     if (!isConfigured) {
       throw Exception('Chatbot webhook URL tanımlı değil');
@@ -36,21 +35,23 @@ class ChatbotService {
         'text': text,
       };
       if (latitude != null) {
-        body['lat'] = _formatCoordinate(latitude);
+        body['lat'] = latitude;
       }
       if (longitude != null) {
-        body['lon'] = _formatCoordinate(longitude);
+        body['lon'] = longitude;
       }
       if (userId != null && userId.isNotEmpty) {
         body['user_id'] = userId;
       }
-
-      final payload = [body];
+      body['connections'] = {
+        'gmail': gmailConnected,
+        'outlook': outlookConnected,
+      };
 
       final response = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(payload),
+        body: jsonEncode(body),
       );
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -84,11 +85,6 @@ class ChatbotService {
       }
       rethrow;
     }
-  }
-
-  String _formatCoordinate(double value) {
-    // Örnek payload ile uyumlu olması için nokta yerine virgül kullan
-    return value.toStringAsFixed(6).replaceAll('.', ',');
   }
 
   String? _extractTextFromMap(Map<String, dynamic> data) {
