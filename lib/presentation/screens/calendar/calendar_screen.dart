@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../widgets/layout/side_menu.dart';
 import '../../../providers/user_provider.dart';
 import '../../../providers/calendar_account_provider.dart';
+import '../../../providers/calendar_refresh_provider.dart';
 import '../../../features/calendar/providers/calendar_provider.dart';
 import '../../../models/calendar_account.dart';
 import '../../../core/api/api_exceptions.dart';
@@ -317,6 +318,27 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
     final googleToken = googleAccount?.accessToken;
     final outlookToken = outlookAccount?.accessToken;
+    
+    // Calendar refresh provider'ı dinle - n8n response geldiğinde takvimi yenile
+    final calendarRefreshNotifier = ref.read(calendarRefreshProvider.notifier);
+    
+    // Global instance'ı set et (email provider'dan erişim için)
+    // Her build'de set et (calendar screen açıkken güncel instance'ı kullan)
+    GlobalCalendarRefresh.setInstance(calendarRefreshNotifier);
+    
+    ref.listen<int>(calendarRefreshProvider, (previous, next) {
+      // Calendar refresh değiştiğinde (n8n response geldiğinde) takvimi yenile
+      if (previous != null && previous != next) {
+        final params = _CombinedEventsParams(
+          timeMin: timeMin,
+          timeMax: timeMax,
+          googleToken: googleToken,
+          outlookToken: outlookToken,
+          userId: currentUser.id,
+        );
+        ref.invalidate(_combinedEventsProvider(params));
+      }
+    });
     
     // Eğer en az bir calendar bağlıysa event'leri çek
     if ((googleToken != null && googleToken.isNotEmpty) || (outlookToken != null && outlookToken.isNotEmpty)) {

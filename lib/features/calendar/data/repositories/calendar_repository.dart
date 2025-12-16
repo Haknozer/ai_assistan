@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:ai_asisstan/models/calendar_event.dart';
 import 'package:ai_asisstan/models/calendar_account.dart';
 import 'package:ai_asisstan/core/api/api_exceptions.dart';
+import '../../../../services/task_auto_creation_service.dart';
 import '../datasources/calendar_remote_datasource.dart';
 import 'calendar_local_repository.dart';
 import 'utils/event_merger.dart';
@@ -233,6 +234,23 @@ class CalendarRepository {
       }
 
       debugPrint('✅ getAllCombinedEvents tamamlandı: ${allEvents.length} event (Google: ${googleAccessToken != null && googleAccessToken.isNotEmpty ? "var" : "yok"}, Outlook: ${outlookAccessToken != null && outlookAccessToken.isNotEmpty ? "var" : "yok"})');
+      
+      // Calendar event'lerinden task oluştur (eventType = task olan event'ler)
+      if (userId != null && allEvents.isNotEmpty) {
+        try {
+          final taskService = TaskAutoCreationService();
+          final createdTasks = await taskService.createTasksFromCalendarEvents(
+            userId: userId,
+            events: allEvents,
+          );
+          if (createdTasks.isNotEmpty) {
+            debugPrint('✅ ${createdTasks.length} task calendar event\'lerinden oluşturuldu');
+          }
+        } catch (e) {
+          debugPrint('⚠️ Calendar event\'lerinden task oluşturulurken hata: $e');
+        }
+      }
+      
       return EventMerger.sortByDate(allEvents);
     } catch (e, stackTrace) {
       debugPrint('❌ getAllCombinedEvents kritik hata:');

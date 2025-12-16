@@ -81,10 +81,16 @@ class AppConfig {
     defaultValue: '',
   );
 
+  // n8n Webhook URL (Sesli mail özeti için)
+  static const String n8nEmailSummaryWebhookUrl = String.fromEnvironment(
+    'N8N_EMAIL_SUMMARY_WEBHOOK_URL',
+    defaultValue: 'https://hakanozerr.app.n8n.cloud/webhook/be5cf629-98b2-4a8a-8c6f-61ca8acea3ff',
+  );
+
   // Chatbot webhook URL (AI asistan mesajları için)
   static const String chatbotWebhookUrl = String.fromEnvironment(
     'CHATBOT_WEBHOOK_URL',
-    defaultValue: 'https://hakanoer.app.n8n.cloud/webhook/bb831b87-a172-418d-b3e9-7d12b7192d90',
+    defaultValue: 'https://hakanozerr.app.n8n.cloud/webhook/bb831b87-a172-418d-b3e9-7d12b7192d90',
   );
 
   // Telegram polling feature flag

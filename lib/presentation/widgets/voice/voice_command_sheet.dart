@@ -135,7 +135,8 @@ class _VoiceCommandSheetState extends State<VoiceCommandSheet> {
     if (_step != VoiceStep.idle) return;
 
     // Varsayılan otomatik mesaj (istek üzerine)
-    const kickoffMessage = 'Ayarlar Sayfasına Git.';
+    // İstenen senaryo: "Bugünkü maillerimi oku"
+    const kickoffMessage = 'Bugünkü maillerimi oku';
     if (widget.onSendVoice != null) {
       // 1. Düşünüyor moduna geç
       _setStep(VoiceStep.thinking);

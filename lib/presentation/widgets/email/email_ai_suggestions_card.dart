@@ -188,6 +188,82 @@ class _EmailAiSuggestionsCardState extends ConsumerState<EmailAiSuggestionsCard>
     return events;
   }
 
+  /// Event olmayan, genel AI öneri/senaryo öğelerinden summary çıkar
+  /// Örnek format:
+  /// [
+  ///   {
+  ///     "is_event": false,
+  ///     "category": "task",
+  ///     "summary": "Kartaca Staj Programı Bilgilendirmesi",
+  ///     "description": "...",
+  ///     "voice_script": "..."
+  ///   }
+  /// ]
+  List<String> _extractInfoSummaries(dynamic response) {
+    final summaries = <String>[];
+
+    try {
+      // Özel array wrapper'ı aç
+      if (response is Map<String, dynamic> && response.containsKey('_isArray') && response['_isArray'] == true) {
+        final arrayData = response['_arrayData'];
+        if (arrayData is List) {
+          response = arrayData;
+        }
+      }
+
+      // Kök liste ise
+      if (response is List) {
+        for (final item in response) {
+          if (item is Map<String, dynamic>) {
+            final summary = item['summary']?.toString().trim();
+            if (summary != null && summary.isNotEmpty) {
+              summaries.add(summary);
+            }
+          }
+        }
+      }
+
+      if (response is Map<String, dynamic>) {
+        // Kök map'in kendisi summary içeriyorsa (decoded[0] durumu)
+        final rootSummary = response['summary']?.toString().trim();
+        if (rootSummary != null && rootSummary.isNotEmpty) {
+          summaries.add(rootSummary);
+        }
+
+        // Map içinde "cevap" listesi varsa (alternatif format)
+        if (response['cevap'] is List) {
+          final cevapList = response['cevap'] as List;
+          for (final item in cevapList) {
+            if (item is Map<String, dynamic>) {
+              final summary = item['summary']?.toString().trim();
+              if (summary != null && summary.isNotEmpty) {
+                summaries.add(summary);
+              }
+            }
+          }
+        }
+
+        // Map içinde "data" listesi varsa ve her item summary içeriyorsa
+        if (response['data'] is List) {
+          final dataList = response['data'] as List;
+          for (final item in dataList) {
+            if (item is Map<String, dynamic>) {
+              final summary = item['summary']?.toString().trim();
+              if (summary != null && summary.isNotEmpty) {
+                summaries.add(summary);
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      AppLogger.error('Info summaries extraction error', tag: 'EmailAI', error: e);
+      AppLogger.debug('Response (info): $response', 'EmailAI');
+    }
+
+    return summaries;
+  }
+
   DateTime? _parseDateTime(String? dateStr) {
     if (dateStr == null || dateStr.isEmpty) return null;
     try {
@@ -349,11 +425,12 @@ class _EmailAiSuggestionsCardState extends ConsumerState<EmailAiSuggestionsCard>
       return const SizedBox.shrink();
     }
 
-    // Event'leri çıkar
+    // Event'leri ve genel info summary'leri çıkar
     final events = _extractEvents(_n8nResponse!);
-    
-    // Eğer event yoksa gizle
-    if (events.isEmpty) {
+    final infoSummaries = _extractInfoSummaries(_n8nResponse!);
+
+    // Eğer hiç event ve summary yoksa gizle
+    if (events.isEmpty && infoSummaries.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -396,6 +473,40 @@ class _EmailAiSuggestionsCardState extends ConsumerState<EmailAiSuggestionsCard>
             ],
           ),
           const SizedBox(height: 16),
+
+          // Genel AI özetleri (event olmayan öneriler)
+          if (infoSummaries.isNotEmpty) ...[
+            Text(
+              'Genel Özetler',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            ...infoSummaries.map(
+              (summary) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 2),
+                      child: Icon(Icons.bolt, size: 16, color: Colors.blueGrey),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        summary,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
           // Event'ler
           if (events.isNotEmpty) ...[
             if (events.length > 1)
@@ -407,6 +518,30 @@ class _EmailAiSuggestionsCardState extends ConsumerState<EmailAiSuggestionsCard>
               ),
             if (events.length > 1) const SizedBox(height: 8),
             ...events.map((event) => _buildEventCard(context, event)),
+          ] else ...[
+            // Event yoksa uyarı metni
+            Container(
+              margin: const EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, size: 16, color: Colors.orange),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Takvime eklenebilecek bir aktivite bulunamadı.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Colors.orange.shade700,
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ],
       ),

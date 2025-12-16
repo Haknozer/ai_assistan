@@ -1,11 +1,12 @@
 import '../models/task.dart';
 import '../models/email.dart';
+import '../models/calendar_event.dart';
 import '../repositories/task_repository.dart';
 import '../core/utils/logger.dart';
 import 'task_scenario_service.dart';
 
 /// Otomatik görev oluşturma servisi
-/// n8n'den gelen response'ları analiz edip görevler oluşturur
+/// n8n'den gelen response'ları ve calendar event'lerini analiz edip görevler oluşturur
 class TaskAutoCreationService {
   TaskAutoCreationService._internal();
   static final TaskAutoCreationService _instance = TaskAutoCreationService._internal();
@@ -34,6 +35,19 @@ class TaskAutoCreationService {
         return [];
       }
 
+      // Tüm existing tasks'i bir kez çek (performans ve duplicate kontrolü için)
+      final existingTasks = await _taskRepository.getTasksByUserId(userId);
+      
+      // Duplicate kontrolü için bir Set oluştur (title + dueDate kombinasyonu)
+      final existingTaskKeys = <String>{};
+      for (final task in existingTasks) {
+        final dueDateStr = task.dueDate != null 
+          ? '${task.dueDate!.year}-${task.dueDate!.month}-${task.dueDate!.day}'
+          : 'no-date';
+        final key = '${task.title.toLowerCase().trim()}|$dueDateStr';
+        existingTaskKeys.add(key);
+      }
+
       final createdTasks = <Task>[];
       
       // Senaryo servisi ile görev önceliklendirme
@@ -48,6 +62,35 @@ class TaskAutoCreationService {
 
       for (final taskData in extractedTasks) {
         try {
+          // Başlık çıkar (duplicate kontrolü için)
+          final title = _extractString(taskData, [
+            'title',
+            'gorev_basligi',
+            'baslik',
+            'name',
+            'task_title',
+          ]);
+
+          if (title == null || title.isEmpty) {
+            continue;
+          }
+
+          // Due date çıkar (duplicate kontrolü için)
+          DateTime? dueDate = scenario?.getDueDate();
+          if (dueDate == null) {
+            dueDate = _extractDueDate(taskData);
+          }
+          final dueDateStr = dueDate != null
+            ? '${dueDate.year}-${dueDate.month}-${dueDate.day}'
+            : 'no-date';
+          final taskKey = '${title.toLowerCase().trim()}|$dueDateStr';
+
+          // Duplicate kontrolü
+          if (existingTaskKeys.contains(taskKey)) {
+            AppLogger.debug('Duplicate task atlandı: $title (${dueDateStr})', 'TaskAutoCreation');
+            continue;
+          }
+
           final task = await _createTaskFromData(
             userId: userId,
             taskData: taskData,
@@ -57,6 +100,8 @@ class TaskAutoCreationService {
           );
           
           if (task != null) {
+            // Yeni oluşturulan task'ı existing keys'e ekle (aynı batch içinde duplicate'leri önlemek için)
+            existingTaskKeys.add(taskKey);
             createdTasks.add(task);
             AppLogger.info(
               'Otomatik görev oluşturuldu: ${task.title} (Öncelik: ${task.priority.displayName})',
@@ -510,5 +555,273 @@ class TaskAutoCreationService {
 
     return null;
   }
-}
 
+  /// Calendar event'lerinden task oluştur (eventType = task olan event'ler)
+  Future<List<Task>> createTasksFromCalendarEvents({
+    required int userId,
+    required List<CalendarEvent> events,
+  }) async {
+    try {
+      final taskEvents = events.where((event) => event.eventType == EventType.task).toList();
+      
+      if (taskEvents.isEmpty) {
+        AppLogger.debug('Calendar event\'lerinde task bulunamadı', 'TaskAutoCreation');
+        return [];
+      }
+
+      // Tüm existing tasks'i bir kez çek (performans için)
+      final existingTasks = await _taskRepository.getTasksByUserId(userId);
+      
+      // Duplicate kontrolü için bir Set oluştur (title + dueDate kombinasyonu)
+      final existingTaskKeys = <String>{};
+      for (final task in existingTasks) {
+        final dueDateStr = task.dueDate != null 
+          ? '${task.dueDate!.year}-${task.dueDate!.month}-${task.dueDate!.day}'
+          : 'no-date';
+        final key = '${task.title.toLowerCase().trim()}|$dueDateStr';
+        existingTaskKeys.add(key);
+      }
+
+      final createdTasks = <Task>[];
+      
+      for (final event in taskEvents) {
+        try {
+          // Duplicate kontrolü - title + dueDate kombinasyonu
+          final eventDueDateStr = '${event.startTime.year}-${event.startTime.month}-${event.startTime.day}';
+          final eventKey = '${event.title.toLowerCase().trim()}|$eventDueDateStr';
+          
+          if (existingTaskKeys.contains(eventKey)) {
+            AppLogger.debug('Duplicate task atlandı: ${event.title} (${eventDueDateStr})', 'TaskAutoCreation');
+            continue;
+          }
+
+          // Task oluştur
+          final task = await _taskRepository.createTask(
+            userId: userId,
+            title: event.title,
+            description: event.description,
+            status: TaskStatus.pending,
+            priority: TaskPriority.medium,
+            dueDate: event.startTime, // Task'in due date'i event'in start time'ı
+          );
+
+          // Yeni oluşturulan task'ı existing keys'e ekle (aynı batch içinde duplicate'leri önlemek için)
+          existingTaskKeys.add(eventKey);
+          createdTasks.add(task);
+          AppLogger.info(
+            'Calendar event\'inden otomatik görev oluşturuldu: ${task.title} (Due: ${task.formattedDueDate})',
+            'TaskAutoCreation',
+          );
+        } catch (e) {
+          AppLogger.error(
+            'Calendar event\'inden görev oluşturulurken hata: ${event.title}',
+            tag: 'TaskAutoCreation',
+            error: e,
+          );
+        }
+      }
+
+      return createdTasks;
+    } catch (e) {
+      AppLogger.error(
+        'Calendar event\'lerinden görev çıkarılırken hata',
+        tag: 'TaskAutoCreation',
+        error: e,
+      );
+      return [];
+    }
+  }
+
+  /// n8n response'undan kategori "task" olan event'leri task olarak oluştur
+  Future<List<Task>> createTasksFromN8nCalendarEvents({
+    required int userId,
+    required Map<String, dynamic> n8nResponse,
+    String? sourceEmailId,
+    String? sourceEmailSubject,
+  }) async {
+    try {
+      // n8n response formatı: [[{cevap: [...], tip: "gorev_listesi"}]]
+      final events = _extractCalendarEventsFromResponse(n8nResponse);
+      
+      // Sadece kategori "task" olan event'leri filtrele
+      // Kategori kontrolü: "task", "Task", "TASK", "görev", "Görev" gibi varyasyonları kabul et
+      final taskEvents = events.where((event) {
+        final kategori = event['kategori'] as String?;
+        if (kategori == null || kategori.isEmpty) {
+          return false;
+        }
+        final kategoriLower = kategori.toLowerCase().trim();
+        // "task" veya "görev" kategorilerini kabul et
+        return kategoriLower == 'task' || kategoriLower == 'görev';
+      }).toList();
+      
+      AppLogger.debug('n8n response\'unda ${events.length} event bulundu, ${taskEvents.length} tanesi task kategorisinde', 'TaskAutoCreation');
+
+      if (taskEvents.isEmpty) {
+        AppLogger.debug('n8n response\'unda task kategorisinde event bulunamadı', 'TaskAutoCreation');
+        return [];
+      }
+
+      // Tüm existing tasks'i bir kez çek (performans için)
+      final existingTasks = await _taskRepository.getTasksByUserId(userId);
+      
+      // Duplicate kontrolü için bir Set oluştur (title + dueDate kombinasyonu)
+      final existingTaskKeys = <String>{};
+      for (final task in existingTasks) {
+        final dueDateStr = task.dueDate != null 
+          ? '${task.dueDate!.year}-${task.dueDate!.month}-${task.dueDate!.day}'
+          : 'no-date';
+        final key = '${task.title.toLowerCase().trim()}|$dueDateStr';
+        existingTaskKeys.add(key);
+      }
+
+      final createdTasks = <Task>[];
+      
+      for (final eventData in taskEvents) {
+        try {
+          final baslik = eventData['baslik'] as String? ?? '';
+          if (baslik.isEmpty) {
+            continue;
+          }
+
+          final detay = eventData['detay'] as String?;
+          final baslangic = eventData['baslangic'] as String?;
+          DateTime? dueDate;
+          
+          if (baslangic != null && baslangic.isNotEmpty) {
+            try {
+              dueDate = DateTime.parse(baslangic);
+            } catch (e) {
+              AppLogger.debug('Tarih parse edilemedi: $baslangic', 'TaskAutoCreation');
+            }
+          }
+
+          // Duplicate kontrolü - title + dueDate kombinasyonu
+          final eventDueDateStr = dueDate != null
+            ? '${dueDate.year}-${dueDate.month}-${dueDate.day}'
+            : 'no-date';
+          final eventKey = '${baslik.toLowerCase().trim()}|$eventDueDateStr';
+          
+          if (existingTaskKeys.contains(eventKey)) {
+            AppLogger.debug('Duplicate task atlandı: $baslik (${eventDueDateStr})', 'TaskAutoCreation');
+            continue;
+          }
+
+          // Task oluştur
+          final task = await _taskRepository.createTask(
+            userId: userId,
+            title: baslik,
+            description: detay,
+            status: TaskStatus.pending,
+            priority: TaskPriority.medium,
+            dueDate: dueDate,
+          );
+
+          // Yeni oluşturulan task'ı existing keys'e ekle (aynı batch içinde duplicate'leri önlemek için)
+          existingTaskKeys.add(eventKey);
+          createdTasks.add(task);
+          AppLogger.info(
+            'n8n calendar event\'inden otomatik görev oluşturuldu: ${task.title} (Due: ${task.formattedDueDate})',
+            'TaskAutoCreation',
+          );
+        } catch (e) {
+          AppLogger.error(
+            'n8n calendar event\'inden görev oluşturulurken hata: ${eventData['baslik'] ?? 'Bilinmeyen'}',
+            tag: 'TaskAutoCreation',
+            error: e,
+          );
+        }
+      }
+
+      return createdTasks;
+    } catch (e) {
+      AppLogger.error(
+        'n8n calendar event\'lerinden görev çıkarılırken hata',
+        tag: 'TaskAutoCreation',
+        error: e,
+      );
+      return [];
+    }
+  }
+
+  /// n8n response'undan calendar event'lerini çıkar
+  List<Map<String, dynamic>> _extractCalendarEventsFromResponse(Map<String, dynamic> response) {
+    final events = <Map<String, dynamic>>[];
+
+    try {
+      // Format: [[{cevap: [...], tip: "gorev_listesi"}]]
+      final data = response['data'];
+      if (data is List) {
+        final dataList = data;
+        for (final item in dataList) {
+          if (item is List) {
+            for (final subItem in item) {
+              if (subItem is Map<String, dynamic>) {
+                final tip = subItem['tip'] as String?;
+                if (tip == 'gorev_listesi' && subItem.containsKey('cevap')) {
+                  final cevap = subItem['cevap'];
+                  if (cevap is List) {
+                    for (final event in cevap) {
+                      if (event is Map<String, dynamic>) {
+                        events.add(event);
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } else {
+        // Alternatif format: data, tek katmanlı liste içerebilir
+        // Örn: { data: [{cevap: [...], tip: "gorev_listesi"}] }
+        if (data is List) {
+          for (final item in data) {
+            if (item is Map<String, dynamic>) {
+              final tip = item['tip'] as String?;
+              if (tip == 'gorev_listesi' && item.containsKey('cevap')) {
+                final cevap = item['cevap'];
+                if (cevap is List) {
+                  for (final event in cevap) {
+                    if (event is Map<String, dynamic>) {
+                      events.add(event);
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Alternatif format: response tek katmanlı ve cevap içeren map olabilir
+      // Örn: { cevap: [...], tip: "gorev_listesi" }
+      if (events.isEmpty && response.containsKey('cevap') && response['cevap'] is List) {
+        final tip = response['tip'] as String?;
+        if (tip == null || tip == 'gorev_listesi') {
+          final cevap = response['cevap'] as List;
+          for (final event in cevap) {
+            if (event is Map<String, dynamic>) {
+              events.add(event);
+            }
+          }
+        }
+      }
+
+      // Alternatif format: response'un kendisi List ise ve Map olarak wrap edilmediyse
+      // Bu durumda response parametresi Map olduğu için buraya düşmez, ancak
+      // yanlış parse durumlarını engellemek için events boş ise loglama yapılabilir.
+      if (events.isEmpty && data == null) {
+        AppLogger.debug('n8n response data alanı boş veya uyumsuz format', 'TaskAutoCreation');
+      }
+    } catch (e) {
+      AppLogger.error(
+        'Calendar event\'leri çıkarılırken hata',
+        tag: 'TaskAutoCreation',
+        error: e,
+      );
+    }
+
+    return events;
+  }
+}

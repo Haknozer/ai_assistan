@@ -274,19 +274,19 @@ class CalendarEvent {
     return Duration.zero;
   }
 
-  // Etkinlik türüne göre renk
+  // Etkinlik türüne göre renk (CalendarUtils.getEventTypeColor ile uyumlu)
   String get eventTypeColor {
     switch (eventType) {
       case EventType.meeting:
-        return '#2196F3'; // Blue
+        return '#2196F3'; // Mavi - Meeting
       case EventType.appointment:
-        return '#9C27B0'; // Purple
+        return '#4CAF50'; // Yeşil - Appointment
       case EventType.task:
-        return '#4CAF50'; // Green
+        return '#FF9800'; // Turuncu - Task
       case EventType.personal:
-        return '#FF9800'; // Orange
+        return '#9C27B0'; // Mor - Personal/Social
       case EventType.other:
-        return '#757575'; // Grey
+        return '#757575'; // Gri - Other
     }
   }
 

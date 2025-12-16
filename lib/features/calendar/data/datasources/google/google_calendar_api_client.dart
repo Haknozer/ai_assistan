@@ -154,6 +154,32 @@ class GoogleCalendarApiClient {
       if (location != null && location.isNotEmpty) {
         eventData['location'] = location;
       }
+      
+      // Event type'a göre colorId ekle (Google Calendar renkleri için)
+      // colorId: "11" = meeting, "5" = social, "9" = task, "10" = appointment
+      if (eventType != null) {
+        switch (eventType) {
+          case EventType.meeting:
+            eventData['colorId'] = '11'; // Meeting (Mavi)
+            debugPrint('📅 Google Calendar - colorId 11 (meeting) eklendi');
+            break;
+          case EventType.personal:
+            eventData['colorId'] = '5'; // Social (Mor)
+            debugPrint('📅 Google Calendar - colorId 5 (social) eklendi');
+            break;
+          case EventType.task:
+            eventData['colorId'] = '9'; // Task (Turuncu)
+            debugPrint('📅 Google Calendar - colorId 9 (task) eklendi');
+            break;
+          case EventType.appointment:
+            eventData['colorId'] = '10'; // Appointment (Yeşil)
+            debugPrint('📅 Google Calendar - colorId 10 (appointment) eklendi');
+            break;
+          default:
+            // Diğer durumlar için colorId ekleme
+            break;
+        }
+      }
 
       // Debug: Request body'yi logla
       debugPrint('📤 Google Calendar API - Event oluşturma isteği:');
@@ -170,7 +196,13 @@ class GoogleCalendarApiClient {
 
       debugPrint('✅ Google Calendar API - Event başarıyla oluşturuldu');
 
-      return _parseGoogleCalendarEvent(response, userId: userId);
+      // Parse edilen event'e eventType'ı manuel olarak set et
+      // (API response'unda colorId olmayabilir veya farklı olabilir)
+      final parsedEvent = _parseGoogleCalendarEvent(response, userId: userId);
+      if (eventType != null) {
+        return parsedEvent.copyWith(eventType: eventType);
+      }
+      return parsedEvent;
     } on ValidationException catch (e) {
       // HTTP 400 hatası için detaylı log
       debugPrint('❌ Google Calendar API - Validation hatası (400):');
@@ -324,7 +356,7 @@ class GoogleCalendarApiClient {
     final updatedAt = updatedStr != null ? DateTime.parse(updatedStr) : DateTime.now();
     
     // Event type - Önce colorId'den çıkar (n8n'den gelen event'lerde kategori bilgisi burada)
-    // colorId: "11" = meeting, "5" = social, "9" = task
+    // colorId: "11" = meeting, "5" = social, "9" = task, "10" = appointment
     EventType eventType = EventType.personal;
     final colorId = eventData['colorId'] as String?;
     if (colorId != null && colorId.isNotEmpty) {
@@ -340,6 +372,10 @@ class GoogleCalendarApiClient {
         case '9': // Task
           eventType = EventType.task;
           debugPrint('📅 Google Calendar - colorId 9 (task) bulundu');
+          break;
+        case '10': // Appointment
+          eventType = EventType.appointment;
+          debugPrint('📅 Google Calendar - colorId 10 (appointment) bulundu');
           break;
         default:
           // colorId varsa ama tanınmıyorsa, description'dan çıkar

@@ -202,6 +202,36 @@ class OutlookCalendarApiClient {
           'displayName': location,
         };
       }
+      
+      // Event type'a göre categories ekle (Outlook Calendar renkleri için)
+      // categories: ["Meeting"], ["Social"], ["Task"]
+      if (eventType != null) {
+        final categories = <String>[];
+        switch (eventType) {
+          case EventType.meeting:
+            categories.add('Meeting');
+            debugPrint('📅 Outlook Calendar - Category "Meeting" eklendi');
+            break;
+          case EventType.personal:
+            categories.add('Social');
+            debugPrint('📅 Outlook Calendar - Category "Social" eklendi');
+            break;
+          case EventType.task:
+            categories.add('Task');
+            debugPrint('📅 Outlook Calendar - Category "Task" eklendi');
+            break;
+          case EventType.appointment:
+            categories.add('Appointment');
+            debugPrint('📅 Outlook Calendar - Category "Appointment" eklendi');
+            break;
+          default:
+            // Diğer durumlar için category ekleme
+            break;
+        }
+        if (categories.isNotEmpty) {
+          eventData['categories'] = categories;
+        }
+      }
 
       // Debug: Request body'yi logla
       debugPrint('📤 Outlook Calendar API - Event oluşturma isteği:');
@@ -223,6 +253,12 @@ class OutlookCalendarApiClient {
         throw ApiException(
           message: 'Event oluşturuldu ancak parse edilemedi',
         );
+      }
+      
+      // Parse edilen event'e eventType'ı manuel olarak set et
+      // (API response'unda categories olmayabilir veya farklı olabilir)
+      if (eventType != null) {
+        return parsedEvent.copyWith(eventType: eventType);
       }
       return parsedEvent;
     } on ValidationException catch (e) {
@@ -429,7 +465,7 @@ class OutlookCalendarApiClient {
       final updatedAt = updatedStr != null ? DateTime.parse(updatedStr) : DateTime.now();
       
       // Event type - Önce categories'den çıkar (n8n'den gelen event'lerde kategori bilgisi burada)
-      // categories: ["Meeting"], ["Social"], ["Task"]
+      // categories: ["Meeting"], ["Social"], ["Task"], ["Appointment"]
       EventType eventType = EventType.personal;
       final categories = eventData['categories'] as List<dynamic>?;
       if (categories != null && categories.isNotEmpty) {
@@ -446,6 +482,10 @@ class OutlookCalendarApiClient {
           case 'task':
             eventType = EventType.task;
             debugPrint('📅 Outlook Calendar - Category "Task" bulundu');
+            break;
+          case 'appointment':
+            eventType = EventType.appointment;
+            debugPrint('📅 Outlook Calendar - Category "Appointment" bulundu');
             break;
           default:
             // Category varsa ama tanınmıyorsa, description'dan çıkar

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../models/email.dart';
@@ -9,6 +10,7 @@ import '../../widgets/layout/side_menu.dart';
 import '../../../providers/user_provider.dart';
 import '../../../providers/email_account_provider.dart';
 import '../../../features/email/providers/email_provider.dart';
+import '../../../services/n8n_response_storage_service.dart';
 import '../../widgets/email/email_page_header.dart';
 import '../../widgets/email/search_and_filter_bar.dart';
 import '../../widgets/email/email_filter_section.dart';
@@ -85,6 +87,34 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
       return null;
     }
     return filtered[_selectedEmailIndex!];
+  }
+
+  /// DEBUG: Lokal n8n email response cache'ini ve forwarded email ID'lerini temizle
+  Future<void> _debugClearLocalEmailAiCache(EmailNotifier emailNotifier) async {
+    try {
+      // 1) n8n email response cache'ini temizle (SharedPreferences)
+      await N8nResponseStorageService().clearAllEmailResponses();
+      // 2) Daha önce n8n'e forward edilmiş email ID'lerini temizle
+      await emailNotifier.clearForwardedEmailIds();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Yerel email AI cache temizlendi (n8n + forwarded IDs).'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Cache temizlenirken hata oluştu: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -418,6 +448,19 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                     },
                   ),
 
+                  // DEBUG: Lokal n8n email cache temizleme butonu
+                  if (kDebugMode) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () => _debugClearLocalEmailAiCache(emailNotifier),
+                        icon: const Icon(Icons.delete_sweep, size: 18),
+                        label: const Text('AI Mail Cache\'ini Temizle'),
+                      ),
+                    ),
+                  ],
+
                   const SizedBox(height: 24),
 
                   // İki Panelli Düzen (Liste + Detay)
@@ -556,6 +599,18 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                         });
                       },
                     ),
+                    // DEBUG: Lokal n8n email cache temizleme butonu (mobil)
+                    if (kDebugMode) ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton.icon(
+                          onPressed: () => _debugClearLocalEmailAiCache(emailNotifier),
+                          icon: const Icon(Icons.delete_sweep, size: 18),
+                          label: const Text('AI Mail Cache\'ini Temizle'),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     Expanded(
                       child: EmailList(

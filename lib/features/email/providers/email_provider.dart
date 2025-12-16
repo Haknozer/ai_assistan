@@ -9,6 +9,7 @@ import 'package:ai_asisstan/services/n8n_forwarder_service.dart';
 import 'package:ai_asisstan/services/n8n_response_storage_service.dart';
 import 'package:ai_asisstan/services/task_auto_creation_service.dart';
 import 'package:ai_asisstan/core/utils/logger.dart';
+import 'package:ai_asisstan/providers/calendar_refresh_provider.dart';
 
 /// Email repository provider
 final emailRepositoryProvider = Provider<EmailRepository>((ref) {
@@ -203,6 +204,8 @@ class EmailNotifier extends StateNotifier<AsyncValue<List<Email>>> {
         // Otomatik görev oluşturma (n8n response'undan)
         try {
           final taskService = TaskAutoCreationService();
+          
+          // 1. n8n response'undan direkt task'ları oluştur
           final createdTasks = await taskService.createTasksFromN8nResponse(
             userId: email.userId,
             n8nResponse: n8nResponse,
@@ -211,11 +214,30 @@ class EmailNotifier extends StateNotifier<AsyncValue<List<Email>>> {
             sourceEmail: email,
           );
 
-          if (createdTasks.isNotEmpty) {
+          // 2. n8n response'undan kategori "task" olan calendar event'lerini task olarak oluştur
+          final createdTasksFromEvents = await taskService.createTasksFromN8nCalendarEvents(
+            userId: email.userId,
+            n8nResponse: n8nResponse,
+            sourceEmailId: emailId,
+            sourceEmailSubject: email.subject,
+          );
+
+          final totalTasks = createdTasks.length + createdTasksFromEvents.length;
+          if (totalTasks > 0) {
             AppLogger.info(
-              '${createdTasks.length} otomatik görev oluşturuldu (Email: ${email.subject})',
+              '$totalTasks otomatik görev oluşturuldu (Email: ${email.subject}) - ${createdTasks.length} direkt task, ${createdTasksFromEvents.length} calendar event\'ten',
               'TaskAutoCreation',
             );
+          }
+          
+          // n8n response'unda calendar event'leri varsa takvimi yenile
+          // createdTasksFromEvents.length > 0 ise calendar event'leri var demektir
+          if (createdTasksFromEvents.isNotEmpty) {
+            // Calendar refresh provider'ı tetikle (takvimi otomatik yenilemek için)
+            // Bu provider calendar screen'de dinlenecek
+            AppLogger.debug('n8n response\'unda ${createdTasksFromEvents.length} calendar event bulundu, takvim yenileme tetiklendi', 'N8N');
+            // Calendar refresh provider'ı tetikle
+            _triggerCalendarRefresh();
           }
         } catch (e) {
           AppLogger.error(
@@ -225,6 +247,20 @@ class EmailNotifier extends StateNotifier<AsyncValue<List<Email>>> {
           );
         }
       }
+      
+      // n8n response'unda calendar event'leri varsa takvimi yenile
+      // Response'u kontrol et - calendar event'leri var mı?
+      try {
+        // Response'da calendar event'leri olup olmadığını kontrol et
+        final hasCalendarEvents = _hasCalendarEventsInResponse(n8nResponse);
+        if (hasCalendarEvents) {
+          // Calendar refresh provider'ı tetikle
+          AppLogger.debug('n8n response\'unda calendar event\'leri bulundu, takvim yenileme tetiklendi', 'N8N');
+          _triggerCalendarRefresh();
+        }
+      } catch (e) {
+        AppLogger.error('Calendar event kontrolü sırasında hata', tag: 'N8N', error: e);
+      }
 
       // Forward edildi olarak işaretle ve kalıcı olarak kaydet
       _forwardedEmailIds.add(emailId);
@@ -232,6 +268,49 @@ class EmailNotifier extends StateNotifier<AsyncValue<List<Email>>> {
         AppLogger.error('Forward edilen email ID kaydedilemedi', tag: 'N8N', error: e);
       });
     }
+  }
+
+  /// Calendar refresh provider'ı tetikle (global erişim için)
+  void _triggerCalendarRefresh() {
+    try {
+      // Global calendar refresh instance'ı kullan
+      GlobalCalendarRefresh.refresh();
+      AppLogger.debug('Calendar refresh provider tetiklendi', 'N8N');
+    } catch (e) {
+      AppLogger.error('Calendar refresh tetiklenirken hata', tag: 'N8N', error: e);
+    }
+  }
+
+  /// n8n response'unda calendar event'leri var mı kontrol et
+  bool _hasCalendarEventsInResponse(Map<String, dynamic>? response) {
+    if (response == null) return false;
+    
+    try {
+      // Format: [[{cevap: [...], tip: "gorev_listesi"}]]
+      if (response.containsKey('data') && response['data'] is List) {
+        final dataList = response['data'] as List;
+        for (final item in dataList) {
+          if (item is List) {
+            for (final subItem in item) {
+              if (subItem is Map<String, dynamic>) {
+                final tip = subItem['tip'] as String?;
+                if (tip == 'gorev_listesi' && subItem.containsKey('cevap')) {
+                  final cevap = subItem['cevap'];
+                  if (cevap is List && cevap.isNotEmpty) {
+                    return true; // Calendar event'leri var
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Hata durumunda false döndür
+      return false;
+    }
+    
+    return false;
   }
 
   /// Email listesini yenile
