@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../features/analytics/providers/analytics_provider.dart';
+import '../../../features/analytics/data/mock_analytics.dart';
 
-class TaskCompletionCard extends StatelessWidget {
+class TaskCompletionCard extends ConsumerWidget {
   const TaskCompletionCard({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // Örnek veriler - gerçek veriler API'den gelecek
-    const completedTasks = 12;
-    const totalTasks = 20;
-    const completionRate = (completedTasks / totalTasks);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final statCardsAsync = ref.watch(statCardsProvider);
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -27,27 +27,53 @@ class TaskCompletionCard extends StatelessWidget {
           width: 1,
         ),
       ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Başlık Bölümü
-          _CardHeader(),
+      child: statCardsAsync.when(
+        data: (stats) {
+          // "Tamamlanan Görevler" kartını bul
+          StatCardData? card;
+          try {
+            card = stats.firstWhere((s) => s.title == 'Tamamlanan Görevler');
+          } catch (_) {
+            card = null;
+          }
 
-          SizedBox(height: 20),
+          int completed = 0;
+          int total = 0;
 
-          // Progress Bar Bölümü
-          _ProgressSection(
-            completionRate: completionRate,
-          ),
+          if (card != null) {
+            // Örn: mainValue = "24", subValue = "38 görevden"
+            completed = int.tryParse(card.mainValue.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+            final match = RegExp(r'(\d+)').firstMatch(card.subValue);
+            if (match != null) {
+              total = int.tryParse(match.group(1) ?? '0') ?? 0;
+            }
+          }
 
-          SizedBox(height: 16),
+          final completionRate = (total > 0) ? (completed / total) : 0.0;
 
-          // Özet Bölümü
-          _TaskSummary(
-            completedTasks: completedTasks,
-            totalTasks: totalTasks,
-          ),
-        ],
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _CardHeader(),
+              const SizedBox(height: 20),
+              _ProgressSection(completionRate: completionRate),
+              const SizedBox(height: 16),
+              _TaskSummary(completedTasks: completed, totalTasks: total),
+            ],
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _CardHeader(),
+            const SizedBox(height: 12),
+            Text(
+              'Görev tamamlama verisi yüklenemedi: $e',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
       ),
     );
   }

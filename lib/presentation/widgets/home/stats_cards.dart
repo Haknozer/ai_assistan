@@ -1,10 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../features/analytics/providers/analytics_provider.dart';
+import '../../../features/analytics/data/mock_analytics.dart';
 
-class StatsCards extends StatelessWidget {
+class StatsCards extends ConsumerWidget {
   const StatsCards({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final statCardsAsync = ref.watch(statCardsProvider);
+
+    return statCardsAsync.when(
+      data: (stats) => _buildGrid(context, stats),
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Padding(
+        padding: const EdgeInsets.all(8),
+        child: Text(
+          'İstatistikler yüklenemedi: $e',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGrid(BuildContext context, List<StatCardData> stats) {
     return LayoutBuilder(
       builder: (context, constraints) {
         int crossAxisCount;
@@ -32,6 +51,21 @@ class StatsCards extends StatelessWidget {
           crossAxisSpacing = 0;
         }
 
+        // Analytics ekranındaki 4 kartı home için yeniden kullan
+        // Sıra: Tamamlanan Görevler, Toplantılar, E-posta, Verimlilik Skoru
+        StatCardData? findCard(String title) {
+          try {
+            return stats.firstWhere((s) => s.title == title);
+          } catch (_) {
+            return null;
+          }
+        }
+
+        final completedTasks = findCard('Tamamlanan Görevler');
+        final meetings = findCard('Toplantılar');
+        final emails = findCard('E-posta');
+        final productivity = findCard('Verimlilik Skoru');
+
         return GridView.count(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -42,35 +76,35 @@ class StatsCards extends StatelessWidget {
           children: [
             _buildDualStatCard(
               context,
-              'Bekleyen Görevler',
-              '3',
-              '24 Tamamlandı',
+              completedTasks?.title ?? 'Tamamlanan Görevler',
+              completedTasks?.mainValue ?? '0',
+              completedTasks?.trendValue ?? '%0 Tamamlandı',
               Icons.pending_actions_outlined,
-              Colors.orange,
+              completedTasks?.color ?? Colors.orange,
             ),
             _buildDualStatCard(
               context,
-              'Bugünkü Toplantılar',
-              '2',
-              '1 Tamamlandı',
+              meetings?.title ?? 'Toplantılar',
+              meetings?.mainValue ?? '0',
+              meetings?.trendValue ?? 'Bu ay toplantı yok',
               Icons.groups_outlined,
-              Colors.blue,
+              meetings?.color ?? Colors.blue,
             ),
             _buildDualStatCard(
               context,
-              'Okunmamış E-postalar',
-              '8',
-              '15 Okundu',
+              emails?.title ?? 'E-posta',
+              emails?.mainValue ?? '0',
+              emails?.trendValue ?? 'Önemli e-posta yok',
               Icons.mark_email_unread_outlined,
-              Colors.purple,
+              emails?.color ?? Colors.purple,
             ),
             _buildDualStatCard(
               context,
-              'Verimlilik Skoru',
-              '85%',
-              '%12 Artış',
+              productivity?.title ?? 'Verimlilik Skoru',
+              productivity?.mainValue ?? '0%',
+              productivity?.trendValue ?? 'Hedef verisi yok',
               Icons.trending_up_outlined,
-              Colors.green,
+              productivity?.color ?? Colors.green,
             ),
           ],
         );

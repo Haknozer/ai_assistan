@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../models/task.dart';
+import '../../../features/tasks/providers/tasks_provider.dart';
 
-class TodayTasksCard extends StatelessWidget {
+class TodayTasksCard extends ConsumerWidget {
   final double height;
 
   const TodayTasksCard({
@@ -9,45 +12,8 @@ class TodayTasksCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    // Örnek görev verileri
-    final tasks = [
-      {
-        'title': 'Proje sunumu hazırlama',
-        'priority': 'Yüksek',
-        'description': 'Sprint sonu sunumu için slaytlar ve demo hazırlanması gerekiyor',
-        'deadline': '2024-11-02',
-        'color': Colors.red,
-      },
-      {
-        'title': 'Müşteri toplantısı',
-        'priority': 'Orta',
-        'description': 'Yeni özellik taleplerinin görüşüleceği Zoom toplantısı',
-        'deadline': '2024-11-01',
-        'color': Colors.blue,
-      },
-      {
-        'title': 'Kod incelemesi',
-        'priority': 'Yüksek',
-        'description': 'Yeni özellik branch\'inin kod review süreci',
-        'deadline': '2024-11-01',
-        'color': Colors.purple,
-      },
-      {
-        'title': 'Rapor tamamlama',
-        'priority': 'Düşük',
-        'description': 'Aylık performans ve ilerleme raporunun hazırlanması',
-        'deadline': '2024-11-05',
-        'color': Colors.green,
-      },
-      {
-        'title': 'E-posta yanıtları',
-        'priority': 'Orta',
-        'description': 'Müşteri ve ekip gelen kutusunun kontrol edilip yanıtlanması',
-        'deadline': '2024-11-01',
-        'color': Colors.orange,
-      },
-    ];
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tasksAsync = ref.watch(tasksNotifierProvider);
 
     return Container(
       height: height,
@@ -70,7 +36,7 @@ class TodayTasksCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Sadece başlık
+          // Başlık
           Text(
             'Bugünkü Görevler',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -79,48 +45,89 @@ class TodayTasksCard extends StatelessWidget {
                 ),
           ),
           const SizedBox(height: 20),
-          // Scrollable task list
+
+          // Scrollable task list (gerçek veriden)
           Expanded(
-            child: ListView.builder(
-              itemCount: tasks.length,
-              itemBuilder: (context, index) {
-                final task = tasks[index];
-                return _TaskItem(
-                  title: task['title'] as String,
-                  priority: task['priority'] as String,
-                  description: task['description'] as String,
-                  deadline: task['deadline'] as String,
-                  color: task['color'] as Color,
+            child: tasksAsync.when(
+              data: (tasks) {
+                final todayTasks = _filterTodayTasks(tasks);
+
+                if (todayTasks.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'Bugün için görev bulunmuyor.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  itemCount: todayTasks.length,
+                  itemBuilder: (context, index) {
+                    final task = todayTasks[index];
+                    return _TaskItem(task: task);
+                  },
                 );
               },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(
+                child: Text(
+                  'Görevler yüklenemedi: $e',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
             ),
           ),
         ],
       ),
     );
   }
+
+  /// Bugüne ait (dueDate'i bugün olan veya dueDate boşsa bugün oluşturulmuş),
+  /// ve tamamlanmamış (pending / inProgress) görevleri filtreler.
+  List<Task> _filterTodayTasks(List<Task> tasks) {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final todayEnd = todayStart.add(const Duration(days: 1)).subtract(const Duration(milliseconds: 1));
+
+    return tasks.where((task) {
+      if (task.status == TaskStatus.completed || task.status == TaskStatus.cancelled) {
+        return false;
+      }
+
+      DateTime basis;
+      if (task.dueDate != null) {
+        basis = task.dueDate!;
+      } else {
+        basis = task.createdAt;
+      }
+
+      return basis.isAfter(todayStart.subtract(const Duration(milliseconds: 1))) &&
+          basis.isBefore(todayEnd.add(const Duration(milliseconds: 1)));
+    }).toList()
+      ..sort((a, b) {
+        // Önce dueDate'e göre, sonra önceliğe göre sırala
+        final aDue = a.dueDate ?? a.createdAt;
+        final bDue = b.dueDate ?? b.createdAt;
+        final cmp = aDue.compareTo(bDue);
+        if (cmp != 0) return cmp;
+        return b.priority.index.compareTo(a.priority.index); // urgent > high > ...
+      });
+  }
 }
 
 class _TaskItem extends StatelessWidget {
-  final String title;
-  final String priority;
-  final String description;
-  final String deadline;
-  final Color color;
+  final Task task;
 
   const _TaskItem({
-    required this.title,
-    required this.priority,
-    required this.description,
-    required this.deadline,
-    required this.color,
+    required this.task,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Format deadline
-    final deadlineDate = DateTime.parse(deadline);
-    final formattedDeadline = '${deadlineDate.day}/${deadlineDate.month}/${deadlineDate.year}';
+    final color = _priorityColor(task.priority);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -161,7 +168,7 @@ class _TaskItem extends StatelessWidget {
               // Başlık
               Expanded(
                 child: Text(
-                  title,
+                  task.title,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: Theme.of(context).colorScheme.onSurface,
                         fontWeight: FontWeight.w600,
@@ -183,7 +190,7 @@ class _TaskItem extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  priority,
+                  task.priority.displayName,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: color,
                         fontWeight: FontWeight.w600,
@@ -198,7 +205,9 @@ class _TaskItem extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(left: 24),
             child: Text(
-              description,
+              task.description?.trim().isNotEmpty == true
+                  ? task.description!
+                  : 'Açıklama eklenmemiş.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: 13,
@@ -220,7 +229,9 @@ class _TaskItem extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  'Son Tarih: $formattedDeadline',
+                  task.dueDate != null
+                      ? 'Son Tarih: ${task.formattedDueDate}'
+                      : 'Son tarih belirlenmemiş',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 12,
@@ -232,5 +243,18 @@ class _TaskItem extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Color _priorityColor(TaskPriority priority) {
+    switch (priority) {
+      case TaskPriority.urgent:
+        return Colors.red;
+      case TaskPriority.high:
+        return Colors.orange;
+      case TaskPriority.medium:
+        return Colors.blue;
+      case TaskPriority.low:
+        return Colors.green;
+    }
   }
 }

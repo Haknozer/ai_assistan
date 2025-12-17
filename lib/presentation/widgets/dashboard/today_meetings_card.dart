@@ -1,10 +1,148 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../models/calendar_event.dart';
+import '../../../providers/user_provider.dart';
+import '../../../providers/calendar_account_provider.dart';
+import '../../../features/calendar/providers/calendar_provider.dart';
+import '../../../models/calendar_account.dart';
 
-class TodayMeetingsCard extends StatelessWidget {
+class TodayMeetingsCard extends ConsumerWidget {
   const TodayMeetingsCard({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentUser = ref.watch(currentUserProvider);
+    if (currentUser == null) {
+      return const SizedBox.shrink();
+    }
+
+    // Bugünün zaman aralığı
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final todayEnd = todayStart.add(const Duration(days: 1));
+
+    // Calendar hesaplarını al (Google / Outlook)
+    final accountsAsync = ref.watch(
+      calendarAccountsProvider(CalendarAccountsParams(userId: currentUser.id)),
+    );
+
+    return accountsAsync.when(
+      loading: () => _buildContainer(
+        context,
+        const Expanded(child: Center(child: CircularProgressIndicator())),
+      ),
+      error: (e, _) => _buildContainer(
+        context,
+        Expanded(
+          child: Center(
+            child: Text(
+              'Calendar hesapları yüklenemedi: $e',
+              style: Theme.of(context).textTheme.bodySmall,
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ),
+      data: (accounts) {
+        // Google ve Outlook tokenlarını çıkar
+        String? googleToken;
+        String? outlookToken;
+        try {
+          googleToken = accounts
+              .firstWhere(
+                (a) => a.provider == CalendarProvider.google && a.isActive,
+              )
+              .accessToken;
+        } catch (_) {
+          googleToken = null;
+        }
+        try {
+          outlookToken = accounts
+              .firstWhere(
+                (a) => a.provider == CalendarProvider.outlook && a.isActive,
+              )
+              .accessToken;
+        } catch (_) {
+          outlookToken = null;
+        }
+
+        final calendarRepo = ref.watch(calendarRepositoryProvider);
+
+        return FutureBuilder<List<CalendarEvent>>(
+          future: calendarRepo.getAllCombinedEvents(
+            calendarId: 'primary',
+            timeMin: todayStart,
+            timeMax: todayEnd,
+            googleAccessToken: googleToken,
+            outlookAccessToken: outlookToken,
+            userId: currentUser.id,
+          ),
+          builder: (context, snapshot) {
+            final isLoading = snapshot.connectionState == ConnectionState.waiting;
+            final error = snapshot.error;
+            final events = snapshot.data ?? [];
+
+            // Sadece bugünkü toplantı türündeki event'ler
+            final meetings = events.where((e) => e.eventType == EventType.meeting).toList()
+              ..sort((a, b) => a.startTime.compareTo(b.startTime));
+
+            if (isLoading) {
+              return _buildContainer(
+                context,
+                const Expanded(child: Center(child: CircularProgressIndicator())),
+              );
+            }
+
+            if (error != null) {
+              return _buildContainer(
+                context,
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      'Toplantılar yüklenemedi: $error',
+                      style: Theme.of(context).textTheme.bodySmall,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            if (meetings.isEmpty) {
+              return _buildContainer(
+                context,
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      'Bugün için toplantı bulunmuyor.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            return _buildContainer(
+              context,
+              Expanded(
+                child: ListView.builder(
+                  itemCount: meetings.length,
+                  itemBuilder: (context, index) {
+                    final event = meetings[index];
+                    return _MeetingItem.fromEvent(event);
+                  },
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildContainer(BuildContext context, Widget content) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -51,30 +189,7 @@ class TodayMeetingsCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          Expanded(
-            child: ListView(
-              children: const [
-                _MeetingItem(
-                  title: 'Tasarım Toplantısı',
-                  time: '10:00',
-                  platform: 'Zoom',
-                  timeRemaining: '2 saat kaldı',
-                ),
-                _MeetingItem(
-                  title: 'Müşteri Görüşmesi',
-                  time: '14:00',
-                  platform: 'Toplantı Odası - A201',
-                  timeRemaining: '6 saat kaldı',
-                ),
-                _MeetingItem(
-                  title: 'Sprint Planlama',
-                  time: '16:30',
-                  platform: 'Google Meet',
-                  timeRemaining: '8.5 saat kaldı',
-                ),
-              ],
-            ),
-          ),
+          content,
         ],
       ),
     );
@@ -82,17 +197,15 @@ class TodayMeetingsCard extends StatelessWidget {
 }
 
 class _MeetingItem extends StatelessWidget {
-  final String title;
-  final String time;
-  final String platform;
-  final String timeRemaining;
+  final CalendarEvent event;
 
   const _MeetingItem({
-    required this.title,
-    required this.time,
-    required this.platform,
-    required this.timeRemaining,
+    required this.event,
   });
+
+  factory _MeetingItem.fromEvent(CalendarEvent event) {
+    return _MeetingItem(event: event);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -119,7 +232,7 @@ class _MeetingItem extends StatelessWidget {
         children: [
           // Başlık
           Text(
-            title,
+            event.title,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurface,
                   fontWeight: FontWeight.bold,
@@ -143,7 +256,7 @@ class _MeetingItem extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    time,
+                    _formatTimeRange(event),
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Theme.of(context).colorScheme.onSurface,
                           fontWeight: FontWeight.w600,
@@ -160,7 +273,7 @@ class _MeetingItem extends StatelessWidget {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  timeRemaining,
+                  _formatTimeRemaining(event),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Colors.orange.shade700,
                         fontWeight: FontWeight.w600,
@@ -177,14 +290,14 @@ class _MeetingItem extends StatelessWidget {
           Row(
             children: [
               Icon(
-                _getPlatformIcon(platform),
+                _getPlatformIcon(event.location ?? ''),
                 color: Colors.grey.shade600,
                 size: 16,
               ),
               const SizedBox(width: 4),
               Flexible(
                 child: Text(
-                  platform,
+                  event.location?.isNotEmpty == true ? event.location! : 'Lokasyon belirtilmemiş',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Colors.grey.shade700,
                         fontSize: 12,
@@ -197,6 +310,31 @@ class _MeetingItem extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _formatTimeRange(CalendarEvent event) {
+    // CalendarEvent içinde tanımlı formattedTime kullan
+    return event.formattedTime;
+  }
+
+  String _formatTimeRemaining(CalendarEvent event) {
+    final now = DateTime.now();
+    if (event.isPast) {
+      return 'Tamamlandı';
+    } else if (event.isNow) {
+      return 'Şu anda devam ediyor';
+    } else {
+      final diff = event.startTime.difference(now);
+      final hours = diff.inHours;
+      final minutes = diff.inMinutes.remainder(60);
+      if (hours <= 0 && minutes <= 0) {
+        return 'Az sonra başlayacak';
+      } else if (hours <= 0) {
+        return '$minutes dk kaldı';
+      } else {
+        return minutes == 0 ? '$hours saat kaldı' : '$hours sa $minutes dk kaldı';
+      }
+    }
   }
 
   IconData _getPlatformIcon(String platform) {
@@ -213,4 +351,3 @@ class _MeetingItem extends StatelessWidget {
     return Icons.place;
   }
 }
-
