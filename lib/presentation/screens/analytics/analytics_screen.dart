@@ -145,10 +145,22 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   }
 
   Widget _buildAnalyticsContent() {
+    final statCardsAsync = ref.watch(statCardsProvider);
+
     return Column(
       children: [
         // Stats Cards
-        StatsGrid(stats: MockAnalytics.statCards),
+        statCardsAsync.when(
+          data: (stats) => StatsGrid(stats: stats),
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'İstatistikler yüklenirken bir hata oluştu: $e',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+        ),
 
         const SizedBox(height: 24),
 
@@ -157,7 +169,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
 
         const SizedBox(height: 24),
 
-        // Weekly Summary Card
+        // Weekly Summary Card (şimdilik statik metin)
         const WeeklySummaryCard(),
       ],
     );

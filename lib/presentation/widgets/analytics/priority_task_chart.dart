@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../features/analytics/providers/analytics_provider.dart';
 
-/// Öncelik Bazlı Görev İstatistiği Grafiği
-class PriorityTaskChart extends StatelessWidget {
+/// Görev DURUMU Bazlı İstatistik Grafiği
+class PriorityTaskChart extends ConsumerWidget {
   const PriorityTaskChart({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final priorityTasksAsync = ref.watch(priorityTasksProvider);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -28,7 +32,7 @@ class PriorityTaskChart extends StatelessWidget {
         children: [
           // Başlık
           Text(
-            'Öncelik Bazlı Görevler',
+            'Görev Durumları',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: Theme.of(context).colorScheme.onSurface,
@@ -36,7 +40,7 @@ class PriorityTaskChart extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Görevlerin öncelik seviyelerine göre dağılımı',
+            'Görevlerin durumlarına göre dağılımı',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                 ),
@@ -46,7 +50,16 @@ class PriorityTaskChart extends StatelessWidget {
           // Grafik
           SizedBox(
             height: 300,
-            child: _buildChart(context),
+            child: priorityTasksAsync.when(
+              data: (data) => _buildChart(context, data),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(
+                child: Text(
+                  'Veriler yüklenemedi',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ),
           ),
 
           const SizedBox(height: 16),
@@ -58,7 +71,7 @@ class PriorityTaskChart extends StatelessWidget {
     );
   }
 
-  Widget _buildChart(BuildContext context) {
+  Widget _buildChart(BuildContext context, Map<String, int> priorityDataMap) {
     return PieChart(
       PieChartData(
         pieTouchData: PieTouchData(
@@ -66,19 +79,41 @@ class PriorityTaskChart extends StatelessWidget {
         ),
         sectionsSpace: 1,
         centerSpaceRadius: 0, // Klasik pasta grafiği
-        sections: _getPieSections(context),
+        sections: _getPieSections(context, priorityDataMap),
       ),
     );
   }
 
-  List<PieChartSectionData> _getPieSections(BuildContext context) {
-    // Öncelik verileri: [kritik, yüksek, orta, düşük]
-    final priorityData = [8, 15, 12, 6];
+  List<PieChartSectionData> _getPieSections(
+    BuildContext context,
+    Map<String, int> priorityDataMap,
+  ) {
+    const order = ['Beklemede', 'Devam Ediyor', 'Tamamlandı', 'İptal Edildi'];
 
-    return List.generate(4, (index) {
-      final value = priorityData[index];
+    final total =
+        order.fold<int>(0, (sum, key) => sum + (priorityDataMap[key] ?? 0));
+
+    if (total == 0) {
+      return [
+        PieChartSectionData(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+          value: 1,
+          title: '0',
+          radius: 100,
+          titleStyle: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+          titlePositionPercentageOffset: 0.6,
+        ),
+      ];
+    }
+
+    return List.generate(order.length, (index) {
+      final key = order[index];
+      final value = priorityDataMap[key] ?? 0;
       final color = _getPriorityColor(index);
-      _getPercentage(index);
 
       return PieChartSectionData(
         color: color,
@@ -95,61 +130,53 @@ class PriorityTaskChart extends StatelessWidget {
     });
   }
 
-  double _getPercentage(int index) {
-    final priorityData = [8, 15, 12, 6]; // Kritik, Yüksek, Orta, Düşük
-    final total = priorityData.reduce((a, b) => a + b);
-    return (priorityData[index] / total * 100).roundToDouble();
-  }
-
   Color _getPriorityColor(int index) {
     switch (index) {
-      case 0: // Kritik
-        return Colors.red;
-      case 1: // Yüksek
+      case 0: // Beklemede
         return Colors.orange;
-      case 2: // Orta
+      case 1: // Devam Ediyor
         return Colors.blue;
-      case 3: // Düşük
+      case 2: // Tamamlandı
         return Colors.green;
+      case 3: // İptal Edildi
+        return Colors.red;
       default:
         return Colors.grey;
     }
   }
 
   Widget _buildLegend(BuildContext context) {
+    const labels = ['Beklemede', 'Devam Ediyor', 'Tamamlandı', 'İptal Edildi'];
+
     return Wrap(
       spacing: 16,
       runSpacing: 8,
       alignment: WrapAlignment.center,
-      children: [
-        _buildLegendItem(context, 'Kritik', Colors.red, 8),
-        _buildLegendItem(context, 'Yüksek', Colors.orange, 15),
-        _buildLegendItem(context, 'Orta', Colors.blue, 12),
-        _buildLegendItem(context, 'Düşük', Colors.green, 6),
-      ],
+      children: List.generate(labels.length, (index) {
+        final color = _getPriorityColor(index);
+        final label = labels[index];
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+            ),
+          ],
+        );
+      }),
     );
   }
 
-  Widget _buildLegendItem(BuildContext context, String label, Color color, int value) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(3),
-          ),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          '$label ($value)',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-              ),
-        ),
-      ],
-    );
-  }
 }

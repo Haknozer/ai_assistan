@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../features/analytics/providers/analytics_provider.dart';
 
 /// Haftalık Görev Tamamlama Grafiği
-class WeeklyTaskChart extends StatelessWidget {
+class WeeklyTaskChart extends ConsumerWidget {
   const WeeklyTaskChart({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final weeklyTasksAsync = ref.watch(weeklyTasksDetailedProvider);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -46,7 +50,16 @@ class WeeklyTaskChart extends StatelessWidget {
           // Grafik
           SizedBox(
             height: 300,
-            child: _buildChart(context),
+            child: weeklyTasksAsync.when(
+              data: (data) => _buildChart(context, data),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(
+                child: Text(
+                  'Veriler yüklenemedi',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ),
           ),
 
           const SizedBox(height: 16),
@@ -58,11 +71,14 @@ class WeeklyTaskChart extends StatelessWidget {
     );
   }
 
-  Widget _buildChart(BuildContext context) {
+  Widget _buildChart(
+    BuildContext context,
+    Map<String, Map<String, int>> weeklyData,
+  ) {
     return BarChart(
       BarChartData(
         alignment: BarChartAlignment.spaceAround,
-        maxY: 10, // Maksimum görev sayısı
+        maxY: _calculateMaxY(weeklyData),
         barTouchData: BarTouchData(
           touchTooltipData: BarTouchTooltipData(
             getTooltipColor: (_) => Theme.of(context).colorScheme.inverseSurface,
@@ -117,7 +133,7 @@ class WeeklyTaskChart extends StatelessWidget {
           rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
         borderData: FlBorderData(show: false),
-        barGroups: _getBarGroups(context),
+        barGroups: _getBarGroups(context, weeklyData),
         gridData: FlGridData(
           show: true,
           drawVerticalLine: false,
@@ -133,25 +149,24 @@ class WeeklyTaskChart extends StatelessWidget {
     );
   }
 
-  List<BarChartGroupData> _getBarGroups(BuildContext context) {
-    // Haftalık görev verileri: [tamamlanan, toplam]
-    final weeklyData = [
-      [5, 7], // Pazartesi
-      [3, 6], // Salı
-      [7, 8], // Çarşamba
-      [4, 5], // Perşembe
-      [6, 9], // Cuma
-      [2, 4], // Cumartesi
-      [1, 3], // Pazar
-    ];
+  List<BarChartGroupData> _getBarGroups(
+    BuildContext context,
+    Map<String, Map<String, int>> weeklyData,
+  ) {
+    const dayOrder = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
 
-    return List.generate(7, (index) {
+    return List.generate(dayOrder.length, (index) {
+      final dayKey = dayOrder[index];
+      final dayData = weeklyData[dayKey] ?? {'completed': 0, 'total': 0};
+      final completed = (dayData['completed'] ?? 0).toDouble();
+      final total = (dayData['total'] ?? 0).toDouble();
+
       return BarChartGroupData(
         x: index,
         barRods: [
           // Tamamlanan görevler
           BarChartRodData(
-            toY: weeklyData[index][0].toDouble(),
+            toY: completed,
             color: Colors.green,
             width: 16,
             borderRadius: const BorderRadius.only(
@@ -161,7 +176,7 @@ class WeeklyTaskChart extends StatelessWidget {
           ),
           // Toplam görevler
           BarChartRodData(
-            toY: weeklyData[index][1].toDouble(),
+            toY: total,
             color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
             width: 16,
             borderRadius: const BorderRadius.only(
@@ -180,9 +195,24 @@ class WeeklyTaskChart extends StatelessWidget {
       children: [
         _buildLegendItem(context, 'Tamamlanan', Colors.green),
         const SizedBox(width: 24),
-        _buildLegendItem(context, 'Toplam', Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
+        _buildLegendItem(
+          context,
+          'Toplam',
+          Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+        ),
       ],
     );
+  }
+
+  double _calculateMaxY(Map<String, Map<String, int>> weeklyData) {
+    double max = 0;
+    for (final day in weeklyData.values) {
+      final total = (day['total'] ?? 0).toDouble();
+      if (total > max) max = total;
+    }
+    if (max == 0) return 5;
+    // Biraz boşluk bırak
+    return (max + 2).clamp(5, 20);
   }
 
   Widget _buildLegendItem(BuildContext context, String label, Color color) {

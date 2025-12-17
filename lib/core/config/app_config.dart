@@ -22,6 +22,12 @@ class AppConfig {
   static const String appName = 'AI Asistan';
   static const String appVersion = '1.0.0+1';
 
+  // Analytics / Productivity
+  static const int productivityTarget = int.fromEnvironment(
+    'PRODUCTIVITY_TARGET',
+    defaultValue: 80,
+  );
+
   // Timeout Configuration
   static const Duration apiTimeout = Duration(seconds: 30);
   static const Duration cacheTimeout = Duration(minutes: 15);

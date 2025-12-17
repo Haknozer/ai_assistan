@@ -27,6 +27,7 @@ enum TaskStatus {
       case 'pending':
         return TaskStatus.pending;
       case 'in_progress':
+      case 'inprogress': // DB'de camelCase (inProgress) veya düz string'e karşılık
         return TaskStatus.inProgress;
       case 'completed':
         return TaskStatus.completed;

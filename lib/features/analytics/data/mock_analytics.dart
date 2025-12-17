@@ -67,12 +67,12 @@ class MockAnalytics {
         'Haz': 11,
       };
 
-  /// Öncelik bazlı görevler
+  /// Görev DURUMU bazlı dağılım (mock)
   static Map<String, int> get priorityTasks => {
-        'Acil': 5,
-        'Yüksek': 12,
-        'Orta': 18,
-        'Düşük': 8,
+        'Beklemede': 4,
+        'Devam Ediyor': 7,
+        'Tamamlandı': 15,
+        'İptal Edildi': 2,
       };
 }
 

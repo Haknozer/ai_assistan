@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../features/analytics/providers/analytics_provider.dart';
 
 /// Aylık Toplantı Trendi Grafiği
-class MonthlyMeetingTrendChart extends StatelessWidget {
+class MonthlyMeetingTrendChart extends ConsumerWidget {
   const MonthlyMeetingTrendChart({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final monthlyMeetingsAsync = ref.watch(monthlyMeetingsProvider);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -46,7 +50,16 @@ class MonthlyMeetingTrendChart extends StatelessWidget {
           // Grafik
           SizedBox(
             height: 300,
-            child: _buildChart(context),
+            child: monthlyMeetingsAsync.when(
+              data: (data) => _buildChart(context, data),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(
+                child: Text(
+                  'Veriler yüklenemedi',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ),
           ),
 
           const SizedBox(height: 16),
@@ -58,7 +71,45 @@ class MonthlyMeetingTrendChart extends StatelessWidget {
     );
   }
 
-  Widget _buildChart(BuildContext context) {
+  Widget _buildChart(BuildContext context, Map<String, int> monthlyDataMap) {
+    // Aylık toplantı sayılarından dinamik maxY ve aralık hesapla
+    final spots = _getMeetingSpots(monthlyDataMap);
+    final maxValue = spots.fold<double>(
+      0,
+      (prev, spot) => spot.y > prev ? spot.y : prev,
+    );
+
+    // Minimum ölçek: en az 5 olsun ki çizgi çok sıkışmasın
+    double dynamicMaxY;
+    if (maxValue <= 5) {
+      dynamicMaxY = 5;
+    } else if (maxValue <= 10) {
+      dynamicMaxY = 10;
+    } else if (maxValue <= 20) {
+      dynamicMaxY = 20;
+    } else if (maxValue <= 50) {
+      dynamicMaxY = 50;
+    } else if (maxValue <= 100) {
+      dynamicMaxY = 100;
+    } else {
+      // Çok uç değerler için, en büyük değerin biraz üstünü al
+      dynamicMaxY = (maxValue / 10).ceil() * 10;
+    }
+
+    // Y ekseni aralığı (grid + label)
+    double yInterval;
+    if (dynamicMaxY <= 10) {
+      yInterval = 2;
+    } else if (dynamicMaxY <= 20) {
+      yInterval = 5;
+    } else if (dynamicMaxY <= 50) {
+      yInterval = 10;
+    } else if (dynamicMaxY <= 100) {
+      yInterval = 20;
+    } else {
+      yInterval = dynamicMaxY / 5;
+    }
+
     return LineChart(
       LineChartData(
         lineTouchData: LineTouchData(
@@ -81,7 +132,7 @@ class MonthlyMeetingTrendChart extends StatelessWidget {
         gridData: FlGridData(
           show: true,
           drawVerticalLine: false,
-          horizontalInterval: 5,
+          horizontalInterval: yInterval,
           getDrawingHorizontalLine: (value) {
             return FlLine(
               color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
@@ -111,7 +162,7 @@ class MonthlyMeetingTrendChart extends StatelessWidget {
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              interval: 5,
+              interval: yInterval,
               getTitlesWidget: (value, meta) {
                 return Text(
                   value.toInt().toString(),
@@ -130,11 +181,11 @@ class MonthlyMeetingTrendChart extends StatelessWidget {
         minX: 0,
         maxX: 11,
         minY: 0,
-        maxY: 25,
+        maxY: dynamicMaxY,
         lineBarsData: [
           // Toplantı sayıları çizgisi
           LineChartBarData(
-            spots: _getMeetingSpots(),
+            spots: spots,
             isCurved: true,
             gradient: LinearGradient(
               colors: [
@@ -172,12 +223,26 @@ class MonthlyMeetingTrendChart extends StatelessWidget {
     );
   }
 
-  List<FlSpot> _getMeetingSpots() {
-    // Aylık toplantı verileri (Ocak - Aralık)
-    final monthlyData = [12, 15, 18, 14, 20, 16, 22, 19, 23, 17, 21, 18];
+  List<FlSpot> _getMeetingSpots(Map<String, int> monthlyDataMap) {
+    const monthOrder = [
+      'Oca',
+      'Şub',
+      'Mar',
+      'Nis',
+      'May',
+      'Haz',
+      'Tem',
+      'Ağu',
+      'Eyl',
+      'Eki',
+      'Kas',
+      'Ara',
+    ];
 
-    return List.generate(12, (index) {
-      return FlSpot(index.toDouble(), monthlyData[index].toDouble());
+    return List.generate(monthOrder.length, (index) {
+      final label = monthOrder[index];
+      final value = (monthlyDataMap[label] ?? 0).toDouble();
+      return FlSpot(index.toDouble(), value);
     });
   }
 

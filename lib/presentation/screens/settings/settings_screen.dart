@@ -7,6 +7,7 @@ import '../../widgets/settings/settings_category_buttons.dart';
 import '../../widgets/settings/integration_card.dart';
 import '../../widgets/settings/notifications_card.dart';
 import '../../widgets/settings/appearance_card.dart';
+import '../../widgets/settings/productivity_card.dart';
 import '../../widgets/settings/privacy_card.dart';
 import '../../../providers/user_provider.dart';
 import '../../../providers/user_setting_provider.dart';
@@ -300,6 +301,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           if (_selectedCategory == 'Görünüm') ...[
             const SizedBox(height: 16),
             const AppearanceCard(),
+            const SizedBox(height: 16),
+            const ProductivityCard(),
           ],
 
           // Gizlilik Section (genişletilmişse)

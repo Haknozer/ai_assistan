@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../features/analytics/providers/analytics_provider.dart';
+import '../../../features/analytics/data/mock_analytics.dart';
 
-/// Haftalık Özet Card'ı
-class WeeklySummaryCard extends StatelessWidget {
+/// Haftalık Özet Card'ı - gerçek analytics verisine bağlı
+class WeeklySummaryCard extends ConsumerWidget {
   const WeeklySummaryCard({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final statCardsAsync = ref.watch(statCardsProvider);
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -37,9 +42,9 @@ class WeeklySummaryCard extends StatelessWidget {
               Text(
                 'Haftalık Özet',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
               ),
             ],
           ),
@@ -47,27 +52,69 @@ class WeeklySummaryCard extends StatelessWidget {
           Text(
             'Bu haftaki performansınızın genel görünümü',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-            ),
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
           ),
           const SizedBox(height: 24),
 
           // Özet İçeriği
-          _buildSummaryContent(context),
+          statCardsAsync.when(
+            data: (stats) => _buildSummaryContent(context, stats),
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Padding(
+              padding: const EdgeInsets.all(8),
+              child: Text(
+                'Haftalık özet yüklenemedi: $e',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildSummaryContent(BuildContext context) {
+  Widget _buildSummaryContent(BuildContext context, List<StatCardData> stats) {
+    // Stat kartlarını başlığa göre bul
+    StatCardData? findCard(String title) {
+      try {
+        return stats.firstWhere((s) => s.title == title);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final tasksCard = findCard('Tamamlanan Görevler');
+    final meetingsCard = findCard('Toplantılar');
+    final emailCard = findCard('E-posta');
+    final productivityCard = findCard('Verimlilik Skoru');
+
+    // Güvenlik için fallback açıklamalar
+    final completedTasksText = tasksCard != null
+        ? '${tasksCard.mainValue} görev tamamlandı, ${tasksCard.trendValue.toLowerCase()}.'
+        : 'Bu hafta görev istatistiği bulunamadı.';
+
+    final meetingsText = meetingsCard != null
+        ? '${meetingsCard.mainValue}, ${meetingsCard.trendValue.toLowerCase()}.'
+        : 'Toplantı istatistiği bulunamadı.';
+
+    final emailText = emailCard != null
+        ? '${emailCard.mainValue} e-posta işlendi, ${emailCard.trendValue.toLowerCase()}.'
+        : 'E-posta istatistiği bulunamadı.';
+
+    final productivityText = productivityCard != null
+        ? 'Bu haftaki verimlilik skoru ${productivityCard.mainValue}, '
+            '${productivityCard.trendValue.toLowerCase()}.'
+        : 'Verimlilik skoru hesaplanamadı.';
+
     return Column(
       children: [
-        // Başarı Durumu
+        // Başarı Durumu / Verimlilik
         _buildSuccessRow(
           context,
           '🎯',
           'Haftalık Hedefler',
-          'Toplam 8 hedeften 6\'sı tamamlandı',
+          productivityText,
           Colors.green,
         ),
         const SizedBox(height: 16),
@@ -77,7 +124,7 @@ class WeeklySummaryCard extends StatelessWidget {
           context,
           '✓',
           'Tamamlanan Görevler',
-          '27 görev tamamlandı, %85 başarı oranı',
+          completedTasksText,
           Colors.blue,
         ),
         const SizedBox(height: 16),
@@ -87,7 +134,7 @@ class WeeklySummaryCard extends StatelessWidget {
           context,
           '📅',
           'Toplantılar',
-          '5 toplantı tamamlandı, 2\'si ertelendi',
+          meetingsText,
           Colors.orange,
         ),
         const SizedBox(height: 16),
@@ -97,7 +144,7 @@ class WeeklySummaryCard extends StatelessWidget {
           context,
           '✉️',
           'E-posta İletişimi',
-          '42 önemli e-posta işlendi',
+          emailText,
           Colors.purple,
         ),
         const SizedBox(height: 24),
@@ -122,11 +169,11 @@ class WeeklySummaryCard extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Bu hafta en yüksek verimlilik Salı günü ölçüldü. Önümüzdeki hafta daha fazla odaklanılarak hedeflerin tamamının tamamlanması hedefleniyor.',
+                  'Bu özet, görevleriniz, toplantılarınız ve e-postalarınızdan hesaplanan gerçek verimlilik skoruna göre oluşturuldu.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
-                    height: 1.4,
-                  ),
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
+                        height: 1.4,
+                      ),
                 ),
               ),
             ],
@@ -167,16 +214,16 @@ class WeeklySummaryCard extends StatelessWidget {
               Text(
                 title,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
               ),
               const SizedBox(height: 2),
               Text(
                 description,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                ),
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
               ),
             ],
           ),
@@ -187,30 +234,8 @@ class WeeklySummaryCard extends StatelessWidget {
             color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Text(
-            _getStatusText(title),
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
         ),
       ],
     );
-  }
-
-  String _getStatusText(String title) {
-    switch (title) {
-      case 'Haftalık Hedefler':
-        return '%75';
-      case 'Tamamlanan Görevler':
-        return 'Başarılı';
-      case 'Toplantılar':
-        return '%71';
-      case 'E-posta İletişimi':
-        return 'Tamamlandı';
-      default:
-        return '';
-    }
   }
 }
