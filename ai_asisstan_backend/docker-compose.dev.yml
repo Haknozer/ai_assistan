@@ -1,0 +1,28 @@
+version: '3.8'
+
+# Development için docker-compose override
+# Kullanım: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  backend:
+    build:
+      target: builder  # Development için builder stage kullan
+    volumes:
+      # Hot reload için kod mount et
+      - .:/app
+      - /app/venv  # Virtual environment'ı mount etme
+    environment:
+      - DEBUG=True
+      - ENVIRONMENT=development
+    command: uvicorn app.main:app --host 0.0.0.0 --port 3000 --reload
+    ports:
+      - "3000:3000"
+
+  postgres:
+    ports:
+      - "5432:5432"  # Development için port açık
+
+  redis:
+    ports:
+      - "6379:6379"  # Development için port açık
+

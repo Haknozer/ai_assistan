@@ -65,6 +65,10 @@ run_windows.bat
 *_local.bat
 *_secret.bat
 
+# Backend batch dosyaları (environment variable'lar içerebilir)
+ai_asisstan_backend/*.bat
+ai_asisstan_backend/**/*.bat
+ai_asisstan_backend/**/*.sh
 # Config dosyaları (hassas bilgiler içerebilir)
 config.local.dart
 app_config.local.dart
@@ -76,13 +80,216 @@ app_config.local.dart
 *.sqlite
 *.sqlite3
 
-# GCP service account anahtarları (kesinlikle commit etme)
+# ============================================
+# BACKEND PYTHON
+# ============================================
+
+# Python cache ve bytecode
+ai_asisstan_backend/__pycache__/
+ai_asisstan_backend/**/__pycache__/
+ai_asisstan_backend/**/*.py[cod]
+ai_asisstan_backend/**/*$py.class
+ai_asisstan_backend/**/*.so
+ai_asisstan_backend/.Python
+
+# Python virtual environments
+ai_asisstan_backend/.venv/
+ai_asisstan_backend/venv/
+ai_asisstan_backend/env/
+ai_asisstan_backend/ENV/
+ai_asisstan_backend/.env/
+
+# Python distribution / packaging
+ai_asisstan_backend/Python/
+ai_asisstan_backend/build/
+ai_asisstan_backend/develop-eggs/
+ai_asisstan_backend/dist/
+ai_asisstan_backend/downloads/
+ai_asisstan_backend/eggs/
+ai_asisstan_backend/.eggs/
+ai_asisstan_backend/lib/
+ai_asisstan_backend/lib64/
+ai_asisstan_backend/parts/
+ai_asisstan_backend/sdist/
+ai_asisstan_backend/var/
+ai_asisstan_backend/wheels/
+ai_asisstan_backend/*.egg-info/
+ai_asisstan_backend/.installed.cfg
+ai_asisstan_backend/*.egg
+
+# ============================================
+# BACKEND DATABASE
+# ============================================
+
+# SQLite database files
+ai_asisstan_backend/*.db
+ai_asisstan_backend/*.db-shm
+ai_asisstan_backend/*.db-wal
+ai_asisstan_backend/*.sqlite
+ai_asisstan_backend/*.sqlite3
+
+# PostgreSQL dumps
+ai_asisstan_backend/*.sql
+ai_asisstan_backend/*.dump
+
+# ============================================
+# BACKEND ENVIRONMENT & CONFIG
+# ============================================
+
+# Environment files
+ai_asisstan_backend/.env
+ai_asisstan_backend/.env.local
+ai_asisstan_backend/.env.*.local
+ai_asisstan_backend/.env.production
+ai_asisstan_backend/.env.development
+ai_asisstan_backend/*.env
+
+# Config files with sensitive data
+ai_asisstan_backend/config.local.py
+ai_asisstan_backend/settings.local.py
+
+# ============================================
+# BACKEND CREDENTIALS & SECRETS
+# ============================================
+
+# Google Cloud credentials (kesinlikle commit etme)
+ai_asisstan_backend/credentials/
+ai_asisstan_backend/**/credentials/
 aiassistan-*.json
 *service-account*.json
+*credentials*.json
+ai_asisstan_backend/**/*credentials*.json
+ai_asisstan_backend/**/*service-account*.json
 
-# Log dosyaları (hassas bilgi içerebilir)
-logs/
-*.log
+# OAuth tokens and secrets
+ai_asisstan_backend/tokens/
+ai_asisstan_backend/secrets/
+
+# ============================================
+# BACKEND LOGS & TEMP FILES
+# ============================================
+
+# Log files (hassas bilgi içerebilir)
+ai_asisstan_backend/logs/
+ai_asisstan_backend/**/*.log
+ai_asisstan_backend/*.log
+
+# Temporary files
+ai_asisstan_backend/tmp/
+ai_asisstan_backend/temp/
+ai_asisstan_backend/.tmp/
+ai_asisstan_backend/.temp/
+
+# ============================================
+# BACKEND ALEMBIC (Database Migrations)
+# ============================================
+
+# Alembic cache
+ai_asisstan_backend/alembic/versions/*.pyc
+ai_asisstan_backend/alembic/__pycache__/
+
+# ============================================
+# BACKEND IDE & EDITOR
+# ============================================
+
+# VS Code
+ai_asisstan_backend/.vscode/
+ai_asisstan_backend/.vscode-test/
+
+# PyCharm
+ai_asisstan_backend/.idea/
+ai_asisstan_backend/*.iml
+ai_asisstan_backend/*.ipr
+ai_asisstan_backend/*.iws
+
+# Vim
+ai_asisstan_backend/**/*.swp
+ai_asisstan_backend/**/*.swo
+ai_asisstan_backend/**/*~
+
+# ============================================
+# BACKEND DOCKER
+# ============================================
+
+# Docker volumes and data
+ai_asisstan_backend/postgres_data/
+ai_asisstan_backend/redis_data/
+ai_asisstan_backend/docker-data/
+
+# Docker compose override files (may contain secrets)
+ai_asisstan_backend/docker-compose.override.yml
+ai_asisstan_backend/docker-compose.local.yml
+
+# ============================================
+# BACKEND TESTING & COVERAGE
+# ============================================
+
+# Coverage reports
+ai_asisstan_backend/.coverage
+ai_asisstan_backend/htmlcov/
+ai_asisstan_backend/.pytest_cache/
+ai_asisstan_backend/.tox/
+ai_asisstan_backend/.cache/
+
+# Test outputs
+ai_asisstan_backend/.pytest_cache/
+ai_asisstan_backend/.mypy_cache/
+ai_asisstan_backend/.dmypy.json
+ai_asisstan_backend/dmypy.json
+
+# ============================================
+# BACKEND OS SPECIFIC
+# ============================================
+
+# macOS
+ai_asisstan_backend/.DS_Store
+ai_asisstan_backend/.AppleDouble
+ai_asisstan_backend/.LSOverride
+
+# Windows
+ai_asisstan_backend/Thumbs.db
+ai_asisstan_backend/ehthumbs.db
+ai_asisstan_backend/Desktop.ini
+ai_asisstan_backend/$RECYCLE.BIN/
+
+# Linux
+ai_asisstan_backend/.directory
+ai_asisstan_backend/.Trash-*
+
+# ============================================
+# BACKEND MISC
+# ============================================
+
+# Jupyter Notebook
+ai_asisstan_backend/.ipynb_checkpoints
+
+# pyenv
+ai_asisstan_backend/.python-version
+
+# Celery
+ai_asisstan_backend/celerybeat-schedule
+ai_asisstan_backend/celerybeat.pid
+
+# SageMath parsed files
+ai_asisstan_backend/*.sage.py
+
+# Spyder project settings
+ai_asisstan_backend/.spyderproject
+ai_asisstan_backend/.spyproject
+
+# Rope project settings
+ai_asisstan_backend/.ropeproject
+
+# mkdocs documentation
+ai_asisstan_backend/site
+
+# mypy
+ai_asisstan_backend/.mypy_cache/
+ai_asisstan_backend/.dmypy.json
+ai_asisstan_backend/dmypy.json
+
+# Pyre type checker
+ai_asisstan_backend/.pyre/
 
 # ============================================
 # TUTORIAL/REHBER DOSYALARI
@@ -109,3 +316,9 @@ PROFESSIONAL_IMPROVEMENTS.md
 N8N_TEMIZLEME_REHBERI.md
 ARCHITECTURE.md
 TASK_AUTO_CREATION_GUIDE.md
+BACKEND_STRUCTURE.md
+BACKEND_BASLAT.md
+BACKEND_GUNCELLEME.md
+BACKEND_GUNCELLEME.md
+
+ai_asisstan_backend/**/*.md

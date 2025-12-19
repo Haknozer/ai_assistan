@@ -1,0 +1,55 @@
+# FastAPI ve temel bağımlılıklar
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Veritabanı
+sqlalchemy==2.0.23
+alembic==1.12.1
+psycopg2-binary==2.9.9  # PostgreSQL için
+# sqlite için: (varsayılan, ekstra paket gerekmez)
+
+# Güvenlik ve Kimlik Doğrulama
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+
+# HTTP İstemci
+httpx==0.25.2
+requests==2.31.0
+
+# Ortam Değişkenleri
+python-dotenv==1.0.0
+
+# Logging
+loguru==0.7.2
+
+# Test
+pytest==7.4.3
+pytest-asyncio==0.21.1
+httpx==0.25.2  # Test client için
+
+# Google API
+google-auth==2.23.4
+google-auth-oauthlib==1.1.0
+google-auth-httplib2==0.1.1
+google-api-python-client==2.108.0
+
+# Microsoft Graph API
+msal==1.25.0
+
+# AI/ML (opsiyonel)
+openai==1.3.7
+
+# Redis
+redis==5.0.1
+hiredis==2.2.3  # Daha hızlı Redis client
+
+# Google Cloud Pub/Sub
+google-cloud-pubsub==2.18.4
+
+# Background Tasks / Scheduler
+apscheduler==3.10.4
+

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/email.dart';
 import '../../../models/calendar_event.dart';
-import '../../../services/n8n_response_storage_service.dart';
+import '../../../models/email_account.dart';
+import '../../../services/backend_email_service.dart';
+import '../../../core/database/database_service.dart';
 import '../../../core/utils/logger.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../presentation/screens/calendar/utils/calendar_utils.dart';
@@ -36,17 +38,43 @@ class _EmailAiSuggestionsCardState extends ConsumerState<EmailAiSuggestionsCard>
   @override
   void didUpdateWidget(EmailAiSuggestionsCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final currentEmailId = widget.email.messageId ?? widget.email.id?.toString() ?? '';
-    final oldEmailId = oldWidget.email.messageId ?? oldWidget.email.id?.toString() ?? '';
     
-    if (currentEmailId != oldEmailId && currentEmailId != _lastEmailId) {
+    // Email ID'yi doğru şekilde al
+    String? currentEmailId;
+    if (widget.email.messageId != null && widget.email.messageId!.isNotEmpty) {
+      currentEmailId = widget.email.messageId;
+    } else if (widget.email.id != null && widget.email.id! > 0) {
+      currentEmailId = widget.email.id.toString();
+    }
+    
+    String? oldEmailId;
+    if (oldWidget.email.messageId != null && oldWidget.email.messageId!.isNotEmpty) {
+      oldEmailId = oldWidget.email.messageId;
+    } else if (oldWidget.email.id != null && oldWidget.email.id! > 0) {
+      oldEmailId = oldWidget.email.id.toString();
+    }
+    
+    if (currentEmailId != null && 
+        currentEmailId.isNotEmpty && 
+        currentEmailId != '0' &&
+        currentEmailId != oldEmailId && 
+        currentEmailId != _lastEmailId) {
       _loadN8nResponse();
     }
   }
 
   Future<void> _loadN8nResponse() async {
-    final emailId = widget.email.messageId ?? widget.email.id?.toString() ?? '';
-    if (emailId.isEmpty) {
+    // ÖNCE messageId'yi kullan, yoksa id'yi kullan
+    // Ama id 0 ise veya null ise messageId'yi kullan
+    String? emailId;
+    if (widget.email.messageId != null && widget.email.messageId!.isNotEmpty) {
+      emailId = widget.email.messageId;
+    } else if (widget.email.id != null && widget.email.id! > 0) {
+      emailId = widget.email.id.toString();
+    }
+    
+    if (emailId == null || emailId.isEmpty || emailId == '0') {
+      AppLogger.debug('EmailAiSuggestionsCard: Email ID boş veya geçersiz (messageId: ${widget.email.messageId}, id: ${widget.email.id}), response yüklenmiyor', 'N8N');
       setState(() {
         _isLoading = false;
         _lastEmailId = null;
@@ -56,8 +84,16 @@ class _EmailAiSuggestionsCardState extends ConsumerState<EmailAiSuggestionsCard>
     }
 
     if (emailId == _lastEmailId) {
+      AppLogger.debug('EmailAiSuggestionsCard: Aynı email ID ($emailId), response zaten yüklü', 'N8N');
       return;
     }
+
+    AppLogger.debug('EmailAiSuggestionsCard: Yeni email için response yükleniyor', 'N8N');
+    AppLogger.debug('  Email ID: $emailId', 'N8N');
+    AppLogger.debug('  Email messageId: ${widget.email.messageId}', 'N8N');
+    AppLogger.debug('  Email id: ${widget.email.id}', 'N8N');
+    AppLogger.debug('  Email Subject: ${widget.email.subject}', 'N8N');
+    AppLogger.debug('  Email Account ID: ${widget.email.accountId}', 'N8N');
 
     setState(() {
       _isLoading = true;
@@ -65,25 +101,71 @@ class _EmailAiSuggestionsCardState extends ConsumerState<EmailAiSuggestionsCard>
     });
 
     try {
+      // Provider bilgisini email'in accountId'sinden al
+      String provider = 'gmail'; // Default
+      if (widget.email.accountId > 0) {
+        try {
+          final db = await DatabaseService.instance.database;
+          final accountMaps = await db.query(
+            'email_accounts',
+            where: 'id = ?',
+            whereArgs: [widget.email.accountId],
+            limit: 1,
+          );
+          if (accountMaps.isNotEmpty) {
+            final account = EmailAccount.fromDatabase(accountMaps.first);
+            provider = account.provider.name; // 'gmail' veya 'outlook'
+            AppLogger.debug('Provider bilgisi alındı: $provider (Account ID: ${widget.email.accountId})', 'N8N');
+          } else {
+            AppLogger.debug('Account bulunamadı (Account ID: ${widget.email.accountId}), default gmail kullanılıyor', 'N8N');
+          }
+        } catch (e) {
+          AppLogger.debug('Provider bilgisi alınamadı, default gmail kullanılıyor: $e', 'N8N');
+        }
+      } else {
+        AppLogger.debug('Account ID 0 veya negatif, default gmail kullanılıyor', 'N8N');
+      }
+      
+      AppLogger.debug('Backend\'den Redis\'ten n8n verisi çekiliyor...', 'N8N');
+      AppLogger.debug('  Email ID: $emailId', 'N8N');
+      AppLogger.debug('  Provider: $provider', 'N8N');
+      
+      // Önce backend'den Redis'teki n8n verisini çekmeyi dene
       Map<String, dynamic>? response;
-      if (widget.email.messageId != null && widget.email.messageId!.isNotEmpty) {
-        response = await N8nResponseStorageService().getEmailResponse(widget.email.messageId!);
-      }
       
-      if (response == null && widget.email.id != null) {
-        final idString = widget.email.id!.toString();
-        response = await N8nResponseStorageService().getEmailResponse(idString);
+      try {
+        final backendService = BackendEmailService();
+        final taskData = await backendService.getTaskExtraction(
+          emailId: emailId,
+          provider: provider,
+        );
+        
+        if (taskData != null) {
+          response = taskData;
+          AppLogger.debug('✅ Backend\'den n8n verisi alındı (provider: $provider, emailId: $emailId)', 'N8N');
+          AppLogger.debug('  Task Data Keys: ${taskData.keys.toList()}', 'N8N');
+          if (taskData.containsKey('description')) {
+            AppLogger.debug('  Description: ${taskData['description']}', 'N8N');
+          } else if (taskData.containsKey('summary')) {
+            AppLogger.debug('  Summary: ${taskData['summary']}', 'N8N');
+          }
+        } else {
+          AppLogger.debug('⚠️ Backend\'den n8n verisi bulunamadı (emailId: $emailId, provider: $provider)', 'N8N');
+        }
+      } catch (e) {
+        AppLogger.debug('❌ Backend\'den n8n verisi alınamadı: $e', 'N8N');
       }
-      
-      // Response storage'dan gelen format: {'data': actualResponse, 'timestamp': '...'}
-      // getEmailResponse zaten data'yı çıkarıyor, ama array ise ilk elemanı döndürüyor
-      // Bu yüzden direkt response'u kullanabiliriz
-      // Ama eğer response bir array ise, onu da handle etmeliyiz
       
       setState(() {
         _n8nResponse = response;
         _isLoading = false;
       });
+      
+      if (response != null) {
+        AppLogger.debug('✅ n8n response başarıyla yüklendi', 'N8N');
+      } else {
+        AppLogger.debug('⚠️ n8n response yüklenemedi (null)', 'N8N');
+      }
     } catch (e) {
       AppLogger.error('EmailAiSuggestionsCard - Error loading response', tag: 'N8N', error: e);
       setState(() {
@@ -215,9 +297,10 @@ class _EmailAiSuggestionsCardState extends ConsumerState<EmailAiSuggestionsCard>
       if (response is List) {
         for (final item in response) {
           if (item is Map<String, dynamic>) {
-            final summary = item['summary']?.toString().trim();
-            if (summary != null && summary.isNotEmpty) {
-              summaries.add(summary);
+            // Önce description'ı kontrol et, yoksa summary'yi kullan
+            final description = item['description']?.toString().trim() ?? item['summary']?.toString().trim();
+            if (description != null && description.isNotEmpty) {
+              summaries.add(description);
             }
           }
         }
@@ -225,9 +308,10 @@ class _EmailAiSuggestionsCardState extends ConsumerState<EmailAiSuggestionsCard>
 
       if (response is Map<String, dynamic>) {
         // Kök map'in kendisi summary içeriyorsa (decoded[0] durumu)
-        final rootSummary = response['summary']?.toString().trim();
-        if (rootSummary != null && rootSummary.isNotEmpty) {
-          summaries.add(rootSummary);
+        // Önce description'ı kontrol et, yoksa summary'yi kullan
+        final rootDescription = response['description']?.toString().trim() ?? response['summary']?.toString().trim();
+        if (rootDescription != null && rootDescription.isNotEmpty) {
+          summaries.add(rootDescription);
         }
 
         // Map içinde "cevap" listesi varsa (alternatif format)
@@ -301,20 +385,11 @@ class _EmailAiSuggestionsCardState extends ConsumerState<EmailAiSuggestionsCard>
       final updatedResponse = _updateEventStatus(_n8nResponse!, eventTitle, 'success');
       
       if (updatedResponse != null) {
-        // Güncellenmiş response'u kaydet
-        final emailId = widget.email.messageId ?? widget.email.id?.toString() ?? '';
-        if (emailId.isNotEmpty) {
-          await N8nResponseStorageService().saveEmailResponse(
-            emailId,
-            updatedResponse,
-            receivedDate: widget.email.receivedDate,
-          );
-          
-          // UI'ı yenile
-          setState(() {
-            _n8nResponse = updatedResponse;
-          });
-        }
+        // Lokal'e kaydetme kaldırıldı - sadece Redis'ten çekiyoruz
+        // UI'ı yenile
+        setState(() {
+          _n8nResponse = updatedResponse;
+        });
       }
     } catch (e) {
       AppLogger.error('Event durumu güncellenirken hata', tag: 'EmailAI', error: e);

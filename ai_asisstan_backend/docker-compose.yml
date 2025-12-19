@@ -1,0 +1,99 @@
+services:
+  # Backend API
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai_asisstan_backend
+    ports:
+      - "3000:3000"
+    environment:
+      # Database
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/ai_asisstan
+      
+      # Security
+      - SECRET_KEY=${SECRET_KEY:-change-this-secret-key-in-production}
+      - DEBUG=${DEBUG:-False}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      
+      # Redis
+      - REDIS_URL=redis://redis:6379/0
+      
+      # Google Cloud Pub/Sub
+      - GOOGLE_CLOUD_PROJECT_ID=${GOOGLE_CLOUD_PROJECT_ID:-aiassistan}
+      - PUBSUB_SUBSCRIPTION_NAME=${PUBSUB_SUBSCRIPTION_NAME:-gmai-bildirim-sub}
+      - PUBSUB_TOPIC_NAME=${PUBSUB_TOPIC_NAME:-gmai-bildirim}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/aiassistan-2db62b3832c8.json
+      
+      # n8n
+      - N8N_EMAIL_WEBHOOK_URL=${N8N_EMAIL_WEBHOOK_URL:-https://hakanozerr.app.n8n.cloud/webhook/7d767402-8f08-47cf-91fa-279679510375}
+      
+      # OAuth (Google, Microsoft)
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - MS_CLIENT_ID=${MS_CLIENT_ID:-}
+      - MS_CLIENT_SECRET=${MS_CLIENT_SECRET:-}
+      
+      # CORS (virgülle ayrılmış string - config.py içinde split ediliyor)
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:8080}
+    volumes:
+      # Google Cloud credentials (opsiyonel - Secret Manager kullanılabilir)
+      - ./credentials:/app/credentials:ro
+      # Logs
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - ai_asisstan_network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: ai_asisstan_postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=ai_asisstan
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - ai_asisstan_network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: ai_asisstan_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - ai_asisstan_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  ai_asisstan_network:
+    driver: bridge
+

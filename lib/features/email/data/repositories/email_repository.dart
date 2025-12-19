@@ -5,21 +5,26 @@ import 'package:ai_asisstan/models/email_account.dart';
 import 'package:ai_asisstan/core/database/database_service.dart';
 import 'package:ai_asisstan/services/gmail_oauth_service.dart';
 import 'package:ai_asisstan/core/config/app_config.dart';
+import 'package:ai_asisstan/services/backend_email_service.dart';
 import '../datasources/email_remote_datasource.dart';
 
-/// Email verilerini API'den çeken repository
-/// Cache kullanmaz, her zaman API'den çeker
+/// Email verilerini API'den veya Redis'ten çeken repository
+/// Önce Redis'ten çeker, yoksa API'den çeker
 class EmailRepository {
   final EmailRemoteDataSource _remoteDataSource;
   final DatabaseService _databaseService;
+  final BackendEmailService _backendEmailService;
 
   EmailRepository({
     EmailRemoteDataSource? remoteDataSource,
     DatabaseService? databaseService,
+    BackendEmailService? backendEmailService,
   })  : _remoteDataSource = remoteDataSource ?? EmailRemoteDataSource(),
-        _databaseService = databaseService ?? DatabaseService.instance;
+        _databaseService = databaseService ?? DatabaseService.instance,
+        _backendEmailService = backendEmailService ?? BackendEmailService();
 
-  /// Email listesini API'den getir
+  /// Email listesini Redis'ten veya API'den getir
+  /// Önce Redis'ten çeker, yoksa API'den çeker
   /// API hatası durumunda boş liste döndürür (API hazır değilse)
   /// 401 hatası durumunda token yenileme dener
   Future<List<Email>> getEmails({
@@ -51,6 +56,49 @@ class EmailRepository {
         }
       }
 
+      // Önce Redis'ten çekmeyi dene
+      try {
+        final redisTasks = await _backendEmailService.getTasksFromRedis(
+          provider: provider == EmailProvider.outlook ? 'outlook' : 'gmail',
+        );
+        
+        if (redisTasks.isNotEmpty) {
+          debugPrint('📦 Redis\'ten ${redisTasks.length} görev alındı, email\'lere dönüştürülüyor...');
+          
+          // Redis'teki verileri Email modeline dönüştür
+          final emails = redisTasks.map((task) {
+            final emailData = task['email'] as Map<String, dynamic>?;
+            if (emailData == null) return null;
+            
+            try {
+              return _convertRedisEmailToEmail(emailData, accountId: accountId);
+            } catch (e) {
+              debugPrint('⚠️ Redis email dönüştürme hatası: $e');
+              return null;
+            }
+          }).whereType<Email>().toList();
+          
+          if (emails.isNotEmpty) {
+            debugPrint('✅ Redis\'ten ${emails.length} email alındı');
+            
+            // Folder filtresi uygula
+            if (folder != null && folder.isNotEmpty) {
+              final filtered = emails.where((email) {
+                final emailFolder = email.folder.name.toLowerCase();
+                return emailFolder == folder.toLowerCase();
+              }).toList();
+              return filtered;
+            }
+            
+            return emails;
+          }
+        }
+      } catch (e) {
+        debugPrint('⚠️ Redis\'ten email çekme hatası: $e');
+        // Redis hatası durumunda API'den çekmeye devam et
+      }
+
+      // Redis'ten veri yoksa veya hata varsa API'den çek
       return await _remoteDataSource.getEmails(
         accountId: accountId,
         folder: folder,
@@ -480,6 +528,93 @@ class EmailRepository {
     } on ApiException {
       // Diğer API hatalarını olduğu gibi fırlat
       rethrow;
+    }
+  }
+
+  /// Redis'teki email verisini Email modeline dönüştür
+  Email? _convertRedisEmailToEmail(Map<String, dynamic> emailData, {int? accountId}) {
+    try {
+      // Redis'teki email verisi formatı:
+      // {
+      //   "id": "...",
+      //   "subject": "...",
+      //   "sender": "...",
+      //   "recipient": "...",
+      //   "preview": "...",
+      //   "received_date": "2024-01-15T10:30:00Z",
+      //   "is_read": false,
+      //   "category": "inbox",
+      //   "has_attachments": false,
+      //   "is_outgoing": false,
+      //   "provider": "gmail" | "outlook"
+      // }
+
+      final receivedDateStr = emailData['received_date'] as String?;
+      DateTime? receivedDate;
+      if (receivedDateStr != null) {
+        try {
+          receivedDate = DateTime.parse(receivedDateStr);
+        } catch (e) {
+          debugPrint('⚠️ Tarih parse hatası: $e');
+          receivedDate = DateTime.now();
+        }
+      } else {
+        receivedDate = DateTime.now();
+      }
+
+      // Category'yi EmailFolder'a dönüştür
+      EmailFolder? folder;
+      final category = (emailData['category'] as String? ?? '').toLowerCase();
+      switch (category) {
+        case 'inbox':
+          folder = EmailFolder.inbox;
+          break;
+        case 'sent':
+          folder = EmailFolder.sent;
+          break;
+        case 'spam':
+        case 'junk':
+          folder = EmailFolder.spam;
+          break;
+        case 'drafts':
+          folder = EmailFolder.drafts;
+          break;
+        default:
+          folder = EmailFolder.inbox;
+      }
+
+      // Email modelini oluştur
+      final now = DateTime.now();
+      final finalAccountId = accountId ?? 0;
+      final finalUserId = accountId ?? 0;
+      
+      return Email(
+        id: int.tryParse(emailData['email_id']?.toString() ?? emailData['id']?.toString() ?? '') ?? 0,
+        messageId: emailData['email_id']?.toString() ?? emailData['id']?.toString(), // Redis'ten gelen email_id kullan
+        accountId: finalAccountId,
+        userId: finalUserId,
+        subject: emailData['subject']?.toString() ?? '(Konu yok)',
+        fromEmail: emailData['from']?.toString() ?? emailData['sender']?.toString() ?? '',
+        fromName: emailData['from']?.toString() ?? emailData['sender']?.toString(),
+        toEmails: emailData['to'] != null 
+            ? [emailData['to'].toString()] 
+            : (emailData['recipient'] != null 
+                ? [emailData['recipient'].toString()] 
+                : []),
+        plainText: emailData['plain_text']?.toString() ?? emailData['body']?.toString() ?? emailData['preview']?.toString() ?? '',
+        htmlContent: emailData['html_content']?.toString(),
+        receivedDate: receivedDate,
+        isRead: emailData['is_read'] == true,
+        folder: folder,
+        isSpam: category == 'spam' || category == 'junk',
+        importance: EmailImportance.normal,
+        attachments: emailData['has_attachments'] == true ? [] : null,
+        createdAt: now,
+        updatedAt: now,
+      );
+    } catch (e) {
+      debugPrint('❌ Redis email dönüştürme hatası: $e');
+      return null;
     }
   }
 }

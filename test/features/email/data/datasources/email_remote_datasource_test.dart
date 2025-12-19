@@ -1,77 +1,81 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ai_asisstan/core/api/api_client.dart';
 import 'package:ai_asisstan/core/api/api_exceptions.dart';
 import 'package:ai_asisstan/features/email/data/datasources/email_remote_datasource.dart';
 import 'package:ai_asisstan/models/email.dart';
+import 'package:ai_asisstan/models/email_account.dart';
+import 'package:ai_asisstan/services/backend_email_service.dart';
 import 'package:mocktail/mocktail.dart';
 
-class MockApiClient extends Mock implements ApiClient {}
+class MockBackendEmailService extends Mock implements BackendEmailService {}
 
 void main() {
   group('EmailRemoteDataSource', () {
     late EmailRemoteDataSource dataSource;
-    late MockApiClient mockApiClient;
+    late MockBackendEmailService mockBackendEmailService;
 
     setUp(() {
-      mockApiClient = MockApiClient();
-      dataSource = EmailRemoteDataSource(apiClient: mockApiClient);
+      mockBackendEmailService = MockBackendEmailService();
+      dataSource = EmailRemoteDataSource(backendEmailService: mockBackendEmailService);
     });
 
     group('getEmails', () {
       test('should return list of emails when API call is successful', () async {
         // Arrange
-        final emailsJson = [
-          {
-            'id': 1,
-            'user_id': 1,
-            'account_id': 1,
-            'subject': 'Test Email',
-            'from_email': 'test@example.com',
-            'to_emails': ['recipient@example.com'],
-            'email_status': 2,
-            'email_importance': 0,
-            'is_read': 0,
-            'is_starred': 0,
-            'is_archived': 0,
-            'is_deleted': 0,
-            'is_spam': 0,
-            'folder': 'inbox',
-            'created_at': DateTime.now().toIso8601String(),
-            'updated_at': DateTime.now().toIso8601String(),
-          }
-        ];
+        final response = BackendEmailResponse(
+          emails: [
+            BackendEmail(
+              id: '1',
+              subject: 'Test Email',
+              sender: 'test@example.com',
+              recipient: 'recipient@example.com',
+              preview: 'Test preview',
+              receivedDate: DateTime.now(),
+              isRead: false,
+              category: 'inbox',
+              hasAttachments: false,
+            )
+          ],
+          total: 1,
+          category: 'inbox',
+        );
 
-        when(() => mockApiClient.get(
-              any(),
-              queryParameters: any(named: 'queryParameters'),
+        when(() => mockBackendEmailService.fetchGmailEmails(
               accessToken: any(named: 'accessToken'),
-            )).thenAnswer((_) async => {'data': emailsJson});
+              category: any(named: 'category'),
+              limit: any(named: 'limit'),
+            )).thenAnswer((_) async => response);
 
         // Act
-        final result = await dataSource.getEmails();
+        final result = await dataSource.getEmails(
+          accessToken: 'test_token',
+          provider: EmailProvider.gmail,
+        );
 
         // Assert
         expect(result, isA<List<Email>>());
         expect(result.length, 1);
         expect(result.first.subject, 'Test Email');
-        verify(() => mockApiClient.get(
-              any(),
-              queryParameters: any(named: 'queryParameters'),
-              accessToken: any(named: 'accessToken'),
+        verify(() => mockBackendEmailService.fetchGmailEmails(
+              accessToken: 'test_token',
+              category: 'inbox',
+              limit: 50,
             )).called(1);
       });
 
       test('should throw ApiException when API call fails', () async {
         // Arrange
-        when(() => mockApiClient.get(
-              any(),
-              queryParameters: any(named: 'queryParameters'),
+        when(() => mockBackendEmailService.fetchGmailEmails(
               accessToken: any(named: 'accessToken'),
+              category: any(named: 'category'),
+              limit: any(named: 'limit'),
             )).thenThrow(ApiException(message: 'Network error'));
 
         // Act & Assert
         expect(
-          () => dataSource.getEmails(),
+          () => dataSource.getEmails(
+            accessToken: 'test_token',
+            provider: EmailProvider.gmail,
+          ),
           throwsA(isA<ApiException>()),
         );
       });
@@ -80,32 +84,36 @@ void main() {
     group('getEmailById', () {
       test('should return email when API call is successful', () async {
         // Arrange
-        final emailJson = {
-          'id': 1,
-          'user_id': 1,
-          'account_id': 1,
-          'subject': 'Test Email',
-          'from_email': 'test@example.com',
-          'to_emails': ['recipient@example.com'],
-          'email_status': 2,
-          'email_importance': 0,
-          'is_read': 0,
-          'is_starred': 0,
-          'is_archived': 0,
-          'is_deleted': 0,
-          'is_spam': 0,
-          'folder': 'inbox',
-          'created_at': DateTime.now().toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String(),
-        };
+        final response = BackendEmailResponse(
+          emails: [
+            BackendEmail(
+              id: '1',
+              subject: 'Test Email',
+              sender: 'test@example.com',
+              recipient: 'recipient@example.com',
+              preview: 'Test preview',
+              receivedDate: DateTime.now(),
+              isRead: false,
+              category: 'inbox',
+              hasAttachments: false,
+            )
+          ],
+          total: 1,
+          category: 'inbox',
+        );
 
-        when(() => mockApiClient.get(
-              any(),
+        when(() => mockBackendEmailService.fetchGmailEmails(
               accessToken: any(named: 'accessToken'),
-            )).thenAnswer((_) async => {'data': emailJson});
+              category: any(named: 'category'),
+              limit: any(named: 'limit'),
+            )).thenAnswer((_) async => response);
 
         // Act
-        final result = await dataSource.getEmailById(1);
+        final result = await dataSource.getEmailById(
+          1,
+          accessToken: 'test_token',
+          provider: EmailProvider.gmail,
+        );
 
         // Assert
         expect(result, isA<Email>());
@@ -114,14 +122,23 @@ void main() {
 
       test('should throw NotFoundException when email not found', () async {
         // Arrange
-        when(() => mockApiClient.get(
-              any(),
+        when(() => mockBackendEmailService.fetchGmailEmails(
               accessToken: any(named: 'accessToken'),
-            )).thenThrow(NotFoundException(message: 'Email not found'));
+              category: any(named: 'category'),
+              limit: any(named: 'limit'),
+            )).thenAnswer((_) async => BackendEmailResponse(
+              emails: [],
+              total: 0,
+              category: 'inbox',
+            ));
 
         // Act & Assert
         expect(
-          () => dataSource.getEmailById(999),
+          () => dataSource.getEmailById(
+            999,
+            accessToken: 'test_token',
+            provider: EmailProvider.gmail,
+          ),
           throwsA(isA<NotFoundException>()),
         );
       });
@@ -130,95 +147,110 @@ void main() {
     group('sendEmail', () {
       test('should return sent email when API call is successful', () async {
         // Arrange
-        final emailJson = {
-          'id': 1,
-          'user_id': 1,
-          'account_id': 1,
-          'subject': 'Test Email',
-          'from_email': 'test@example.com',
-          'to_emails': ['recipient@example.com'],
-          'email_status': 1,
-          'email_importance': 0,
-          'is_read': 1,
-          'is_starred': 0,
-          'is_archived': 0,
-          'is_deleted': 0,
-          'is_spam': 0,
-          'folder': 'sent',
-          'created_at': DateTime.now().toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String(),
-        };
+        final backendEmail = BackendEmail(
+          id: '1',
+          subject: 'Test Email',
+          sender: 'test@example.com',
+          recipient: 'recipient@example.com',
+          preview: 'Test preview',
+          receivedDate: DateTime.now(),
+          isRead: true,
+          category: 'sent',
+          hasAttachments: false,
+        );
 
-        when(() => mockApiClient.post(
-              any(),
-              body: any(named: 'body'),
+        when(() => mockBackendEmailService.sendGmailEmail(
               accessToken: any(named: 'accessToken'),
-            )).thenAnswer((_) async => {'data': emailJson});
+              toEmails: any(named: 'toEmails'),
+              subject: any(named: 'subject'),
+              plainText: any(named: 'plainText'),
+              htmlContent: any(named: 'htmlContent'),
+              ccEmails: any(named: 'ccEmails'),
+              bccEmails: any(named: 'bccEmails'),
+            )).thenAnswer((_) async => backendEmail);
 
         // Act
         final result = await dataSource.sendEmail(
           accountId: 1,
           toEmails: ['recipient@example.com'],
           subject: 'Test Email',
+          accessToken: 'test_token',
+          provider: EmailProvider.gmail,
         );
 
         // Assert
         expect(result, isA<Email>());
         expect(result.subject, 'Test Email');
-        expect(result.status, EmailStatus.sent);
+        verify(() => mockBackendEmailService.sendGmailEmail(
+              accessToken: 'test_token',
+              toEmails: ['recipient@example.com'],
+              subject: 'Test Email',
+              plainText: null,
+              htmlContent: null,
+              ccEmails: null,
+              bccEmails: null,
+            )).called(1);
       });
     });
 
     group('markAsRead', () {
       test('should return updated email when API call is successful', () async {
         // Arrange
-        final emailJson = {
-          'id': 1,
-          'user_id': 1,
-          'account_id': 1,
-          'subject': 'Test Email',
-          'from_email': 'test@example.com',
-          'to_emails': ['recipient@example.com'],
-          'email_status': 3,
-          'email_importance': 0,
-          'is_read': 1,
-          'is_starred': 0,
-          'is_archived': 0,
-          'is_deleted': 0,
-          'is_spam': 0,
-          'folder': 'inbox',
-          'created_at': DateTime.now().toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String(),
-        };
+        final backendEmail = BackendEmail(
+          id: '1',
+          subject: 'Test Email',
+          sender: 'test@example.com',
+          recipient: 'recipient@example.com',
+          preview: 'Test preview',
+          receivedDate: DateTime.now(),
+          isRead: true,
+          category: 'inbox',
+          hasAttachments: false,
+        );
 
-        when(() => mockApiClient.patch(
-              any(),
+        when(() => mockBackendEmailService.markGmailAsRead(
               accessToken: any(named: 'accessToken'),
-            )).thenAnswer((_) async => {'data': emailJson});
+              messageId: any(named: 'messageId'),
+            )).thenAnswer((_) async => backendEmail);
 
         // Act
-        final result = await dataSource.markAsRead(1);
+        final result = await dataSource.markAsRead(
+          1,
+          accessToken: 'test_token',
+          provider: EmailProvider.gmail,
+        );
 
         // Assert
         expect(result, isA<Email>());
         expect(result.isRead, true);
-        expect(result.status, EmailStatus.read);
+        verify(() => mockBackendEmailService.markGmailAsRead(
+              accessToken: 'test_token',
+              messageId: '1',
+            )).called(1);
       });
     });
 
     group('deleteEmail', () {
       test('should complete successfully when API call is successful', () async {
         // Arrange
-        when(() => mockApiClient.delete(
-              any(),
+        when(() => mockBackendEmailService.deleteGmailEmail(
               accessToken: any(named: 'accessToken'),
-            )).thenAnswer((_) async => {});
+              messageId: any(named: 'messageId'),
+            )).thenAnswer((_) async => Future.value());
 
         // Act & Assert
         await expectLater(
-          dataSource.deleteEmail(1),
+          dataSource.deleteEmail(
+            1,
+            accessToken: 'test_token',
+            provider: EmailProvider.gmail,
+          ),
           completes,
         );
+        verify(() => mockBackendEmailService.deleteGmailEmail(
+              accessToken: 'test_token',
+              messageId: '1',
+            )).called(1);
       });
     });
   });

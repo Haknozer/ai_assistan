@@ -18,6 +18,7 @@ import '../../../services/gmail_oauth_service.dart';
 import '../../../services/outlook_oauth_service.dart';
 import '../../../services/google_calendar_oauth_service.dart';
 import '../../../services/outlook_calendar_oauth_service.dart';
+import '../../../services/backend_email_service.dart';
 import '../../../models/email_account.dart';
 import '../../../models/calendar_account.dart';
 import '../../../core/config/app_config.dart';
@@ -858,7 +859,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       // Email account repository
       final emailAccountRepo = ref.read(emailAccountRepositoryProvider);
 
-      // Email account oluştur ve kaydet
+      // Email account oluştur ve kaydet (local database)
       await emailAccountRepo.connectEmailAccount(
         userId: currentUser.id!,
         emailAddress: authResult.email,
@@ -868,17 +869,57 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         displayName: authResult.displayName,
       );
 
+      // Backend'e email account'u bağla (background scheduler için)
+      try {
+        debugPrint('📧 Backend\'e Gmail account bağlama isteği gönderiliyor...');
+        final backendEmailService = BackendEmailService();
+        
+        // Email account'u backend'e bağla
+        // Bu sayede background scheduler otomatik olarak email'leri çekecek
+        await backendEmailService.connectEmailAccount(
+          provider: 'gmail',
+          email: authResult.email,
+          accessToken: authResult.accessToken,
+          refreshToken: authResult.refreshToken,
+          userId: currentUser.id,
+        );
+
+        debugPrint('✅ Gmail account backend\'e bağlandı');
+        debugPrint('   Background scheduler otomatik olarak email\'leri çekecek (UI açık değilken bile)');
+        
+        // Başarı mesajı
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Gmail başarıyla bağlandı: ${authResult.email}\n'
+                'Background scheduler otomatik olarak email\'leri çekecek',
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      } catch (backendError) {
+        debugPrint('⚠️ Backend Gmail account bağlama hatası: $backendError');
+        // Backend hatası olsa bile OAuth başarılı olduğu için devam et
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Gmail başarıyla bağlandı: ${authResult.email}\n'
+                'Backend bağlantısı başarısız (${backendError.toString()})',
+              ),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+
       // Dialog'u kapat
       if (mounted) {
         Navigator.pop(context); // Loading dialog
-
-        // Başarı mesajı göster
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gmail başarıyla bağlandı: ${authResult.email}'),
-            backgroundColor: Colors.green,
-          ),
-        );
 
         // Listeyi yenile (state güncellemesi için)
         ref.invalidate(emailAccountsProvider(EmailAccountsParams(
@@ -1026,7 +1067,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       // Email account repository
       final emailAccountRepo = ref.read(emailAccountRepositoryProvider);
 
-      // Email account oluştur ve kaydet
+      // Email account oluştur ve kaydet (local database)
       await emailAccountRepo.connectEmailAccount(
         userId: currentUser.id!,
         emailAddress: authResult.email,
@@ -1036,17 +1077,57 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         displayName: authResult.displayName,
       );
 
+      // Backend'e email account'u bağla (background scheduler için)
+      try {
+        debugPrint('📧 Backend\'e Outlook account bağlama isteği gönderiliyor...');
+        final backendEmailService = BackendEmailService();
+        
+        // Email account'u backend'e bağla
+        // Bu sayede background scheduler otomatik olarak email'leri çekecek
+        await backendEmailService.connectEmailAccount(
+          provider: 'outlook',
+          email: authResult.email,
+          accessToken: authResult.accessToken,
+          refreshToken: authResult.refreshToken,
+          userId: currentUser.id,
+        );
+
+        debugPrint('✅ Outlook account backend\'e bağlandı');
+        debugPrint('   Background scheduler otomatik olarak email\'leri çekecek (UI açık değilken bile)');
+        
+        // Başarı mesajı
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Outlook başarıyla bağlandı: ${authResult.email}\n'
+                'Background scheduler otomatik olarak email\'leri çekecek',
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      } catch (backendError) {
+        debugPrint('⚠️ Backend Outlook account bağlama hatası: $backendError');
+        // Backend hatası olsa bile OAuth başarılı olduğu için devam et
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Outlook başarıyla bağlandı: ${authResult.email}\n'
+                'Backend bağlantısı başarısız (${backendError.toString()})',
+              ),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+
       // Dialog'u kapat
       if (mounted) {
         Navigator.pop(context); // Loading dialog
-
-        // Başarı mesajı göster
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Outlook başarıyla bağlandı: ${authResult.email}'),
-            backgroundColor: Colors.green,
-          ),
-        );
 
         // Listeyi yenile (state güncellemesi için)
         ref.invalidate(emailAccountsProvider(EmailAccountsParams(
