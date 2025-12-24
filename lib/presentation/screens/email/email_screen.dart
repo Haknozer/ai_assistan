@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../models/email.dart';
@@ -11,13 +10,14 @@ import '../../../providers/user_provider.dart';
 import '../../../providers/email_account_provider.dart';
 import '../../../providers/email_polling_provider.dart';
 import '../../../features/email/providers/email_provider.dart';
-import '../../../services/n8n_response_storage_service.dart';
 import '../../widgets/email/email_page_header.dart';
 import '../../widgets/email/search_and_filter_bar.dart';
 import '../../widgets/email/email_filter_section.dart';
 import '../../widgets/email/email_list.dart';
 import '../../widgets/email/email_detail_panel.dart';
-import '../../widgets/email/compose_email_dialog.dart';
+import '../../widgets/email/email_error_state.dart';
+import '../../widgets/email/email_actions_handler.dart';
+import '../../widgets/email/email_compose_handler.dart';
 import '../../widgets/command_palette/command_palette_dialog.dart';
 import '../../../core/router/app_router.dart';
 import '../../../models/email_account.dart';
@@ -110,34 +110,6 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
       return null;
     }
     return filtered[_selectedEmailIndex!];
-  }
-
-  /// DEBUG: Lokal n8n email response cache'ini ve forwarded email ID'lerini temizle
-  Future<void> _debugClearLocalEmailAiCache(EmailNotifier emailNotifier) async {
-    try {
-      // 1) n8n email response cache'ini temizle (SharedPreferences)
-      await N8nResponseStorageService().clearAllEmailResponses();
-      // 2) Daha önce n8n'e forward edilmiş email ID'lerini temizle
-      await emailNotifier.clearForwardedEmailIds();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Yerel email AI cache temizlendi (n8n + forwarded IDs).'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Cache temizlenirken hata oluştu: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
   }
 
   @override
@@ -361,41 +333,19 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
 
     // Hata varsa ama email'ler de varsa, email'leri göster ama uyarı ver
     if (hasError && allEmails.isEmpty) {
-      return Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                const SizedBox(height: 16),
-                Text(
-                  firstErrorMessage ?? 'E-posta yüklenirken hata oluştu',
-                  style: const TextStyle(fontSize: 14, color: Colors.grey),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    // Tüm provider'ları yenile
-                    for (final account in accounts) {
-                      final emailParams = EmailListParams(
-                        accountId: account.id,
-                        folder: _selectedFolder,
-                        accessToken: account.accessToken!,
-                      );
-                      ref.read(emailNotifierProvider(emailParams).notifier).refresh();
-                    }
-                  },
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Yeniden Dene'),
-                ),
-              ],
-            ),
-          ),
-        ),
+      return EmailErrorState(
+        errorMessage: firstErrorMessage,
+        onRetry: () {
+          // Tüm provider'ları yenile
+          for (final account in accounts) {
+            final emailParams = EmailListParams(
+              accountId: account.id,
+              folder: _selectedFolder,
+              accessToken: account.accessToken!,
+            );
+            ref.read(emailNotifierProvider(emailParams).notifier).refresh();
+          }
+        },
       );
     }
 
@@ -514,8 +464,15 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                         _selectedEmailIndex = null;
                       });
                     },
-                    onComposeEmail: () => _showComposeEmailDialog(emailNotifier,
-                        accountId: account.id, accessToken: account.accessToken, availableAccounts: accounts),
+                    onComposeEmail: () {
+                      final composeHandler = EmailComposeHandler(context, ref);
+                      composeHandler.showComposeDialog(
+                        emailNotifier,
+                        accountId: account.id,
+                        accessToken: account.accessToken,
+                        availableAccounts: accounts,
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 16),
@@ -530,19 +487,6 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                       });
                     },
                   ),
-
-                  // DEBUG: Lokal n8n email cache temizleme butonu
-                  if (kDebugMode) ...[
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton.icon(
-                        onPressed: () => _debugClearLocalEmailAiCache(emailNotifier),
-                        icon: const Icon(Icons.delete_sweep, size: 18),
-                        label: const Text('AI Mail Cache\'ini Temizle'),
-                      ),
-                    ),
-                  ],
 
                   const SizedBox(height: 24),
 
@@ -572,8 +516,19 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                                 }
                               });
                             },
-                            onDeleteEmail: (email) => _deleteEmail(email, emailNotifier, emailParams),
-                            onMarkAsImportant: (email) => _markAsImportant(email, emailNotifier, emailParams),
+                            onDeleteEmail: (email) {
+                              final actionsHandler = EmailActionsHandler(context, ref);
+                              actionsHandler.deleteEmail(
+                                email,
+                                emailNotifier,
+                                emailParams,
+                                () => setState(() => _selectedEmailIndex = null),
+                              );
+                            },
+                            onMarkAsImportant: (email) {
+                              final actionsHandler = EmailActionsHandler(context, ref);
+                              actionsHandler.markAsImportant(email, emailNotifier, emailParams);
+                            },
                           ),
                         ),
 
@@ -586,26 +541,49 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                             email: selectedEmail,
                             onReply: selectedEmail != null
                                 ? (email) {
-                                    // Email'in accountId'sine göre accessToken bul
+                                    final actionsHandler = EmailActionsHandler(context, ref);
                                     final emailAccount = accounts.firstWhere(
                                       (acc) => acc.id == email.accountId,
                                       orElse: () => account,
                                     );
-                                    _replyToEmail(email, emailNotifier, emailAccount.accessToken);
+                                    actionsHandler.replyToEmail(
+                                      email,
+                                      emailNotifier,
+                                      emailAccount.accessToken,
+                                      accounts,
+                                      account,
+                                    );
                                   }
                                 : null,
                             onForward: selectedEmail != null
                                 ? (email) {
-                                    // Email'in accountId'sine göre accessToken bul
+                                    final actionsHandler = EmailActionsHandler(context, ref);
                                     final emailAccount = accounts.firstWhere(
                                       (acc) => acc.id == email.accountId,
                                       orElse: () => account,
                                     );
-                                    _forwardEmail(email, emailNotifier, emailAccount.accessToken);
+                                    actionsHandler.forwardEmail(
+                                      email,
+                                      emailNotifier,
+                                      emailAccount.accessToken,
+                                      accounts,
+                                      account,
+                                    );
                                   }
                                 : null,
-                            onDelete: (email) => _deleteEmail(email, emailNotifier, emailParams),
-                            onMarkAsImportant: (email) => _markAsImportant(email, emailNotifier, emailParams),
+                            onDelete: (email) {
+                              final actionsHandler = EmailActionsHandler(context, ref);
+                              actionsHandler.deleteEmail(
+                                email,
+                                emailNotifier,
+                                emailParams,
+                                () => setState(() => _selectedEmailIndex = null),
+                              );
+                            },
+                            onMarkAsImportant: (email) {
+                              final actionsHandler = EmailActionsHandler(context, ref);
+                              actionsHandler.markAsImportant(email, emailNotifier, emailParams);
+                            },
                           ),
                         ),
                       ],
@@ -670,8 +648,15 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                           _selectedEmailIndex = null;
                         });
                       },
-                      onComposeEmail: () => _showComposeEmailDialog(emailNotifier,
-                          accountId: account.id, accessToken: account.accessToken, availableAccounts: accounts),
+                      onComposeEmail: () {
+                        final composeHandler = EmailComposeHandler(context, ref);
+                        composeHandler.showComposeDialog(
+                          emailNotifier,
+                          accountId: account.id,
+                          accessToken: account.accessToken,
+                          availableAccounts: accounts,
+                        );
+                      },
                     ),
                     const SizedBox(height: 16),
                     EmailFilterSection(
@@ -683,18 +668,6 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                         });
                       },
                     ),
-                    // DEBUG: Lokal n8n email cache temizleme butonu (mobil)
-                    if (kDebugMode) ...[
-                      const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton.icon(
-                          onPressed: () => _debugClearLocalEmailAiCache(emailNotifier),
-                          icon: const Icon(Icons.delete_sweep, size: 18),
-                          label: const Text('AI Mail Cache\'ini Temizle'),
-                        ),
-                      ),
-                    ],
                     const SizedBox(height: 16),
                     Expanded(
                       child: EmailList(
@@ -714,8 +687,19 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                             }
                           });
                         },
-                        onDeleteEmail: (email) => _deleteEmail(email, emailNotifier, emailParams),
-                        onMarkAsImportant: (email) => _markAsImportant(email, emailNotifier, emailParams),
+                        onDeleteEmail: (email) {
+                          final actionsHandler = EmailActionsHandler(context, ref);
+                          actionsHandler.deleteEmail(
+                            email,
+                            emailNotifier,
+                            emailParams,
+                            () => setState(() => _selectedEmailIndex = null),
+                          );
+                        },
+                        onMarkAsImportant: (email) {
+                          final actionsHandler = EmailActionsHandler(context, ref);
+                          actionsHandler.markAsImportant(email, emailNotifier, emailParams);
+                        },
                       ),
                     ),
                   ],
@@ -782,273 +766,6 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
   void _handleProfileTap() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Profil sayfasına yönlendiriliyor...')),
-    );
-  }
-
-  void _markAsImportant(Email email, EmailNotifier emailNotifier, EmailListParams emailParams) {
-    // Gmail API messageId kullanır
-    if (email.messageId == null) return;
-    final isImportant = email.importance != EmailImportance.important;
-    final emailId = int.tryParse(email.messageId!) ?? 0;
-    if (emailId == 0) return;
-    emailNotifier.toggleImportant(emailId, isImportant, accessToken: emailParams.accessToken);
-  }
-
-  void _deleteEmail(Email email, EmailNotifier emailNotifier, EmailListParams emailParams) {
-    // Gmail API messageId kullanır
-    if (email.messageId == null) return;
-    final emailId = int.tryParse(email.messageId!) ?? 0;
-    if (emailId == 0) return;
-    emailNotifier.deleteEmail(emailId, accessToken: emailParams.accessToken);
-    setState(() {
-      _selectedEmailIndex = null;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('E-posta silindi')),
-    );
-  }
-
-  void _replyToEmail(Email email, EmailNotifier emailNotifier, String? accessToken) {
-    final currentUser = ref.read(currentUserProvider);
-
-    // Email'in accountId'sini bul
-    final accountId = email.accountId;
-
-    showDialog(
-      context: context,
-      builder: (context) => ComposeEmailDialog(
-        replyTo: email,
-        accountId: accountId,
-        userId: currentUser?.id,
-        onEmailSent: (newEmail) async {
-          try {
-            await emailNotifier.sendEmail(
-              accountId: accountId,
-              toEmails: newEmail.toEmails,
-              subject: newEmail.subject,
-              plainText: newEmail.plainText,
-              htmlContent: newEmail.htmlContent,
-              importance: newEmail.importance,
-            );
-            if (context.mounted) {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('E-posta başarıyla gönderildi'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            }
-          } catch (e) {
-            if (context.mounted) {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('E-posta gönderilirken hata oluştu: ${e.toString()}'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          }
-        },
-        onDraftSaved: (newEmail) async {
-          try {
-            await emailNotifier.saveDraft(
-              accountId: accountId,
-              subject: newEmail.subject,
-              plainText: newEmail.plainText,
-              htmlContent: newEmail.htmlContent,
-              toEmails: newEmail.toEmails.isNotEmpty ? newEmail.toEmails : null,
-            );
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Taslak başarıyla kaydedildi'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            }
-          } catch (e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Taslak kaydedilirken hata oluştu: ${e.toString()}'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          }
-        },
-      ),
-    );
-  }
-
-  void _forwardEmail(Email email, EmailNotifier emailNotifier, String? accessToken) {
-    final currentUser = ref.read(currentUserProvider);
-
-    // Email'in accountId'sini bul
-    final accountId = email.accountId;
-
-    showDialog(
-      context: context,
-      builder: (context) => ComposeEmailDialog(
-        forwardTo: email,
-        accountId: accountId,
-        userId: currentUser?.id,
-        onEmailSent: (newEmail) async {
-          try {
-            await emailNotifier.sendEmail(
-              accountId: accountId,
-              toEmails: newEmail.toEmails,
-              subject: newEmail.subject,
-              plainText: newEmail.plainText,
-              htmlContent: newEmail.htmlContent,
-              importance: newEmail.importance,
-              // accessToken parametresini kaldırdık - repository'de account'tan dinamik olarak alınıyor
-            );
-            if (context.mounted) {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('E-posta başarıyla yönlendirildi'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            }
-          } catch (e) {
-            if (context.mounted) {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('E-posta yönlendirilirken hata oluştu: ${e.toString()}'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          }
-        },
-        onDraftSaved: (newEmail) async {
-          try {
-            await emailNotifier.saveDraft(
-              accountId: accountId,
-              subject: newEmail.subject,
-              plainText: newEmail.plainText,
-              htmlContent: newEmail.htmlContent,
-              toEmails: newEmail.toEmails.isNotEmpty ? newEmail.toEmails : null,
-            );
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Taslak başarıyla kaydedildi'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            }
-          } catch (e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Taslak kaydedilirken hata oluştu: ${e.toString()}'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          }
-        },
-      ),
-    );
-  }
-
-  void _showComposeEmailDialog(EmailNotifier emailNotifier,
-      {int? accountId, String? accessToken, List<EmailAccount>? availableAccounts}) {
-    final currentUser = ref.read(currentUserProvider);
-
-    // AccountId'yi belirle - eğer accountId null ise, emailNotifier'dan al
-    int? finalAccountId = accountId ?? emailNotifier.accountId;
-
-    // Hala null ise hata fırlat
-    if (finalAccountId == null || finalAccountId == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('E-posta hesabı bulunamadı. Lütfen e-posta hesabınızı kontrol edin.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => ComposeEmailDialog(
-        accountId: finalAccountId,
-        userId: currentUser?.id,
-        availableAccounts: availableAccounts,
-        onEmailSent: (email) async {
-          try {
-            // Email'in accountId'sini kullan (kullanıcı dropdown'dan seçtiği account)
-            final selectedAccountId = email.accountId > 0 ? email.accountId : finalAccountId;
-            await emailNotifier.sendEmail(
-              accountId: selectedAccountId,
-              toEmails: email.toEmails,
-              subject: email.subject,
-              plainText: email.plainText,
-              htmlContent: email.htmlContent,
-              importance: email.importance,
-            );
-            if (context.mounted) {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('E-posta başarıyla gönderildi'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            }
-          } catch (e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('E-posta gönderilirken hata oluştu: ${e.toString()}'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          }
-        },
-        onDraftSaved: (email) async {
-          try {
-            // Email'in accountId'sini kullan (kullanıcı dropdown'dan seçtiği account)
-            final selectedAccountId = email.accountId > 0 ? email.accountId : finalAccountId;
-            if (selectedAccountId == 0) {
-              throw Exception('Account ID bulunamadı. Lütfen e-posta hesabınızı kontrol edin.');
-            }
-            await emailNotifier.saveDraft(
-              accountId: selectedAccountId,
-              subject: email.subject,
-              plainText: email.plainText,
-              htmlContent: email.htmlContent,
-              toEmails: email.toEmails.isNotEmpty ? email.toEmails : null,
-            );
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Taslak başarıyla kaydedildi'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            }
-          } catch (e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Taslak kaydedilirken hata oluştu: ${e.toString()}'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          }
-        },
-      ),
     );
   }
 }
