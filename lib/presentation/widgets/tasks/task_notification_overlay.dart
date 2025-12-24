@@ -45,6 +45,9 @@ class TaskNotificationOverlay {
     String message,
     Color color,
   ) {
+    // Context'in mounted olduğunu kontrol et
+    if (!context.mounted) return;
+    
     final overlay = Overlay.of(context);
     late OverlayEntry overlayEntry;
 
@@ -103,7 +106,12 @@ class TaskNotificationOverlay {
                   top: 0,
                   right: 0,
                   child: GestureDetector(
-                    onTap: () => overlayEntry.remove(),
+                    onTap: () {
+                      // Güvenli remove - mounted kontrolü
+                      if (overlayEntry.mounted) {
+                        overlayEntry.remove();
+                      }
+                    },
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
@@ -126,6 +134,12 @@ class TaskNotificationOverlay {
     );
 
     overlay.insert(overlayEntry);
-    Future.delayed(const Duration(seconds: 4), () => overlayEntry.remove());
+    
+    // Güvenli otomatik kaldırma
+    Future.delayed(const Duration(seconds: 4), () {
+      if (overlayEntry.mounted) {
+        overlayEntry.remove();
+      }
+    });
   }
 }

@@ -11,6 +11,7 @@ import '../../widgets/tasks/search_and_filter_section.dart';
 import '../../widgets/tasks/kanban_board.dart';
 import '../../widgets/tasks/add_task_dialog.dart';
 import '../../widgets/tasks/task_notification_overlay.dart';
+import '../../widgets/tasks/trash_bin_widget.dart';
 import '../../widgets/command_palette/command_palette_dialog.dart';
 import '../../../core/router/app_router.dart';
 
@@ -155,10 +156,20 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
 
                   // Kanban Board
                   Expanded(
-                    child: KanbanBoard(
-                      tasksByStatus: tasksByStatus,
-                      onTaskStatusChanged: _updateTaskStatus,
-                      isDesktop: true,
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: KanbanBoard(
+                            tasksByStatus: tasksByStatus,
+                            onTaskStatusChanged: _updateTaskStatus,
+                            isDesktop: true,
+                          ),
+                        ),
+                        // Çöp Kutusu (Alt taraf - Desktop)
+                        TrashBinWidget(
+                          onTaskDropped: _deleteTask,
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -208,10 +219,20 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
 
               // Kanban Board (Mobil)
               Expanded(
-                child: KanbanBoard(
-                  tasksByStatus: tasksByStatus,
-                  onTaskStatusChanged: _updateTaskStatus,
-                  isDesktop: false,
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: KanbanBoard(
+                        tasksByStatus: tasksByStatus,
+                        onTaskStatusChanged: _updateTaskStatus,
+                        isDesktop: false,
+                      ),
+                    ),
+                    // Çöp Kutusu (Alt taraf - Mobil)
+                    TrashBinWidget(
+                      onTaskDropped: _deleteTask,
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -292,6 +313,36 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Görev durumu güncellenirken hata oluştu: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Görev sil
+  Future<void> _deleteTask(Task task) async {
+    if (task.id == null) return;
+    
+    try {
+      await ref.read(tasksNotifierProvider.notifier).deleteTask(task.id!);
+      
+      // Başarı bildirimi göster
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ "${task.title}" görevi silindi'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      // Hata durumunda kullanıcıya bildir
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Görev silinirken hata oluştu: $e'),
             backgroundColor: Colors.red,
           ),
         );

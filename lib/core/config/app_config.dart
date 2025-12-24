@@ -63,6 +63,17 @@ class AppConfig {
     defaultValue: '', // Azure Portal'dan alınacak
   );
 
+  // Outlook OAuth Configuration (Microsoft'un alias'ı)
+  static const String outlookClientId = String.fromEnvironment(
+    'OUTLOOK_CLIENT_ID',
+    defaultValue: microsoftClientId,
+  );
+
+  static const String outlookClientSecret = String.fromEnvironment(
+    'OUTLOOK_CLIENT_SECRET',
+    defaultValue: microsoftClientSecret,
+  );
+
   // Weather API Configuration
   static const String weatherApiKey = String.fromEnvironment(
     'WEATHER_API_KEY',

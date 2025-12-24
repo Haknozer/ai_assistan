@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     MS_REDIRECT_URI: str = os.getenv("MS_REDIRECT_URI", "")
     MS_TENANT_ID: str = os.getenv("MS_TENANT_ID", "common")
     
+    # Outlook OAuth (alias for MS)
+    OUTLOOK_CLIENT_ID: str = os.getenv("OUTLOOK_CLIENT_ID") or os.getenv("MS_CLIENT_ID", "")
+    OUTLOOK_CLIENT_SECRET: str = os.getenv("OUTLOOK_CLIENT_SECRET") or os.getenv("MS_CLIENT_SECRET", "")
+    
     # Yahoo OAuth
     YAHOO_CLIENT_ID: str = os.getenv("YAHOO_CLIENT_ID", "")
     YAHOO_CLIENT_SECRET: str = os.getenv("YAHOO_CLIENT_SECRET", "")

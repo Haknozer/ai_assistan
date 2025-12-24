@@ -13,6 +13,7 @@ from app.models.email_account import EmailAccount
 from app.services.gmail_email_service import GmailEmailService
 from app.services.outlook_email_service import OutlookEmailService
 from app.services.n8n_service import N8nService, check_email_already_processed
+from app.services.token_refresh_service import TokenRefreshService
 from app.core.redis_client import redis_client
 
 
@@ -98,11 +99,20 @@ class EmailSyncScheduler:
         print(f"\n📧 Account sync başlıyor: {account.email} ({account.provider})")
         
         try:
-            # Provider'a göre servis seç
+            # ÖNCE token'ı kontrol et ve gerekirse yenile
+            try:
+                access_token = await TokenRefreshService.get_valid_access_token(account, db)
+                print(f"   ✅ Token geçerli veya yenilendi")
+            except Exception as token_error:
+                print(f"   ❌ Token yenileme hatası: {token_error}")
+                print(f"   ⚠️  Account {account.email} atlanıyor (token geçersiz)")
+                return
+            
+            # Provider'a göre servis seç (yenilenmiş token ile)
             if account.provider == "gmail":
-                service = GmailEmailService(account.access_token)
+                service = GmailEmailService(access_token)
             elif account.provider == "outlook":
-                service = OutlookEmailService(account.access_token)
+                service = OutlookEmailService(access_token)
             else:
                 print(f"⚠️  Bilinmeyen provider: {account.provider}")
                 return
@@ -152,11 +162,65 @@ class EmailSyncScheduler:
             
         except Exception as e:
             print(f"   ❌ Sync hatası: {e}")
-            # Token expire olmuş olabilir, account'u pasif yap
-            if "401" in str(e) or "token" in str(e).lower():
-                account.is_active = False
-                db.commit()
-                print(f"   ⚠️  Account pasif yapıldı (token hatası)")
+            # Token expire olmuş olabilir, yenilemeyi dene
+            if "401" in str(e) or "unauthorized" in str(e).lower() or "token" in str(e).lower():
+                print(f"   🔄 Token hatası tespit edildi, yenileme deneniyor...")
+                try:
+                    access_token = await TokenRefreshService.get_valid_access_token(account, db)
+                    print(f"   ✅ Token yenilendi, sync tekrar deneniyor...")
+                    
+                    # Yeni token ile servisi yeniden oluştur
+                    if account.provider == "gmail":
+                        service = GmailEmailService(access_token)
+                    elif account.provider == "outlook":
+                        service = OutlookEmailService(access_token)
+                    else:
+                        return
+                    
+                    # Email'leri tekrar çek
+                    emails = await service.fetch_emails(category=None, limit=50)
+                    
+                    if not emails:
+                        print(f"   ℹ️  Email bulunamadı")
+                        return
+                    
+                    print(f"   ✅ {len(emails)} email çekildi (token yenilendikten sonra)")
+                    
+                    # Email'leri işle
+                    n8n_service = N8nService()
+                    processed_count = 0
+                    skipped_count = 0
+                    
+                    for email in emails:
+                        already_processed = check_email_already_processed(
+                            email_id=email.id,
+                            provider=account.provider
+                        )
+                        
+                        if already_processed:
+                            skipped_count += 1
+                            continue
+                        
+                        n8n_response = await n8n_service.send_email_for_task_extraction(
+                            email=email,
+                            provider=account.provider
+                        )
+                        
+                        if n8n_response:
+                            processed_count += 1
+                    
+                    # Son sync tarihini güncelle
+                    account.last_sync_at = datetime.utcnow()
+                    db.commit()
+                    
+                    print(f"   📊 İşlem özeti (token yenileme sonrası): {processed_count} işlendi, {skipped_count} atlandı")
+                    
+                except Exception as refresh_error:
+                    print(f"   ❌ Token yenileme başarısız: {refresh_error}")
+                    # Token yenilenemedi, account'u pasif yap
+                    account.is_active = False
+                    db.commit()
+                    print(f"   ⚠️  Account pasif yapıldı (token yenilenemedi)")
 
 
 # Global scheduler instance

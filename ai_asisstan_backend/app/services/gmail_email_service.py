@@ -563,4 +563,59 @@ class GmailEmailService:
         # Kaydedilen draft'ı getir
         message_response = await self._make_request(f"/users/me/messages/{message_id}")
         return self._parse_email(message_response, EmailCategory.DRAFTS)
+    
+    async def setup_push_notifications(self, topic_name: str) -> dict:
+        """
+        Gmail Push Notifications kurulumu (users.watch API)
+        
+        Bu fonksiyon Gmail mailbox'ı için push notification'ları aktif eder.
+        Yeni mail geldiğinde Gmail, belirtilen Pub/Sub topic'ine mesaj gönderir.
+        
+        Args:
+            topic_name: Google Cloud Pub/Sub topic adı (format: projects/{project}/topics/{topic})
+            
+        Returns:
+            Watch response (historyId, expiration vb.)
+            
+        Example:
+            topic_name = "projects/aiassistan/topics/gmail-bildirim"
+            response = await gmail_service.setup_push_notifications(topic_name)
+        """
+        try:
+            body = {
+                "labelIds": ["INBOX"],  # INBOX değişikliklerini izle
+                "topicName": topic_name
+            }
+            
+            response = await self._make_request(
+                "/users/me/watch",
+                method="POST",
+                json_data=body
+            )
+            
+            print(f"✅ Gmail Push Notification kuruldu")
+            print(f"   History ID: {response.get('historyId')}")
+            print(f"   Expiration: {response.get('expiration')} (unix timestamp ms)")
+            
+            return response
+            
+        except Exception as e:
+            print(f"❌ Gmail Push Notification kurulum hatası: {e}")
+            raise Exception(f"Gmail watch request hatası: {str(e)}")
+    
+    async def stop_push_notifications(self) -> None:
+        """
+        Gmail Push Notifications durdur (users.stop API)
+        
+        Push notification'ları devre dışı bırakır.
+        """
+        try:
+            await self._make_request(
+                "/users/me/stop",
+                method="POST"
+            )
+            print("✅ Gmail Push Notification durduruldu")
+        except Exception as e:
+            print(f"⚠️ Gmail Push Notification durdurma hatası: {e}")
+            raise Exception(f"Gmail stop request hatası: {str(e)}")
 

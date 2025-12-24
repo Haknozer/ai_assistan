@@ -8,6 +8,7 @@ from app.core.database import get_db
 from app.services.outlook_email_service import OutlookEmailService
 from app.services.gmail_email_service import GmailEmailService
 from app.services.n8n_service import N8nService, check_email_already_processed
+from app.services.token_refresh_service import TokenRefreshService
 from app.models.email_schemas import (
     EmailListResponse, EmailCategory, Email,
     SendEmailRequest, SaveDraftRequest, ToggleImportantRequest
@@ -61,10 +62,46 @@ async def connect_email_account(
             existing_account.is_active = True
             existing_account.is_connected = True
             existing_account.updated_at = datetime.utcnow()
+            # Token expire time'ı ayarla (genelde 1 saat)
+            from datetime import timedelta
+            existing_account.token_expires_at = datetime.utcnow() + timedelta(hours=1)
             db.commit()
             db.refresh(existing_account)
             
             print(f"\n✅ Email account güncellendi: {request.email} ({request.provider})")
+            
+            # Gmail için Push Notification kurulumu (güncelleme durumunda da yap)
+            if request.provider == "gmail":
+                print(f"\n🔄 Gmail Push Notification kurulumu başlatılıyor...")
+                try:
+                    from app.core.config import settings
+                    print(f"   GOOGLE_CLOUD_PROJECT_ID: {settings.GOOGLE_CLOUD_PROJECT_ID}")
+                    print(f"   PUBSUB_TOPIC_NAME: {settings.PUBSUB_TOPIC_NAME}")
+                    
+                    if settings.GOOGLE_CLOUD_PROJECT_ID and settings.PUBSUB_TOPIC_NAME:
+                        topic_name = f"projects/{settings.GOOGLE_CLOUD_PROJECT_ID}/topics/{settings.PUBSUB_TOPIC_NAME}"
+                        print(f"   Topic Full Name: {topic_name}")
+                        print(f"   Access Token var: {bool(request.access_token)}")
+                        
+                        gmail_service = GmailEmailService(request.access_token)
+                        print(f"   GmailEmailService oluşturuldu, watch request gönderiliyor...")
+                        
+                        watch_response = await gmail_service.setup_push_notifications(topic_name)
+                        
+                        print(f"\n🔔 Gmail Push Notification kuruldu:")
+                        print(f"   Topic: {topic_name}")
+                        print(f"   History ID: {watch_response.get('historyId')}")
+                        print(f"   Expiration: {watch_response.get('expiration')}")
+                    else:
+                        print(f"\n⚠️  Gmail Push Notification kurulumu atlandı (Pub/Sub yapılandırılmamış)")
+                        print(f"      GOOGLE_CLOUD_PROJECT_ID: '{settings.GOOGLE_CLOUD_PROJECT_ID}'")
+                        print(f"      PUBSUB_TOPIC_NAME: '{settings.PUBSUB_TOPIC_NAME}'")
+                except Exception as e:
+                    print(f"\n❌ Gmail Push Notification kurulum HATASI: {e}")
+                    print(f"   Hata tipi: {type(e).__name__}")
+                    import traceback
+                    print(f"   Traceback:\n{traceback.format_exc()}")
+            
             return {
                 "message": "Email account başarıyla güncellendi",
                 "account_id": existing_account.id,
@@ -74,6 +111,7 @@ async def connect_email_account(
             }
         else:
             # Yeni account oluştur
+            from datetime import timedelta
             new_account = EmailAccount(
                 user_id=request.user_id or 1,  # Default user_id, gerçek uygulamada auth'dan alınmalı
                 provider=request.provider,
@@ -81,7 +119,9 @@ async def connect_email_account(
                 access_token=request.access_token,
                 refresh_token=request.refresh_token,
                 is_active=True,
-                is_connected=True
+                is_connected=True,
+                # Token expire time'ı ayarla (genelde 1 saat)
+                token_expires_at=datetime.utcnow() + timedelta(hours=1)
             )
             
             db.add(new_account)
@@ -90,6 +130,25 @@ async def connect_email_account(
             
             print(f"\n✅ Yeni email account bağlandı: {request.email} ({request.provider})")
             print(f"   Account ID: {new_account.id}")
+            
+            # Gmail için Push Notification kurulumu
+            if request.provider == "gmail":
+                try:
+                    from app.core.config import settings
+                    if settings.GOOGLE_CLOUD_PROJECT_ID and settings.PUBSUB_TOPIC_NAME:
+                        topic_name = f"projects/{settings.GOOGLE_CLOUD_PROJECT_ID}/topics/{settings.PUBSUB_TOPIC_NAME}"
+                        gmail_service = GmailEmailService(request.access_token)
+                        watch_response = await gmail_service.setup_push_notifications(topic_name)
+                        print(f"\n🔔 Gmail Push Notification kuruldu:")
+                        print(f"   Topic: {topic_name}")
+                        print(f"   History ID: {watch_response.get('historyId')}")
+                        print(f"   Expiration: {watch_response.get('expiration')}")
+                    else:
+                        print(f"\n⚠️  Gmail Push Notification kurulumu atlandı (Pub/Sub yapılandırılmamış)")
+                except Exception as e:
+                    print(f"\n⚠️  Gmail Push Notification kurulum hatası (devam ediliyor): {e}")
+                    import traceback
+                    print(traceback.format_exc())
             
             # İlk bağlandığında email'leri çek, tek tek n8n'e gönder, dönen cevap ile Redis'e kaydet
             try:
@@ -205,6 +264,68 @@ async def get_email_accounts(db: Session = Depends(get_db)):
         )
 
 
+@router.get("/check-new-emails")
+async def check_new_emails(
+    provider: Optional[str] = Query(None, description="Provider filtresi: gmail veya outlook"),
+    last_check: Optional[str] = Query(None, description="Son kontrol zamanı (ISO format)")
+):
+    """
+    Yeni email var mı kontrol et (Flutter polling için)
+    
+    Response:
+    {
+        "has_new_emails": true,
+        "gmail_count": 5,
+        "outlook_count": 3,
+        "total_count": 8,
+        "last_email_timestamp": "2024-01-01T12:00:00Z"
+    }
+    """
+    try:
+        from datetime import datetime, timezone
+        
+        # Redis'ten email'leri al
+        gmail_emails = redis_client.get_all_emails(provider="gmail") if not provider or provider == "gmail" else []
+        outlook_emails = redis_client.get_all_emails(provider="outlook") if not provider or provider == "outlook" else []
+        
+        all_emails = gmail_emails + outlook_emails
+        
+        # last_check parametresi varsa, sadece o zamandan sonraki email'leri say
+        new_emails_count = 0
+        if last_check:
+            try:
+                last_check_dt = datetime.fromisoformat(last_check.replace('Z', '+00:00'))
+                new_emails = [e for e in all_emails if e.received_date > last_check_dt]
+                new_emails_count = len(new_emails)
+            except:
+                # Parse hatası varsa tüm email'leri say
+                new_emails_count = len(all_emails)
+        else:
+            new_emails_count = len(all_emails)
+        
+        # Son email'in timestamp'i
+        last_email_timestamp = None
+        if all_emails:
+            sorted_emails = sorted(all_emails, key=lambda x: x.received_date, reverse=True)
+            last_email_timestamp = sorted_emails[0].received_date.isoformat()
+        
+        return {
+            "has_new_emails": new_emails_count > 0,
+            "gmail_count": len(gmail_emails),
+            "outlook_count": len(outlook_emails),
+            "total_count": len(all_emails),
+            "new_count": new_emails_count,
+            "last_email_timestamp": last_email_timestamp
+        }
+    except Exception as e:
+        import traceback
+        print(f"❌ Yeni email kontrol hatası: {e}\n{traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Yeni email kontrol hatası: {str(e)}"
+        )
+
+
 @router.delete("/accounts/{account_id}")
 async def disconnect_email_account(
     account_id: int,
@@ -266,10 +387,11 @@ def get_access_token(
 async def get_outlook_emails(
     token: str = Depends(get_access_token),
     category: Optional[EmailCategory] = Query(None, description="Email kategorisi filtresi (None = tüm kategorilerden çek): inbox, sent, spam, drafts"),
-    limit: int = Query(50, ge=1, le=100, description="Kaç email getirilecek (kategori None ise tüm klasörlerden)")
+    limit: int = Query(50, ge=1, le=100, description="Kaç email getirilecek (kategori None ise tüm klasörlerden)"),
+    db: Session = Depends(get_db)
 ):
     """
-    Outlook'tan email'leri çek
+    Outlook'tan email'leri çek (otomatik token yenileme ile)
     
     **Token Gönderme Yöntemleri:**
     1. Authorization Header (Önerilen):
@@ -337,8 +459,46 @@ async def get_outlook_emails(
         print(f"🔄 Redis'te email yok, API'den çekiliyor...")
         print("="*80 + "\n")
         
+        # Outlook servisini oluştur ve email'leri çek
+        # Eğer 401 hatası alırsak token'ı yenilemeye çalışacağız
         service = OutlookEmailService(token)
-        emails = await service.fetch_emails(category=category, limit=limit)
+        
+        try:
+            emails = await service.fetch_emails(category=category, limit=limit)
+        except Exception as fetch_error:
+            # 401 veya Unauthorized hatası ise token'ı yenilemeyi dene
+            if "401" in str(fetch_error) or "unauthorized" in str(fetch_error).lower():
+                print(f"⚠️ Token geçersiz, yenileme deneniyor...")
+                
+                # Token ile ilişkili account'u bul
+                account = db.query(EmailAccount).filter(
+                    EmailAccount.access_token == token,
+                    EmailAccount.provider == "outlook"
+                ).first()
+                
+                if account and account.refresh_token:
+                    try:
+                        # Token'ı yenile
+                        new_token = await TokenRefreshService.get_valid_access_token(account, db)
+                        print(f"✅ Token yenilendi, email'ler tekrar çekiliyor...")
+                        
+                        # Yeni token ile tekrar dene
+                        service = OutlookEmailService(new_token)
+                        emails = await service.fetch_emails(category=category, limit=limit)
+                    except Exception as refresh_error:
+                        print(f"❌ Token yenileme hatası: {refresh_error}")
+                        raise HTTPException(
+                            status_code=401,
+                            detail=f"Access token geçersiz ve yenilenemedi. Lütfen Outlook hesabınızı yeniden bağlayın. Hata: {str(refresh_error)}"
+                        )
+                else:
+                    print(f"⚠️ Account bulunamadı veya refresh token yok")
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Access token geçersiz. Lütfen Outlook hesabınızı yeniden bağlayın."
+                    )
+            else:
+                raise
         
         # Şimdilik ekrana yazdır
         print("\n" + "="*80)
@@ -422,10 +582,11 @@ async def get_outlook_emails(
 async def get_gmail_emails(
     token: str = Depends(get_access_token),
     category: Optional[EmailCategory] = Query(None, description="Email kategorisi filtresi (None = tüm kategorilerden çek): inbox, sent, spam, drafts, promotions, social, updates, forums"),
-    limit: int = Query(50, ge=1, le=100, description="Kaç email getirilecek (kategori None ise tüm kategorilerden)")
+    limit: int = Query(50, ge=1, le=100, description="Kaç email getirilecek (kategori None ise tüm kategorilerden)"),
+    db: Session = Depends(get_db)
 ):
     """
-    Gmail'den email'leri çek
+    Gmail'den email'leri çek (otomatik token yenileme ile)
     
     **Token Gönderme Yöntemleri:**
     1. Authorization Header (Önerilen):
@@ -464,6 +625,10 @@ async def get_gmail_emails(
     ```
     """
     try:
+        # Token geçerliliğini kontrol et ve gerekirse yenile
+        # Token'ı header/query'den aldık ama database'deki account'u bulup yenilememiz lazım
+        # Şimdilik direkt API'ye gidiyoruz ama 401 hatası alırsak yenileme yapacağız
+        
         # ÖNCE Redis'ten kontrol et (email_tasks:{provider}:* key'lerinden email'leri çıkar)
         print("\n" + "="*80)
         print(f"🔍 GMAIL EMAİLLER REDIS'TEN KONTROL EDİLİYOR...")
@@ -506,8 +671,46 @@ async def get_gmail_emails(
         print(f"🔄 Redis'te email yok, API'den çekiliyor...")
         print("="*80 + "\n")
         
+        # Gmail servisini oluştur ve email'leri çek
+        # Eğer 401 hatası alırsak token'ı yenilemeye çalışacağız
         service = GmailEmailService(token)
-        emails = await service.fetch_emails(category=category, limit=limit)
+        
+        try:
+            emails = await service.fetch_emails(category=category, limit=limit)
+        except Exception as fetch_error:
+            # 401 veya Unauthorized hatası ise token'ı yenilemeyi dene
+            if "401" in str(fetch_error) or "unauthorized" in str(fetch_error).lower():
+                print(f"⚠️ Token geçersiz, yenileme deneniyor...")
+                
+                # Token ile ilişkili account'u bul
+                account = db.query(EmailAccount).filter(
+                    EmailAccount.access_token == token,
+                    EmailAccount.provider == "gmail"
+                ).first()
+                
+                if account and account.refresh_token:
+                    try:
+                        # Token'ı yenile
+                        new_token = await TokenRefreshService.get_valid_access_token(account, db)
+                        print(f"✅ Token yenilendi, email'ler tekrar çekiliyor...")
+                        
+                        # Yeni token ile tekrar dene
+                        service = GmailEmailService(new_token)
+                        emails = await service.fetch_emails(category=category, limit=limit)
+                    except Exception as refresh_error:
+                        print(f"❌ Token yenileme hatası: {refresh_error}")
+                        raise HTTPException(
+                            status_code=401,
+                            detail=f"Access token geçersiz ve yenilenemedi. Lütfen Gmail hesabınızı yeniden bağlayın. Hata: {str(refresh_error)}"
+                        )
+                else:
+                    print(f"⚠️ Account bulunamadı veya refresh token yok")
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Access token geçersiz. Lütfen Gmail hesabınızı yeniden bağlayın."
+                    )
+            else:
+                raise
         
         # Şimdilik ekrana yazdır
         print("\n" + "="*80)

@@ -4,6 +4,7 @@ import 'package:ai_asisstan/core/api/api_exceptions.dart';
 import 'package:ai_asisstan/models/email_account.dart';
 import 'package:ai_asisstan/core/database/database_service.dart';
 import 'package:ai_asisstan/services/gmail_oauth_service.dart';
+import 'package:ai_asisstan/services/outlook_oauth_service.dart';
 import 'package:ai_asisstan/core/config/app_config.dart';
 import 'package:ai_asisstan/services/backend_email_service.dart';
 import '../datasources/email_remote_datasource.dart';
@@ -99,12 +100,28 @@ class EmailRepository {
       }
 
       // Redis'ten veri yoksa veya hata varsa API'den çek
+      // ÖNCE: Token'ı proaktif olarak kontrol et ve gerekirse yenile
+      String? validAccessToken = accessToken;
+      if (accountId != null) {
+        try {
+          // Token'ı yenile (expire olmamışsa skip edilir)
+          validAccessToken = await _refreshTokenIfNeeded(accountId);
+          if (validAccessToken != null && validAccessToken.isNotEmpty) {
+            debugPrint('✅ Token kontrolü yapıldı, API çağrısı yapılacak');
+          }
+        } catch (refreshError) {
+          debugPrint('⚠️ Proaktif token yenileme başarısız, mevcut token ile devam ediliyor: $refreshError');
+          // Token yenileme başarısız olsa bile mevcut token ile devam et
+          // API çağrısı 401 hatası verirse aşağıdaki catch bloğu yakalayacak
+        }
+      }
+      
       return await _remoteDataSource.getEmails(
         accountId: accountId,
         folder: folder,
         limit: limit,
         offset: offset,
-        accessToken: accessToken,
+        accessToken: validAccessToken,
         provider: provider,
       );
     } on UnauthorizedException catch (e) {
@@ -183,6 +200,7 @@ class EmailRepository {
   }
 
   /// Token yenileme yardımcı metodu
+  /// Token süresi dolmuşsa veya dolmak üzereyse otomatik olarak yeniler
   Future<String?> _refreshTokenIfNeeded(int accountId) async {
     try {
       final db = await _databaseService.database;
@@ -199,36 +217,77 @@ class EmailRepository {
 
       final account = EmailAccount.fromDatabase(accountMaps.first);
 
+      // Token expire kontrolü - 5 dakikadan az süre kaldıysa yenile
+      final now = DateTime.now();
+      if (account.tokenExpires != null) {
+        final timeUntilExpiry = account.tokenExpires!.difference(now);
+        
+        // Token henüz expire olmamış ve 5 dakikadan fazla süresi var
+        if (timeUntilExpiry.inSeconds > 300) {
+          debugPrint('🔐 Token hala geçerli (${timeUntilExpiry.inMinutes} dakika kaldı), yenileme atlanıyor');
+          return account.accessToken;
+        }
+        
+        debugPrint('⏰ Token ${timeUntilExpiry.inSeconds} saniye içinde expire olacak, yenileniyor...');
+      } else {
+        debugPrint('⚠️ Token expire tarihi yok, yenileniyor...');
+      }
+
       // Refresh token yoksa hata fırlat
       if (account.refreshToken == null || account.refreshToken!.isEmpty) {
         throw ApiException(
-          message: 'Refresh token bulunamadı. Lütfen Gmail bağlantısını yeniden yapın.',
+          message: 'Refresh token bulunamadı. Lütfen ${account.provider.name} bağlantısını yeniden yapın.',
         );
       }
 
-      // Client ID ve Secret kontrolü
-      if (AppConfig.googleClientId.isEmpty || AppConfig.googleClientSecret.isEmpty) {
+      // Provider'a göre token yenile
+      String newAccessToken;
+      const expiresIn = 3600; // Genellikle 1 saat
+      
+      if (account.provider == EmailProvider.gmail) {
+        // Client ID ve Secret kontrolü
+        if (AppConfig.googleClientId.isEmpty || AppConfig.googleClientSecret.isEmpty) {
+          throw ApiException(
+            message: 'Gmail OAuth yapılandırılmamış. Lütfen Client ID ve Client Secret değerlerini kontrol edin.',
+          );
+        }
+
+        // Gmail OAuth service ile token yenile
+        final gmailOAuth = GmailOAuthService(
+          clientId: AppConfig.googleClientId,
+          clientSecret: AppConfig.googleClientSecret,
+        );
+
+        final authResult = await gmailOAuth.refreshAccessToken(account.refreshToken!);
+        newAccessToken = authResult.accessToken;
+      } else if (account.provider == EmailProvider.outlook) {
+        // Outlook OAuth service ile token yenile
+        if (AppConfig.outlookClientId.isEmpty || AppConfig.outlookClientSecret.isEmpty) {
+          throw ApiException(
+            message: 'Outlook OAuth yapılandırılmamış. Lütfen Client ID ve Client Secret değerlerini kontrol edin.',
+          );
+        }
+
+        final outlookOAuth = OutlookOAuthService(
+          clientId: AppConfig.outlookClientId,
+          clientSecret: AppConfig.outlookClientSecret,
+        );
+
+        final authResult = await outlookOAuth.refreshAccessToken(account.refreshToken!);
+        newAccessToken = authResult.accessToken;
+      } else {
         throw ApiException(
-          message: 'Gmail OAuth yapılandırılmamış. Lütfen Client ID ve Client Secret değerlerini kontrol edin.',
+          message: 'Bilinmeyen email provider: ${account.provider.name}',
         );
       }
-
-      // Gmail OAuth service ile token yenile
-      final gmailOAuth = GmailOAuthService(
-        clientId: AppConfig.googleClientId,
-        clientSecret: AppConfig.googleClientSecret,
-      );
-
-      final authResult = await gmailOAuth.refreshAccessToken(account.refreshToken!);
 
       // Yenilenen token'ı database'e kaydet
-      const expiresIn = 3600; // Gmail API genellikle 1 saat verir
       final tokenExpires = DateTime.now().add(const Duration(seconds: expiresIn));
 
       await db.update(
         'email_accounts',
         {
-          'access_token': authResult.accessToken,
+          'access_token': newAccessToken,
           'token_expires': tokenExpires.toIso8601String(),
           'updated_at': DateTime.now().toIso8601String(),
         },
@@ -236,7 +295,8 @@ class EmailRepository {
         whereArgs: [accountId],
       );
 
-      return authResult.accessToken;
+      debugPrint('✅ Token başarıyla yenilendi (account_id: $accountId)');
+      return newAccessToken;
     } on ApiException {
       // API hatalarını yukarı fırlat
       rethrow;

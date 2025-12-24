@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/repositories/calendar_repository.dart';
 import 'package:ai_asisstan/models/calendar_event.dart';
 import 'package:ai_asisstan/models/calendar_account.dart';
+import '../../../services/calendar_notification_service.dart';
 
 /// Calendar repository provider
 final calendarRepositoryProvider = Provider<CalendarRepository>((ref) {
@@ -110,8 +111,9 @@ final eventByIdProvider = FutureProvider.family<CalendarEvent?, Map<String, dyna
 class CalendarNotifier extends StateNotifier<AsyncValue<List<CalendarEvent>>> {
   final CalendarRepository _repository;
   final EventListParams _params;
+  final Ref? _ref; // Notification provider için
 
-  CalendarNotifier(this._repository, this._params) : super(const AsyncValue.loading()) {
+  CalendarNotifier(this._repository, this._params, [this._ref]) : super(const AsyncValue.loading()) {
     _loadEvents();
   }
 
@@ -184,6 +186,14 @@ class CalendarNotifier extends StateNotifier<AsyncValue<List<CalendarEvent>>> {
       final currentEvents = state.value ?? [];
       state = AsyncValue.data([...currentEvents, event]);
 
+      // Bildirim zamanla (ayarlardan alınan süre kadar önce)
+      try {
+        final calendarNotificationService = CalendarNotificationService();
+        await calendarNotificationService.scheduleCalendarNotification(event);
+      } catch (e) {
+        debugPrint('⚠️ Takvim bildirimi zamanlanamadı: $e');
+      }
+
       return event;
     } catch (e) {
       debugPrint('createEvent hatası: ${e.toString()}');
@@ -229,6 +239,14 @@ class CalendarNotifier extends StateNotifier<AsyncValue<List<CalendarEvent>>> {
       }).toList();
       state = AsyncValue.data(updatedEvents);
 
+      // Bildirimi yeniden zamanla (event güncellendiğinde)
+      try {
+        final calendarNotificationService = CalendarNotificationService();
+        await calendarNotificationService.rescheduleCalendarNotification(event);
+      } catch (e) {
+        debugPrint('⚠️ Takvim bildirimi güncellenemedi: $e');
+      }
+
       return event;
     } catch (e) {
       debugPrint('updateEvent hatası: ${e.toString()}');
@@ -244,8 +262,19 @@ class CalendarNotifier extends StateNotifier<AsyncValue<List<CalendarEvent>>> {
     try {
       // Optimistic update - event'i listeden çıkar
       final currentEvents = state.value ?? [];
+      final eventToDelete = currentEvents.firstWhere((e) => e.externalId == eventId, orElse: () => currentEvents.first);
       final updatedEvents = currentEvents.where((e) => e.externalId != eventId).toList();
       state = AsyncValue.data(updatedEvents);
+
+      // Bildirimi iptal et
+      if (eventToDelete.id != null) {
+        try {
+          final calendarNotificationService = CalendarNotificationService();
+          await calendarNotificationService.cancelCalendarNotification(eventToDelete.id!);
+        } catch (e) {
+          debugPrint('⚠️ Takvim bildirimi iptal edilemedi: $e');
+        }
+      }
 
       await _repository.deleteEvent(
         eventId: eventId,

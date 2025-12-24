@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../screens/settings/data/settings_data.dart';
 import 'notification_category_item.dart';
+import 'task_notification_timing_card.dart';
 
 /// Bildirimler kartı widget'ı
 class NotificationsCard extends StatelessWidget {
@@ -15,37 +16,45 @@ class NotificationsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      elevation: 0,
-      color: Theme.of(context).colorScheme.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Kategori Başlığı
-            _buildHeader(context),
-            const SizedBox(height: 24),
+    return Column(
+      children: [
+        // Ana bildirim ayarları
+        Card(
+          margin: const EdgeInsets.only(bottom: 16),
+          elevation: 0,
+          color: Theme.of(context).colorScheme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Kategori Başlığı
+                _buildHeader(context),
+                const SizedBox(height: 24),
 
-            // Bildirim Listesi
-            ...SettingsData.notificationCategories.entries.map((entry) {
-              return NotificationCategoryItem(
-                category: entry.key,
-                title: entry.value,
-                isEnabled: notificationStates[entry.value] ?? false,
-                onChanged: (value) => onNotificationChanged(entry.value, value),
-              );
-            }).toList(),
-          ],
+                // Bildirim Listesi
+                ...SettingsData.notificationCategories.entries.map((entry) {
+                  return NotificationCategoryItem(
+                    category: entry.key,
+                    title: entry.value,
+                    isEnabled: notificationStates[entry.value] ?? false,
+                    onChanged: (value) => onNotificationChanged(entry.value, value),
+                  );
+                }).toList(),
+              ],
+            ),
+          ),
         ),
-      ),
+        
+        // Görev bildirim zamanlama ayarları
+        const TaskNotificationTimingCard(),
+      ],
     );
   }
 

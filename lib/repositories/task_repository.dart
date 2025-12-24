@@ -1,9 +1,11 @@
 import 'package:sqflite/sqflite.dart';
 import '../core/database/database_service.dart';
 import '../models/task.dart';
+import '../services/task_notification_service.dart';
 
 class TaskRepository {
   final DatabaseService _databaseService = DatabaseService.instance;
+  final TaskNotificationService _notificationService = TaskNotificationService();
 
   // Yeni görev oluştur
   Future<Task> createTask({
@@ -13,6 +15,7 @@ class TaskRepository {
     TaskStatus status = TaskStatus.pending,
     TaskPriority priority = TaskPriority.medium,
     DateTime? dueDate,
+    bool scheduleNotification = true,
   }) async {
     final db = await _databaseService.database;
     final now = DateTime.now();
@@ -30,7 +33,14 @@ class TaskRepository {
     );
 
     final id = await db.insert('tasks', task.toDatabase());
-    return task.copyWith(id: id);
+    final createdTask = task.copyWith(id: id);
+    
+    // Bildirim zamanla
+    if (scheduleNotification && dueDate != null) {
+      await _notificationService.scheduleTaskNotification(createdTask);
+    }
+    
+    return createdTask;
   }
 
   // ID'ye göre görev getir
@@ -74,23 +84,30 @@ class TaskRepository {
   }
 
   // Görev güncelle
-  Future<int> updateTask(Task task) async {
+  Future<int> updateTask(Task task, {bool rescheduleNotification = true}) async {
     final db = await _databaseService.database;
     final updatedTask = task.copyWith(updatedAt: DateTime.now());
 
-    return await db.update(
+    final result = await db.update(
       'tasks',
       updatedTask.toDatabase(),
       where: 'id = ?',
       whereArgs: [task.id],
     );
+    
+    // Bildirim yeniden zamanla
+    if (rescheduleNotification) {
+      await _notificationService.rescheduleTaskNotification(updatedTask);
+    }
+    
+    return result;
   }
 
   // Görev durumunu güncelle
   Future<int> updateTaskStatus(int taskId, TaskStatus newStatus) async {
     final db = await _databaseService.database;
 
-    return await db.update(
+    final result = await db.update(
       'tasks',
       {
         'status': newStatus.name,
@@ -99,6 +116,13 @@ class TaskRepository {
       where: 'id = ?',
       whereArgs: [taskId],
     );
+    
+    // Tamamlanan veya iptal edilen görevlerin bildirimini iptal et
+    if (newStatus == TaskStatus.completed || newStatus == TaskStatus.cancelled) {
+      await _notificationService.cancelTaskNotification(taskId);
+    }
+    
+    return result;
   }
 
   // Görev önceliğini güncelle
@@ -122,6 +146,7 @@ class TaskRepository {
     String? title,
     String? description,
     DateTime? dueDate,
+    bool rescheduleNotification = true,
   }) async {
     final db = await _databaseService.database;
     final updates = <String, dynamic>{
@@ -137,18 +162,34 @@ class TaskRepository {
       updates['due_date'] = null;
     }
 
-    return await db.update(
+    final result = await db.update(
       'tasks',
       updates,
       where: 'id = ?',
       whereArgs: [taskId],
     );
+    
+    // Bildirim yeniden zamanla (due date değiştiyse)
+    if (rescheduleNotification && dueDate != null) {
+      final task = await getTaskById(taskId);
+      if (task != null) {
+        await _notificationService.rescheduleTaskNotification(task);
+      }
+    } else if (rescheduleNotification && updates['due_date'] == null) {
+      // Due date kaldırıldıysa bildirimi iptal et
+      await _notificationService.cancelTaskNotification(taskId);
+    }
+    
+    return result;
   }
 
   // Görev sil
   Future<int> deleteTask(int taskId) async {
     final db = await _databaseService.database;
 
+    // Önce bildirimi iptal et
+    await _notificationService.cancelTaskNotification(taskId);
+    
     return await db.delete(
       'tasks',
       where: 'id = ?',

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ai_asisstan/models/task.dart';
 import '../../../repositories/task_repository.dart';
 import '../../../providers/user_provider.dart';
+import '../../../providers/notification_provider.dart';
+import '../../../services/notification_scheduler_service.dart';
 
 /// Task repository provider
 final taskRepositoryProvider = Provider<TaskRepository>((ref) {
@@ -13,8 +15,9 @@ final taskRepositoryProvider = Provider<TaskRepository>((ref) {
 class TasksNotifier extends StateNotifier<AsyncValue<List<Task>>> {
   final TaskRepository _repository;
   final int _userId;
+  final Ref? _ref; // Notification provider için
 
-  TasksNotifier(this._repository, this._userId) : super(const AsyncValue.loading()) {
+  TasksNotifier(this._repository, this._userId, [this._ref]) : super(const AsyncValue.loading()) {
     _loadTasks();
   }
 
@@ -55,6 +58,20 @@ class TasksNotifier extends StateNotifier<AsyncValue<List<Task>>> {
       final currentTasks = state.value ?? [];
       state = AsyncValue.data([...currentTasks, task]);
 
+      // Bildirim zamanla (deadline varsa)
+      if (task.dueDate != null && _ref != null) {
+        try {
+          final notificationSender = _ref!.read(notificationSenderProvider);
+          final scheduler = NotificationSchedulerService();
+          await scheduler.scheduleTaskNotification(
+            notificationSender: notificationSender,
+            task: task,
+          );
+        } catch (e) {
+          debugPrint('⚠️ Görev bildirimi zamanlanamadı: $e');
+        }
+      }
+
       return task;
     } catch (e) {
       debugPrint('createTask hatası: ${e.toString()}');
@@ -78,6 +95,21 @@ class TasksNotifier extends StateNotifier<AsyncValue<List<Task>>> {
         return t;
       }).toList();
       state = AsyncValue.data(updatedTasks);
+
+      // Bildirim cache'ini temizle ve yeniden zamanla (deadline varsa)
+      if (task.dueDate != null && task.status != TaskStatus.completed && _ref != null) {
+        try {
+          final notificationSender = _ref!.read(notificationSenderProvider);
+          final scheduler = NotificationSchedulerService();
+          scheduler.clearNotificationCache(taskId: task.id);
+          await scheduler.scheduleTaskNotification(
+            notificationSender: notificationSender,
+            task: task,
+          );
+        } catch (e) {
+          debugPrint('⚠️ Görev bildirimi güncellenemedi: $e');
+        }
+      }
 
       return task;
     } catch (e) {
@@ -147,10 +179,10 @@ final tasksNotifierProvider = StateNotifierProvider<TasksNotifier, AsyncValue<Li
   final currentUser = ref.watch(currentUserProvider);
   
   if (currentUser == null || currentUser.id == null) {
-    return TasksNotifier(repository, 0);
+    return TasksNotifier(repository, 0, ref);
   }
   
-  return TasksNotifier(repository, currentUser.id!);
+  return TasksNotifier(repository, currentUser.id!, ref);
 });
 
 /// Tasks grouped by status provider

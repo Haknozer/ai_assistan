@@ -9,6 +9,7 @@ import '../../../core/api/api_exceptions.dart';
 import '../../widgets/layout/side_menu.dart';
 import '../../../providers/user_provider.dart';
 import '../../../providers/email_account_provider.dart';
+import '../../../providers/email_polling_provider.dart';
 import '../../../features/email/providers/email_provider.dart';
 import '../../../services/n8n_response_storage_service.dart';
 import '../../widgets/email/email_page_header.dart';
@@ -34,6 +35,28 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
   int? _selectedEmailIndex;
   String _searchQuery = '';
   final int _selectedMenuIndex = 4; // E-Posta indeksi
+
+  @override
+  void initState() {
+    super.initState();
+    // Email polling'i aktif olarak başlat
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(emailPollingProvider.notifier).setActive();
+    });
+  }
+
+  @override
+  void dispose() {
+    // Email ekranından çıkılınca polling'i yavaşlat
+    // Widget dispose edildikten sonra ref kullanılamaz, bu yüzden try-catch ile sarmalıyoruz
+    try {
+      ref.read(emailPollingProvider.notifier).setInactive();
+    } catch (e) {
+      // Widget zaten dispose edilmişse hata vermez
+      debugPrint('⚠️ Polling setInactive hatası (widget disposed): $e');
+    }
+    super.dispose();
+  }
 
   /// Seçili klasörü döndürür
   String? get _selectedFolder {
@@ -122,6 +145,63 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
     final currentUser = ref.watch(currentUserProvider);
     final padding = ResponsiveUtils.getResponsivePadding(context);
     final isDesktop = ResponsiveUtils.isDesktop(context);
+
+    // Yeni email geldiğinde tüm provider'ları refresh et
+    ref.listen<EmailPollingState>(emailPollingProvider, (previous, next) {
+      if (next.hasNewEmails && (previous == null || !previous.hasNewEmails)) {
+        debugPrint('📬 Yeni email geldi! Otomatik refresh yapılıyor...');
+        
+        // Tüm account'ları refresh et
+        if (mounted) {
+          try {
+            final emailAccountsAsync = ref.read(emailAccountsProvider(EmailAccountsParams(
+              userId: currentUser?.id,
+            )));
+            
+            emailAccountsAsync.whenData((accounts) {
+              final activeAccounts = accounts
+                  .where((account) =>
+                      account.isActive &&
+                      account.id != null &&
+                      account.accessToken != null &&
+                      account.accessToken!.isNotEmpty)
+                  .toList();
+              
+              // Her account için email provider'ı refresh et
+              for (final account in activeAccounts) {
+                final emailParams = EmailListParams(
+                  accountId: account.id,
+                  folder: _selectedFolder,
+                  accessToken: account.accessToken!,
+                );
+                
+                try {
+                  ref.read(emailNotifierProvider(emailParams).notifier).refresh();
+                  debugPrint('✅ Account ${account.emailAddress} için email listesi yenilendi');
+                } catch (e) {
+                  debugPrint('⚠️ Account ${account.emailAddress} refresh hatası: $e');
+                }
+              }
+            });
+          } catch (e) {
+            debugPrint('⚠️ Email refresh hatası: $e');
+          }
+        }
+        
+        // Polling state'i temizle (okundu olarak işaretle)
+        // Widget dispose olmuşsa hata vermemesi için mounted kontrolü ekle
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) {
+            try {
+              ref.read(emailPollingProvider.notifier).markAsRead();
+            } catch (e) {
+              // Widget dispose olduysa sessizce yok say
+              debugPrint('⚠️ markAsRead hatası (widget disposed): $e');
+            }
+          }
+        });
+      }
+    });
 
     if (currentUser == null) {
       return const Scaffold(

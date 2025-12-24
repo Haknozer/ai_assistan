@@ -23,7 +23,6 @@ class SettingsData {
         'Görev Bildirimi': 'Görev hatırlatıcıları ve son tarih uyarıları',
         'Toplantı Bildirimi': 'Yaklaşan toplantılar için hatırlatmalar',
         'E-posta Bildirimi': 'Önemli e-postalar için anında bildirim',
-        'AI Öngörü Bildirimi': 'AI tarafından tespit edilen öneriler ve analizler',
       };
 
   /// Bildirim başlangıç durumları
@@ -31,7 +30,6 @@ class SettingsData {
         'Görev hatırlatıcıları ve son tarih uyarıları': true,
         'Yaklaşan toplantılar için hatırlatmalar': true,
         'Önemli e-postalar için anında bildirim': false,
-        'AI tarafından tespit edilen öneriler ve analizler': true,
       };
 
   /// Ayar kategorileri

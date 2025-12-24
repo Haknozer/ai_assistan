@@ -13,6 +13,7 @@ import '../../../providers/user_provider.dart';
 import '../../../providers/user_setting_provider.dart';
 import '../../../models/user_setting.dart';
 import '../../../providers/email_account_provider.dart';
+import '../../../providers/notification_provider.dart';
 import '../../../providers/calendar_account_provider.dart';
 import '../../../services/gmail_oauth_service.dart';
 import '../../../services/outlook_oauth_service.dart';
@@ -56,6 +57,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       final currentUser = ref.read(currentUserProvider);
       if (currentUser != null && currentUser.id != null) {
         ref.read(currentUserSettingsNotifierProvider.notifier).loadSettings(currentUser.id!);
+        
+        // Bildirim ayarlarını provider'dan yükle
+        final notificationSettings = ref.read(notificationSettingsProvider);
+        if (notificationSettings.isNotEmpty) {
+          // Provider'dan gelen ayarları state'e aktar
+          setState(() {
+            _notificationStates = {
+              'Görev hatırlatıcıları ve son tarih uyarıları': notificationSettings['task_reminders'] ?? true,
+              'Yaklaşan toplantılar için hatırlatmalar': notificationSettings['calendar_reminders'] ?? true,
+              'Önemli e-postalar için anında bildirim': notificationSettings['email_notifications'] ?? false,
+            };
+          });
+        }
       }
     });
   }
@@ -1166,13 +1180,59 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  void _handleNotificationChanged(String title, bool value) {
+  void _handleNotificationChanged(String title, bool value) async {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null || currentUser.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Önce giriş yapmalısınız')),
+      );
+      return;
+    }
+
+    // State'i güncelle
     setState(() {
       _notificationStates[title] = value;
     });
+
+    // Bildirim ayarını veritabanına kaydet
+    // SettingsData'daki title'ı setting key'e çevir
+    String settingKey = _getSettingKeyFromTitle(title);
+    
+    final notificationSettingsNotifier = ref.read(notificationSettingsProvider.notifier);
+    await notificationSettingsNotifier.updateNotificationSetting(settingKey, value);
+
+    // Ayarları yeniden yükle
+    await ref.read(currentUserSettingsNotifierProvider.notifier).loadSettings(currentUser.id!);
+
+    if (!mounted) return;
+    
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('$title ${value ? "açık" : "kapalı"}')),
     );
+  }
+
+  /// Bildirim başlığından setting key'i al
+  String _getSettingKeyFromTitle(String title) {
+    // SettingsData.notificationCategories ile eşleştir
+    final categories = SettingsData.notificationCategories;
+    for (final entry in categories.entries) {
+      if (entry.value == title) {
+        // Kategori adından setting key oluştur
+        switch (entry.key) {
+          case 'Görev Bildirimi':
+            return 'task_reminders';
+          case 'Toplantı Bildirimi':
+            return 'calendar_reminders';
+          case 'E-posta Bildirimi':
+            return 'email_notifications';
+          case 'AI Öngörü Bildirimi':
+            return 'ai_insights';
+          default:
+            return 'task_reminders';
+        }
+      }
+    }
+    return 'task_reminders';
   }
 
   void _handleMenuTap(int index) {

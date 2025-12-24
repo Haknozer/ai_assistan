@@ -720,6 +720,54 @@ class BackendEmailService {
     }
   }
 
+  /// Yeni email var mı kontrol et (polling için optimize edilmiş)
+  /// 
+  /// [provider] - Provider filtresi: 'gmail' veya 'outlook' (null = tümü)
+  /// [lastCheck] - Son kontrol zamanı (ISO format)
+  /// 
+  /// Returns:
+  /// {
+  ///   "has_new_emails": true,
+  ///   "gmail_count": 5,
+  ///   "outlook_count": 3,
+  ///   "total_count": 8,
+  ///   "new_count": 2,
+  ///   "last_email_timestamp": "2024-01-01T12:00:00Z"
+  /// }
+  Future<Map<String, dynamic>> checkNewEmails({
+    String? provider,
+    DateTime? lastCheck,
+  }) async {
+    try {
+      final url = Uri.parse('$baseUrl/api/emails/check-new-emails').replace(
+        queryParameters: {
+          if (provider != null) 'provider': provider,
+          if (lastCheck != null) 'last_check': lastCheck.toIso8601String(),
+        },
+      );
+
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        debugPrint('✅ Email check: ${data['new_count']} yeni email');
+        return data;
+      } else {
+        throw ApiException(
+          message: 'Email kontrol hatası: ${response.statusCode} - ${response.body}',
+        );
+      }
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException(message: 'Email kontrol hatası: ${e.toString()}');
+    }
+  }
+
   /// Email account'u backend'e bağla (entegre et)
   /// Bu sayede background scheduler otomatik olarak email'leri çekecek
   Future<Map<String, dynamic>> connectEmailAccount({

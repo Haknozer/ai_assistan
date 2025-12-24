@@ -86,7 +86,9 @@ class PubSubService:
         """
         Pub/Sub mesajını işle ve email'leri çek
         
-        Beklenen mesaj formatı:
+        Beklenen mesaj formatları:
+        
+        1. Manuel trigger (eski format):
         {
             "provider": "gmail" | "outlook",
             "access_token": "...",
@@ -94,25 +96,75 @@ class PubSubService:
             "email": "...",    # opsiyonel
             "limit": 50        # opsiyonel, default 50
         }
+        
+        2. Gmail Push Notification (yeni format):
+        {
+            "emailAddress": "user@gmail.com",
+            "historyId": "1234567"
+        }
         """
         try:
             # Mesajı parse et
             message_data = json.loads(message.data.decode('utf-8'))
             
-            provider = message_data.get('provider', '').lower()
-            access_token = message_data.get('access_token', '')
-            user_id = message_data.get('user_id')
-            email_address = message_data.get('email')
-            limit = message_data.get('limit', 50)
-            
-            print("\n" + "="*80)
-            print(f"📨 Pub/Sub mesajı alındı: {provider.upper()}")
-            print("="*80)
-            print(f"Provider: {provider}")
-            print(f"User ID: {user_id}")
-            print(f"Email: {email_address}")
-            print(f"Limit: {limit}")
-            print("="*80 + "\n")
+            # Gmail Push Notification formatı mı kontrol et
+            if 'emailAddress' in message_data and 'historyId' in message_data:
+                print("\n" + "="*80)
+                print(f"🔔 Gmail Push Notification alındı!")
+                print("="*80)
+                print(f"Email: {message_data.get('emailAddress')}")
+                print(f"History ID: {message_data.get('historyId')}")
+                print("="*80 + "\n")
+                
+                # Gmail hesabını database'den bul
+                email_address = message_data.get('emailAddress')
+                
+                # Database'den email account bilgilerini çek
+                from app.core.database import SessionLocal
+                from app.models.email_account import EmailAccount
+                
+                db = SessionLocal()
+                try:
+                    account = db.query(EmailAccount).filter(
+                        EmailAccount.email == email_address,
+                        EmailAccount.provider == "gmail",
+                        EmailAccount.is_active == True
+                    ).first()
+                    
+                    if not account:
+                        print(f"⚠️  Gmail account bulunamadı: {email_address}")
+                        message.ack()
+                        return
+                    
+                    # Account bilgilerini kullanarak email'leri çek
+                    provider = "gmail"
+                    access_token = account.access_token
+                    user_id = account.user_id
+                    limit = 50
+                    
+                    print(f"✅ Gmail account bulundu: {email_address}")
+                    print(f"   Account ID: {account.id}")
+                    print(f"   User ID: {user_id}")
+                    
+                finally:
+                    db.close()
+            else:
+                # Manuel trigger formatı (eski format)
+                provider = message_data.get('provider', '').lower()
+                access_token = message_data.get('access_token', '')
+                user_id = message_data.get('user_id')
+                email_address = message_data.get('email')
+                limit = message_data.get('limit', 50)
+
+                
+                print("\n" + "="*80)
+                print(f"📨 Pub/Sub mesajı alındı (manuel): {provider.upper()}")
+                print("="*80)
+                print(f"Provider: {provider}")
+                print(f"User ID: {user_id}")
+                print(f"Email: {email_address}")
+                print(f"Limit: {limit}")
+                print("="*80 + "\n")
             
             if not access_token:
                 print("❌ Access token bulunamadı, mesaj atlanıyor")

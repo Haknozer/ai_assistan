@@ -320,5 +320,7 @@ BACKEND_STRUCTURE.md
 BACKEND_BASLAT.md
 BACKEND_GUNCELLEME.md
 BACKEND_GUNCELLEME.md
+*.md
+
 
 ai_asisstan_backend/**/*.md

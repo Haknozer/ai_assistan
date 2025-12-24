@@ -10,6 +10,7 @@ import 'package:ai_asisstan/services/n8n_response_storage_service.dart';
 import 'package:ai_asisstan/services/task_auto_creation_service.dart';
 import 'package:ai_asisstan/core/utils/logger.dart';
 import 'package:ai_asisstan/providers/calendar_refresh_provider.dart';
+import '../../../providers/notification_provider.dart';
 
 /// Email repository provider
 final emailRepositoryProvider = Provider<EmailRepository>((ref) {
@@ -89,9 +90,11 @@ class EmailNotifier extends StateNotifier<AsyncValue<List<Email>>> {
   final EmailListParams _params;
   final Set<String> _forwardedEmailIds = {}; // Forward edilen email'leri takip et
   final N8nForwarderService _n8nForwarder = N8nForwarderService();
+  final Ref? _ref; // Notification provider için
   static const String _forwardedEmailsKey = 'n8n_forwarded_email_ids';
+  final Set<String> _notifiedEmailIds = {}; // Bildirim gönderilmiş email'leri takip et
 
-  EmailNotifier(this._repository, this._params) : super(const AsyncValue.loading()) {
+  EmailNotifier(this._repository, this._params, [this._ref]) : super(const AsyncValue.loading()) {
     _loadForwardedEmailIds();
     _loadEmails();
   }
@@ -153,8 +156,47 @@ class EmailNotifier extends StateNotifier<AsyncValue<List<Email>>> {
       _forwardNewEmails(emails).catchError((e) {
         AppLogger.error('Error forwarding emails to n8n', tag: 'N8N', error: e);
       });
+      
+      // Önemli email'ler için bildirim gönder
+      _checkImportantEmails(emails).catchError((e) {
+        AppLogger.error('Error checking important emails', tag: 'Notifications', error: e);
+      });
     } catch (e, stack) {
       state = AsyncValue.error(e, stack);
+    }
+  }
+
+  /// Önemli email'ler için bildirim gönder
+  Future<void> _checkImportantEmails(List<Email> emails) async {
+    if (_ref == null) return;
+
+    try {
+      final notificationSender = _ref!.read(notificationSenderProvider);
+      
+      for (final email in emails) {
+        // Sadece inbox'taki okunmamış ve önemli email'ler için bildirim gönder
+        if (email.folder != EmailFolder.inbox) continue;
+        if (email.isRead) continue;
+        if (email.importance != EmailImportance.important) continue;
+
+        final emailId = email.messageId ?? email.id?.toString() ?? '';
+        if (emailId.isEmpty) continue;
+
+        // Bu email için zaten bildirim gönderilmiş mi?
+        if (_notifiedEmailIds.contains(emailId)) continue;
+
+        // Bildirim gönder
+        notificationSender.sendEmailNotification(
+          emailId: email.id ?? 0,
+          subject: email.subject,
+          sender: email.fromName ?? email.fromEmail,
+        );
+
+        _notifiedEmailIds.add(emailId);
+        AppLogger.info('Email bildirimi gönderildi: ${email.subject}', 'Notifications');
+      }
+    } catch (e) {
+      AppLogger.error('Önemli email kontrolü hatası', tag: 'Notifications', error: e);
     }
   }
 
@@ -529,5 +571,5 @@ class EmailNotifier extends StateNotifier<AsyncValue<List<Email>>> {
 final emailNotifierProvider =
     StateNotifierProvider.family<EmailNotifier, AsyncValue<List<Email>>, EmailListParams>((ref, params) {
   final repository = ref.watch(emailRepositoryProvider);
-  return EmailNotifier(repository, params);
+  return EmailNotifier(repository, params, ref);
 });

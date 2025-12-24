@@ -10,6 +10,20 @@ import 'core/config/app_config.dart';
 import 'core/utils/logger.dart';
 import 'providers/theme_provider.dart';
 import 'presentation/widgets/global_hotkeys.dart';
+import 'services/notification_scheduler_service.dart';
+import 'services/task_notification_service.dart';
+import 'services/calendar_notification_service.dart';
+import 'providers/notification_provider.dart';
+import 'providers/user_provider.dart';
+import 'repositories/task_repository.dart';
+import 'models/task.dart';
+import 'features/calendar/data/repositories/calendar_local_repository.dart';
+
+// Global overlay context
+BuildContext? _overlayContext;
+
+/// Overlay context'i al (notification'lar için)
+BuildContext? getOverlayContext() => _overlayContext;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -67,6 +81,9 @@ Future<void> main() async {
     AppLogger.error('Database initialization error', tag: 'Database', error: e);
   }
 
+  // Görev bildirimleri için in-app sistem kullanılıyor (Windows native bildirimleri yok)
+  AppLogger.info('✅ Task notification system ready (in-app mode)', 'Notifications');
+
   runApp(
     const ProviderScope(
       child: AIAssistantApp(),
@@ -74,13 +91,102 @@ Future<void> main() async {
   );
 }
 
-class AIAssistantApp extends ConsumerWidget {
+class AIAssistantApp extends ConsumerStatefulWidget {
   const AIAssistantApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AIAssistantApp> createState() => _AIAssistantAppState();
+}
+
+class _AIAssistantAppState extends ConsumerState<AIAssistantApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Widget build edildikten sonra bildirim scheduler'ı başlat
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeNotificationScheduler();
+    });
+  }
+
+  void _initializeNotificationScheduler() async {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser != null && currentUser.id != null) {
+      try {
+        // In-app bildirim scheduler'ı başlat
+        final notificationSender = ref.read(notificationSenderProvider);
+        final scheduler = NotificationSchedulerService();
+        scheduler.start(
+          notificationSender: notificationSender,
+          userId: currentUser.id!,
+        );
+        AppLogger.info('Notification scheduler başlatıldı', 'Notifications');
+        
+        // Görev bildirimleri için mevcut görevleri yeniden zamanla
+        try {
+          final taskRepository = TaskRepository();
+          final taskNotificationService = TaskNotificationService();
+          final tasks = await taskRepository.getTasksByUserId(currentUser.id!);
+          
+          // Sadece bekleyen ve devam eden görevler için bildirim zamanla
+          final pendingTasks = tasks.where((task) => 
+            (task.status == TaskStatus.pending || task.status == TaskStatus.inProgress) &&
+            task.dueDate != null &&
+            task.dueDate!.isAfter(DateTime.now())
+          ).toList();
+          
+          await taskNotificationService.rescheduleAllTaskNotifications(pendingTasks);
+          AppLogger.info('${pendingTasks.length} görev için bildirimler zamanlandı', 'TaskNotifications');
+        } catch (e) {
+          AppLogger.warning('Görev bildirimleri zamanlanamadı', 'TaskNotifications', e);
+        }
+        
+        // Takvim bildirimleri için mevcut event'leri yeniden zamanla
+        try {
+          final calendarLocalRepository = CalendarLocalRepository();
+          final calendarNotificationService = CalendarNotificationService();
+          final now = DateTime.now();
+          final timeMax = now.add(const Duration(days: 30)); // Gelecek 30 gün içindeki event'ler
+          
+          final events = await calendarLocalRepository.getEvents(
+            userId: currentUser.id!,
+            timeMin: now,
+            timeMax: timeMax,
+          );
+          
+          await calendarNotificationService.rescheduleAllCalendarNotifications(events);
+          AppLogger.info('${events.length} takvim event\'i için bildirimler zamanlandı', 'CalendarNotifications');
+        } catch (e) {
+          AppLogger.warning('Takvim bildirimleri zamanlanamadı', 'CalendarNotifications', e);
+        }
+      } catch (e) {
+        AppLogger.warning('Notification scheduler başlatılamadı', 'Notifications', e);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final userTheme = ref.watch(themeProvider);
     final router = ref.watch(routerProvider);
+    final currentUser = ref.watch(currentUserProvider);
+
+    // Kullanıcı giriş yaptığında bildirim scheduler'ı başlat
+    if (currentUser != null && currentUser.id != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        try {
+          final notificationSender = ref.read(notificationSenderProvider);
+          final scheduler = NotificationSchedulerService();
+          if (!scheduler.isRunning) {
+            scheduler.start(
+              notificationSender: notificationSender,
+              userId: currentUser.id!,
+            );
+          }
+        } catch (e) {
+          // Sessizce devam et
+        }
+      });
+    }
 
     return MaterialApp.router(
       title: 'AI Asistan',
@@ -90,8 +196,19 @@ class AIAssistantApp extends ConsumerWidget {
       themeMode: userTheme.themeMode,
       routerConfig: router,
       builder: (context, child) {
-        return GlobalHotkeys(
-          child: child ?? const SizedBox.shrink(),
+        // Navigator context'ini kaydet (child içindeki context overlay'e erişebilir)
+        // Builder context'i değil, child widget context'ini kullanmalıyız
+        return Builder(
+          builder: (innerContext) {
+            // Bu context overlay'e erişebilir
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _overlayContext = innerContext;
+            });
+            
+            return GlobalHotkeys(
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
         );
       },
     );
