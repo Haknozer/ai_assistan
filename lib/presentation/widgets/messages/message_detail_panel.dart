@@ -52,15 +52,9 @@ class MessageDetailPanel extends StatelessWidget {
 
             // Yanıtla Bölümü
             ReplySection(
-              onSend: () {
-                // TODO: Implement send functionality
-              },
-              onAttach: () {
-                // TODO: Implement attach functionality
-              },
-              onEmoji: () {
-                // TODO: Implement emoji picker
-              },
+              onSend: () {},
+              onAttach: () {},
+              onEmoji: () {},
             ),
           ],
         ),

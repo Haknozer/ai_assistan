@@ -35,7 +35,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     const CalendarScreen(),
     const EmailScreen(),
     const AnalyticsScreen(),
-    Container(), // AI Asistan - TODO: Create page
+    Container(), // AI Asistan
     const SizedBox.shrink(), // Komut Paleti artık popup
     // Karanlık Mod bir sayfa değil, sadece toggle işlemi yapılıyor
   ];

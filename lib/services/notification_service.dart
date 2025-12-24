@@ -1,19 +1,22 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:go_router/go_router.dart';
 import '../models/notification.dart' as app_notification;
+import '../core/router/app_router.dart';
 
 /// Bildirim servisi - Local notification'ları yönetir
 class NotificationService {
   static NotificationService? _instance;
-  
+
   factory NotificationService() {
     _instance ??= NotificationService._internal();
     return _instance!;
   }
-  
+
   NotificationService._internal();
 
   FlutterLocalNotificationsPlugin? _notificationsPlugin;
@@ -21,7 +24,7 @@ class NotificationService {
     _notificationsPlugin ??= FlutterLocalNotificationsPlugin();
     return _notificationsPlugin!;
   }
-  
+
   bool _isInitialized = false;
 
   /// Bildirim servisini başlat
@@ -35,14 +38,14 @@ class NotificationService {
 
       // Android ayarları
       const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-      
+
       // iOS ayarları
       const iosSettings = DarwinInitializationSettings(
         requestAlertPermission: true,
         requestBadgePermission: true,
         requestSoundPermission: true,
       );
-      
+
       // Windows ayarları
       const windowsSettings = DarwinInitializationSettings(
         requestAlertPermission: true,
@@ -93,7 +96,59 @@ class NotificationService {
   /// Bildirim tıklandığında çağrılır
   void _onNotificationTapped(NotificationResponse response) {
     debugPrint('📱 Bildirim tıklandı: ${response.payload}');
-    // TODO: Bildirim tıklandığında ilgili sayfaya yönlendir
+
+    if (response.payload == null || response.payload!.isEmpty) {
+      debugPrint('⚠️ Bildirim payload boş, yönlendirme yapılamıyor');
+      return;
+    }
+
+    try {
+      // Payload'ı parse et (JSON formatında bekleniyor: {"type": "task", "id": 123})
+      final payloadMap = jsonDecode(response.payload!) as Map<String, dynamic>;
+      final type = payloadMap['type'] as String?;
+      final id = payloadMap['id'] as int?;
+
+      if (type == null) {
+        debugPrint('⚠️ Bildirim payload\'ında type bulunamadı');
+        return;
+      }
+
+      // Navigator context'i al
+      final context = rootNavigatorKey.currentContext;
+      if (context == null) {
+        debugPrint('⚠️ Navigator context bulunamadı, yönlendirme yapılamıyor');
+        return;
+      }
+
+      // Bildirim tipine göre yönlendir
+      switch (type.toLowerCase()) {
+        case 'task':
+          debugPrint('📋 Görev sayfasına yönlendiriliyor (ID: $id)');
+          context.go('/tasks');
+          break;
+        case 'calendar':
+          debugPrint('📅 Takvim sayfasına yönlendiriliyor (ID: $id)');
+          context.go('/calendar');
+          break;
+        case 'email':
+          debugPrint('📧 E-posta sayfasına yönlendiriliyor (ID: $id)');
+          context.go('/email');
+          break;
+        case 'system':
+        default:
+          debugPrint('🏠 Ana sayfaya yönlendiriliyor');
+          context.go('/home');
+          break;
+      }
+    } catch (e) {
+      debugPrint('❌ Bildirim payload parse hatası: $e');
+      debugPrint('   Payload: ${response.payload}');
+      // Hata durumunda ana sayfaya yönlendir
+      final context = rootNavigatorKey.currentContext;
+      if (context != null) {
+        context.go('/home');
+      }
+    }
   }
 
   /// Bildirim gönder (hemen)
@@ -171,8 +226,7 @@ class NotificationService {
         details,
         payload: payload,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
+        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
       );
 
       debugPrint('✅ Zamanlanmış bildirim oluşturuldu: $title - $scheduledDate');
@@ -216,11 +270,8 @@ class NotificationService {
         details,
         payload: payload,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-        matchDateTimeComponents: repeatInterval != null
-            ? DateTimeComponents.time
-            : null,
+        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: repeatInterval != null ? DateTimeComponents.time : null,
       );
 
       debugPrint('✅ Tekrarlayan bildirim oluşturuldu: $title');
@@ -308,8 +359,7 @@ class NotificationService {
     } else if (defaultTargetPlatform == TargetPlatform.iOS) {
       // iOS için izin kontrolü
       final result = await _notifications
-          .resolvePlatformSpecificImplementation<
-              IOSFlutterLocalNotificationsPlugin>()
+          .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
           ?.requestPermissions(
             alert: true,
             badge: true,
@@ -317,7 +367,7 @@ class NotificationService {
           );
       return result ?? false;
     }
-    
+
     // Windows için - initialize edilmişse izin var sayılır
     return _isInitialized;
   }
@@ -330,8 +380,7 @@ class NotificationService {
     } else if (defaultTargetPlatform == TargetPlatform.iOS) {
       // iOS için izin iste
       final result = await _notifications
-          .resolvePlatformSpecificImplementation<
-              IOSFlutterLocalNotificationsPlugin>()
+          .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
           ?.requestPermissions(
             alert: true,
             badge: true,
@@ -339,12 +388,12 @@ class NotificationService {
           );
       return result ?? false;
     }
-    
+
     // Windows için - initialize et ve test bildirimi gönder
     if (!_isInitialized) {
       await initialize();
     }
-    
+
     // Test bildirimi gönder (Windows otomatik izin isteyecek)
     try {
       await showNotification(
@@ -360,4 +409,3 @@ class NotificationService {
     }
   }
 }
-

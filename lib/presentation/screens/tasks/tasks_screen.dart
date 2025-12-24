@@ -5,7 +5,6 @@ import '../../../utils/responsive_utils.dart';
 import '../../widgets/layout/side_menu.dart';
 import '../../../providers/user_provider.dart';
 import '../../../features/tasks/tasks_feature.dart';
-import '../../../features/tasks/providers/tasks_provider.dart';
 import '../../widgets/tasks/tasks_page_header.dart';
 import '../../widgets/tasks/search_and_filter_section.dart';
 import '../../widgets/tasks/kanban_board.dart';
@@ -110,7 +109,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
   // Desktop Layout - Sol menü + içerik
   Widget _buildDesktopLayout(dynamic currentUser, EdgeInsets padding, List<Task> tasks) {
     final tasksByStatus = _getTasksByStatus(tasks);
-    
+
     return Row(
       children: [
         // Sol Menü
@@ -184,7 +183,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
   // Mobile Layout - AppBar + Drawer + içerik
   Widget _buildMobileLayout(dynamic currentUser, EdgeInsets padding, List<Task> tasks) {
     final tasksByStatus = _getTasksByStatus(tasks);
-    
+
     return Scaffold(
       appBar: AppBar(
         title: TasksPageHeader(
@@ -302,7 +301,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
   // Görev durumunu güncelle
   Future<void> _updateTaskStatus(Task task, TaskStatus newStatus) async {
     if (task.id == null) return;
-    
+
     try {
       await ref.read(tasksNotifierProvider.notifier).updateTaskStatus(task.id!, newStatus);
       // Bildirim göster
@@ -323,10 +322,10 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
   // Görev sil
   Future<void> _deleteTask(Task task) async {
     if (task.id == null) return;
-    
+
     try {
       await ref.read(tasksNotifierProvider.notifier).deleteTask(task.id!);
-      
+
       // Başarı bildirimi göster
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -381,22 +380,24 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
             if (currentUser == null || currentUser.id == null) {
               throw Exception('Kullanıcı bulunamadı');
             }
-            
+
             // Repository üzerinden görev oluştur
             final createdTask = await ref.read(tasksNotifierProvider.notifier).createTask(
-              title: task.title,
-              description: task.description,
-              status: task.status,
-              priority: task.priority,
-              dueDate: task.dueDate,
-            );
-            
-            if (mounted) {
+                  title: task.title,
+                  description: task.description,
+                  status: task.status,
+                  priority: task.priority,
+                  dueDate: task.dueDate,
+                );
+
+            if (context.mounted) {
               Navigator.pop(context);
+            }
+            if (mounted) {
               _showTaskAddedNotification(createdTask);
             }
           } catch (e) {
-            if (mounted) {
+            if (context.mounted) {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(

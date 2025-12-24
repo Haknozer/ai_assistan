@@ -111,9 +111,8 @@ final eventByIdProvider = FutureProvider.family<CalendarEvent?, Map<String, dyna
 class CalendarNotifier extends StateNotifier<AsyncValue<List<CalendarEvent>>> {
   final CalendarRepository _repository;
   final EventListParams _params;
-  final Ref? _ref; // Notification provider için
 
-  CalendarNotifier(this._repository, this._params, [this._ref]) : super(const AsyncValue.loading()) {
+  CalendarNotifier(this._repository, this._params) : super(const AsyncValue.loading()) {
     _loadEvents();
   }
 
@@ -292,8 +291,8 @@ class CalendarNotifier extends StateNotifier<AsyncValue<List<CalendarEvent>>> {
 }
 
 /// CalendarNotifier provider
-final calendarNotifierProvider = StateNotifierProvider.family<CalendarNotifier, AsyncValue<List<CalendarEvent>>, EventListParams>((ref, params) {
+final calendarNotifierProvider =
+    StateNotifierProvider.family<CalendarNotifier, AsyncValue<List<CalendarEvent>>, EventListParams>((ref, params) {
   final repository = ref.watch(calendarRepositoryProvider);
   return CalendarNotifier(repository, params);
 });
-

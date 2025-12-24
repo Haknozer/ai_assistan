@@ -150,14 +150,14 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
     ref.listen<EmailPollingState>(emailPollingProvider, (previous, next) {
       if (next.hasNewEmails && (previous == null || !previous.hasNewEmails)) {
         debugPrint('📬 Yeni email geldi! Otomatik refresh yapılıyor...');
-        
+
         // Tüm account'ları refresh et
         if (mounted) {
           try {
             final emailAccountsAsync = ref.read(emailAccountsProvider(EmailAccountsParams(
               userId: currentUser?.id,
             )));
-            
+
             emailAccountsAsync.whenData((accounts) {
               final activeAccounts = accounts
                   .where((account) =>
@@ -166,7 +166,7 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                       account.accessToken != null &&
                       account.accessToken!.isNotEmpty)
                   .toList();
-              
+
               // Her account için email provider'ı refresh et
               for (final account in activeAccounts) {
                 final emailParams = EmailListParams(
@@ -174,7 +174,7 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                   folder: _selectedFolder,
                   accessToken: account.accessToken!,
                 );
-                
+
                 try {
                   ref.read(emailNotifierProvider(emailParams).notifier).refresh();
                   debugPrint('✅ Account ${account.emailAddress} için email listesi yenilendi');
@@ -187,7 +187,7 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
             debugPrint('⚠️ Email refresh hatası: $e');
           }
         }
-        
+
         // Polling state'i temizle (okundu olarak işaretle)
         // Widget dispose olmuşsa hata vermemesi için mounted kontrolü ekle
         Future.delayed(const Duration(seconds: 2), () {
@@ -453,9 +453,11 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
     List<EmailAccount> accounts,
   ) {
     if (isDesktop) {
-      return _buildDesktopLayout(currentUser, emails, emailNotifier, emailParams, padding, account, accountProviders, accounts);
+      return _buildDesktopLayout(
+          currentUser, emails, emailNotifier, emailParams, padding, account, accountProviders, accounts);
     } else {
-      return _buildMobileLayout(currentUser, emails, emailNotifier, emailParams, padding, account, accountProviders, accounts);
+      return _buildMobileLayout(
+          currentUser, emails, emailNotifier, emailParams, padding, account, accountProviders, accounts);
     }
   }
 
@@ -512,7 +514,8 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                         _selectedEmailIndex = null;
                       });
                     },
-                    onComposeEmail: () => _showComposeEmailDialog(emailNotifier, accountId: account.id, accessToken: account.accessToken, availableAccounts: accounts),
+                    onComposeEmail: () => _showComposeEmailDialog(emailNotifier,
+                        accountId: account.id, accessToken: account.accessToken, availableAccounts: accounts),
                   ),
 
                   const SizedBox(height: 16),
@@ -581,7 +584,7 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                           flex: 6,
                           child: EmailDetailPanel(
                             email: selectedEmail,
-                            onReply: selectedEmail != null 
+                            onReply: selectedEmail != null
                                 ? (email) {
                                     // Email'in accountId'sine göre accessToken bul
                                     final emailAccount = accounts.firstWhere(
@@ -591,7 +594,7 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                                     _replyToEmail(email, emailNotifier, emailAccount.accessToken);
                                   }
                                 : null,
-                            onForward: selectedEmail != null 
+                            onForward: selectedEmail != null
                                 ? (email) {
                                     // Email'in accountId'sine göre accessToken bul
                                     final emailAccount = accounts.firstWhere(
@@ -667,7 +670,8 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                           _selectedEmailIndex = null;
                         });
                       },
-                      onComposeEmail: () => _showComposeEmailDialog(emailNotifier, accountId: account.id, accessToken: account.accessToken, availableAccounts: accounts),
+                      onComposeEmail: () => _showComposeEmailDialog(emailNotifier,
+                          accountId: account.id, accessToken: account.accessToken, availableAccounts: accounts),
                     ),
                     const SizedBox(height: 16),
                     EmailFilterSection(
@@ -709,8 +713,6 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                               );
                             }
                           });
-                          // Mobilde e-posta detayına git
-                          // TODO: Navigate to email detail screen
                         },
                         onDeleteEmail: (email) => _deleteEmail(email, emailNotifier, emailParams),
                         onMarkAsImportant: (email) => _markAsImportant(email, emailNotifier, emailParams),
@@ -808,10 +810,10 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
 
   void _replyToEmail(Email email, EmailNotifier emailNotifier, String? accessToken) {
     final currentUser = ref.read(currentUserProvider);
-    
+
     // Email'in accountId'sini bul
     final accountId = email.accountId;
-    
+
     showDialog(
       context: context,
       builder: (context) => ComposeEmailDialog(
@@ -883,10 +885,10 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
 
   void _forwardEmail(Email email, EmailNotifier emailNotifier, String? accessToken) {
     final currentUser = ref.read(currentUserProvider);
-    
+
     // Email'in accountId'sini bul
     final accountId = email.accountId;
-    
+
     showDialog(
       context: context,
       builder: (context) => ComposeEmailDialog(
@@ -957,12 +959,13 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
     );
   }
 
-  void _showComposeEmailDialog(EmailNotifier emailNotifier, {int? accountId, String? accessToken, List<EmailAccount>? availableAccounts}) {
+  void _showComposeEmailDialog(EmailNotifier emailNotifier,
+      {int? accountId, String? accessToken, List<EmailAccount>? availableAccounts}) {
     final currentUser = ref.read(currentUserProvider);
-    
+
     // AccountId'yi belirle - eğer accountId null ise, emailNotifier'dan al
     int? finalAccountId = accountId ?? emailNotifier.accountId;
-    
+
     // Hala null ise hata fırlat
     if (finalAccountId == null || finalAccountId == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -973,7 +976,7 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
       );
       return;
     }
-    
+
     showDialog(
       context: context,
       builder: (context) => ComposeEmailDialog(
@@ -983,9 +986,7 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
         onEmailSent: (email) async {
           try {
             // Email'in accountId'sini kullan (kullanıcı dropdown'dan seçtiği account)
-            final selectedAccountId = email.accountId > 0 
-                ? email.accountId 
-                : finalAccountId;
+            final selectedAccountId = email.accountId > 0 ? email.accountId : finalAccountId;
             await emailNotifier.sendEmail(
               accountId: selectedAccountId,
               toEmails: email.toEmails,
@@ -1017,9 +1018,7 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
         onDraftSaved: (email) async {
           try {
             // Email'in accountId'sini kullan (kullanıcı dropdown'dan seçtiği account)
-            final selectedAccountId = email.accountId > 0 
-                ? email.accountId 
-                : finalAccountId;
+            final selectedAccountId = email.accountId > 0 ? email.accountId : finalAccountId;
             if (selectedAccountId == 0) {
               throw Exception('Account ID bulunamadı. Lütfen e-posta hesabınızı kontrol edin.');
             }

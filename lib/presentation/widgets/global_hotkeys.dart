@@ -119,6 +119,7 @@ class GlobalHotkeys extends ConsumerWidget {
                 onSendVoice: (text) async {
                   if (!navContext.mounted) return null;
                   final connections = await VoiceCommandHelper.resolveEmailConnections(userId: null);
+                  if (!navContext.mounted) return null;
                   return await VoiceCommandHelper.processVoiceCommand(
                     context: navContext,
                     text: text,

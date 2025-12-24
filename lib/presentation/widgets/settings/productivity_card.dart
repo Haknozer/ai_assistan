@@ -81,13 +81,9 @@ class _ProductivityCardState extends ConsumerState<ProductivityCard> {
               ),
               const Spacer(),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .primary
-                      .withValues(alpha: 0.08),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
@@ -116,10 +112,7 @@ class _ProductivityCardState extends ConsumerState<ProductivityCard> {
             'Haftalık verimlilik skorunuz için hedef yüzdelik değeri belirleyin. '
             'Dashboard’daki “Verimlilik Skoru” kartı bu hedefe göre yeşil/kırmızı trend gösterecek.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.7),
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                 ),
           ),
           const SizedBox(height: 24),
@@ -135,8 +128,7 @@ class _ProductivityCardState extends ConsumerState<ProductivityCard> {
                     SliderTheme(
                       data: SliderTheme.of(context).copyWith(
                         trackHeight: 4,
-                        thumbShape:
-                            const RoundSliderThumbShape(enabledThumbRadius: 8),
+                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
                       ),
                       child: Slider(
                         value: _currentValue,
@@ -157,28 +149,20 @@ class _ProductivityCardState extends ConsumerState<ProductivityCard> {
                         Text(
                           '50%',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurface
-                                    .withValues(alpha: 0.6),
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                               ),
                         ),
                         Text(
                           'Hedef: ${_currentValue.round()}%',
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    color:
-                                        Theme.of(context).colorScheme.primary,
-                                  ),
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
                         ),
                         Text(
                           '100%',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurface
-                                    .withValues(alpha: 0.6),
+                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                               ),
                         ),
                       ],
@@ -194,10 +178,7 @@ class _ProductivityCardState extends ConsumerState<ProductivityCard> {
           Text(
             'Önerilen: %80. Daha yüksek hedefler daha agresif, daha düşük hedefler daha esnek bir değerlendirme sağlar.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.6),
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
           ),
         ],
@@ -230,8 +211,7 @@ class _ProductivityCardState extends ConsumerState<ProductivityCard> {
               ),
         ),
         style: FilledButton.styleFrom(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -256,20 +236,17 @@ class _ProductivityCardState extends ConsumerState<ProductivityCard> {
         _currentValue.round().toString(),
         category: SettingCategory.general,
       );
-      await ref
-          .read(currentUserSettingsNotifierProvider.notifier)
-          .loadSettings(user.id!);
+      await ref.read(currentUserSettingsNotifierProvider.notifier).loadSettings(user.id!);
 
-      if (!mounted) return;
+      if (!context.mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content:
-              Text('Verimlilik hedefi ${_currentValue.round()}% olarak kaydedildi'),
+          content: Text('Verimlilik hedefi ${_currentValue.round()}% olarak kaydedildi'),
         ),
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Hedef kaydedilemedi: $e'),
@@ -285,5 +262,3 @@ class _ProductivityCardState extends ConsumerState<ProductivityCard> {
     }
   }
 }
-
-

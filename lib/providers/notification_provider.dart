@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/notification.dart' as app_notification;
@@ -26,7 +25,7 @@ BuildContext? _getOverlayContext() {
 final notificationSettingsProvider = StateNotifierProvider<NotificationSettingsNotifier, Map<String, bool>>((ref) {
   final userSettings = ref.watch(currentUserSettingsNotifierProvider);
   final user = ref.watch(currentUserProvider);
-  
+
   return NotificationSettingsNotifier(
     ref.read(userSettingNotifierProvider.notifier),
     user?.id,
@@ -239,15 +238,15 @@ class NotificationSender {
         backgroundColor: backgroundColor,
         onTap: onTap,
       );
-      
+
       debugPrint('✅ Uygulama içi bildirim gösterildi: $title');
     } catch (e) {
       // Overlay hatası - 2 saniye sonra tekrar dene
       debugPrint('⚠️ Bildirim gösterilemedi, 2 saniye sonra tekrar denenecek: $title');
-      
+
       Future.delayed(const Duration(seconds: 2), () {
         final retryContext = _getOverlayContext();
-        if (retryContext != null) {
+        if (retryContext != null && retryContext.mounted) {
           try {
             AppNotificationOverlay.show(
               context: retryContext,
@@ -316,10 +315,8 @@ class NotificationSender {
 
     // Basit servis kullan - Statik method ile direkt göster
     try {
-      final message = minutesBefore > 0 
-          ? '$minutesBefore dakika sonra başlayacak'
-          : 'Şimdi başlıyor';
-      
+      final message = minutesBefore > 0 ? '$minutesBefore dakika sonra başlayacak' : 'Şimdi başlıyor';
+
       SimpleNotificationService.showCalendarNotification(
         eventTitle: eventTitle,
         message: message,
@@ -362,15 +359,15 @@ class NotificationSender {
         sender: sender,
         onTap: onTap,
       );
-      
+
       debugPrint('✅ E-posta bildirimi: $subject');
     } catch (e) {
       // Overlay hatası - 2 saniye sonra tekrar dene
       debugPrint('⚠️ Email bildirimi gösterilemedi, 2 saniye sonra tekrar denenecek: $subject');
-      
+
       Future.delayed(const Duration(seconds: 2), () {
         final retryContext = _getOverlayContext();
-        if (retryContext != null) {
+        if (retryContext != null && retryContext.mounted) {
           try {
             AppNotificationOverlay.showEmailNotification(
               context: retryContext,
@@ -418,15 +415,15 @@ class NotificationSender {
         message: message,
         onTap: onTap,
       );
-      
+
       debugPrint('✅ AI bildirimi: $title');
     } catch (e) {
       // Overlay hatası - 2 saniye sonra tekrar dene
       debugPrint('⚠️ AI bildirimi gösterilemedi, 2 saniye sonra tekrar denenecek: $title');
-      
+
       Future.delayed(const Duration(seconds: 2), () {
         final retryContext = _getOverlayContext();
-        if (retryContext != null) {
+        if (retryContext != null && retryContext.mounted) {
           try {
             AppNotificationOverlay.showAIInsight(
               context: retryContext,
@@ -443,4 +440,3 @@ class NotificationSender {
     }
   }
 }
-

@@ -17,10 +17,10 @@ class NotificationSchedulerService {
 
   Timer? _checkTimer;
   bool _isRunning = false;
-  
+
   // Public getter for _isRunning (for external access)
   bool get isRunning => _isRunning;
-  
+
   // Bildirim gönderilmiş görev/event ID'lerini takip et (duplicate önlemek için)
   final Set<String> _notifiedTaskIds = {};
   final Set<String> _notifiedEventIds = {};
@@ -68,7 +68,7 @@ class NotificationSchedulerService {
       // 1. TaskNotificationService'den zamanlanmış bildirimleri kontrol et
       final taskNotificationService = TaskNotificationService();
       final pendingNotifications = taskNotificationService.checkPendingNotifications();
-      
+
       // Zamanı gelen bildirimleri göster
       for (final notification in pendingNotifications) {
         try {
@@ -79,27 +79,28 @@ class NotificationSchedulerService {
           );
           AppLogger.info('⏰ Zamanlanmış görev bildirimi: ${notification.task.title}', 'NotificationScheduler');
         } catch (e) {
-          AppLogger.error('Bildirim gönderme hatası: ${notification.task.title}', tag: 'NotificationScheduler', error: e);
+          AppLogger.error('Bildirim gönderme hatası: ${notification.task.title}',
+              tag: 'NotificationScheduler', error: e);
         }
       }
-      
+
       // 2. Database'den görevleri kontrol et (yedek mekanizma)
       final taskRepository = TaskRepository();
       final tasks = await taskRepository.getTasksByUserId(userId);
 
       final now = DateTime.now();
-      
+
       // Kullanıcının ayarladığı bildirim zamanını al (örn: 5 dakika önce)
       final notificationMinutesBefore = await taskNotificationService.getNotificationMinutesBefore();
-      debugPrint('📋 Görev bildirimi kontrolü: ${notificationMinutesBefore} dakika öncesi kontrolü');
-      
+      debugPrint('📋 Görev bildirimi kontrolü: $notificationMinutesBefore dakika öncesi kontrolü');
+
       for (final task in tasks) {
         // Sadece tamamlanmamış görevler için kontrol et
         if (task.status == TaskStatus.completed) continue;
         if (task.dueDate == null) continue;
 
         final taskKey = 'task_${task.id}';
-        
+
         // Bu görev için zaten bildirim gönderilmiş mi?
         if (_notifiedTaskIds.contains(taskKey)) continue;
 
@@ -109,7 +110,7 @@ class NotificationSchedulerService {
         // Kullanıcının ayarına göre bildirim zamanını hesapla
         // Örn: Görev 10:00'da bitecek, ayar 5 dakika ise -> 09:55'te bildirim gönder
         // 1 dakikalık tolerans (çünkü her 1 dakikada kontrol ediyoruz)
-        if (difference.inMinutes >= (notificationMinutesBefore - 1) && 
+        if (difference.inMinutes >= (notificationMinutesBefore - 1) &&
             difference.inMinutes <= (notificationMinutesBefore + 1)) {
           try {
             notificationSender.sendTaskNotification(
@@ -118,7 +119,8 @@ class NotificationSchedulerService {
               message: 'Son tarih $notificationMinutesBefore dakika sonra!',
             );
             _notifiedTaskIds.add(taskKey);
-            AppLogger.info('📋 Görev bildirimi gönderildi: ${task.title} ($notificationMinutesBefore dk önce)', 'NotificationScheduler');
+            AppLogger.info('📋 Görev bildirimi gönderildi: ${task.title} ($notificationMinutesBefore dk önce)',
+                'NotificationScheduler');
           } catch (e) {
             AppLogger.error('Görev bildirimi hatası: ${task.title}', tag: 'NotificationScheduler', error: e);
           }
@@ -135,7 +137,7 @@ class NotificationSchedulerService {
       // 1. CalendarNotificationService'den zamanlanmış bildirimleri kontrol et
       final calendarNotificationService = CalendarNotificationService();
       final pendingNotifications = calendarNotificationService.checkPendingNotifications();
-      
+
       // Zamanı gelen bildirimleri göster
       for (final notification in pendingNotifications) {
         try {
@@ -146,31 +148,32 @@ class NotificationSchedulerService {
           );
           AppLogger.info('⏰ Zamanlanmış takvim bildirimi: ${notification.event.title}', 'NotificationScheduler');
         } catch (e) {
-          AppLogger.error('Bildirim gönderme hatası: ${notification.event.title}', tag: 'NotificationScheduler', error: e);
+          AppLogger.error('Bildirim gönderme hatası: ${notification.event.title}',
+              tag: 'NotificationScheduler', error: e);
         }
       }
-      
+
       // 2. Database'den event'leri kontrol et (yedek mekanizma)
       final calendarLocalRepository = CalendarLocalRepository();
       final now = DateTime.now();
       final timeMax = now.add(const Duration(days: 7)); // Gelecek 7 gün içindeki event'ler
-      
+
       final events = await calendarLocalRepository.getEvents(
         userId: userId,
         timeMin: now,
         timeMax: timeMax,
       );
-      
+
       // Kullanıcının ayarladığı bildirim zamanını al (örn: 5 dakika önce)
       final notificationMinutesBefore = await calendarNotificationService.getNotificationMinutesBefore();
-      debugPrint('📅 Takvim bildirimi kontrolü: ${notificationMinutesBefore} dakika öncesi kontrolü');
-      
+      debugPrint('📅 Takvim bildirimi kontrolü: $notificationMinutesBefore dakika öncesi kontrolü');
+
       for (final event in events) {
         // Geçmiş event'leri atla
         if (event.startTime.isBefore(now)) continue;
 
         final eventKey = 'event_${event.id}';
-        
+
         // Bu event için zaten bildirim gönderilmiş mi?
         if (_notifiedEventIds.contains(eventKey)) continue;
 
@@ -180,7 +183,7 @@ class NotificationSchedulerService {
         // Kullanıcının ayarına göre bildirim zamanını hesapla
         // Örn: Event 10:00'da başlayacak, ayar 5 dakika ise -> 09:55'te bildirim gönder
         // 1 dakikalık tolerans (çünkü her 1 dakikada kontrol ediyoruz)
-        if (difference.inMinutes >= (notificationMinutesBefore - 1) && 
+        if (difference.inMinutes >= (notificationMinutesBefore - 1) &&
             difference.inMinutes <= (notificationMinutesBefore + 1)) {
           try {
             notificationSender.sendCalendarNotification(
@@ -189,7 +192,8 @@ class NotificationSchedulerService {
               minutesBefore: notificationMinutesBefore,
             );
             _notifiedEventIds.add(eventKey);
-            AppLogger.info('📅 Takvim bildirimi gönderildi: ${event.title} ($notificationMinutesBefore dk önce)', 'NotificationScheduler');
+            AppLogger.info('📅 Takvim bildirimi gönderildi: ${event.title} ($notificationMinutesBefore dk önce)',
+                'NotificationScheduler');
           } catch (e) {
             AppLogger.error('Takvim bildirimi hatası: ${event.title}', tag: 'NotificationScheduler', error: e);
           }
@@ -257,4 +261,3 @@ class NotificationSchedulerService {
     }
   }
 }
-

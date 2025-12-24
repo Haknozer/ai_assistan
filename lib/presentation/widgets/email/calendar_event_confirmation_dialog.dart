@@ -53,7 +53,7 @@ class CalendarEventConfirmationDialog extends ConsumerWidget {
           data: (accounts) {
             CalendarAccount? googleAccount;
             CalendarAccount? outlookAccount;
-            
+
             try {
               googleAccount = accounts.firstWhere(
                 (account) => account.provider == CalendarProvider.google && account.isActive,
@@ -61,7 +61,7 @@ class CalendarEventConfirmationDialog extends ConsumerWidget {
             } catch (e) {
               googleAccount = null;
             }
-            
+
             try {
               outlookAccount = accounts.firstWhere(
                 (account) => account.provider == CalendarProvider.outlook && account.isActive,
@@ -97,7 +97,7 @@ class CalendarEventConfirmationDialog extends ConsumerWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
+        const Icon(
           Icons.calendar_today_outlined,
           size: 48,
           color: Colors.orange,
@@ -336,10 +336,10 @@ class CalendarEventConfirmationDialog extends ConsumerWidget {
       }
 
       final calendarRepository = ref.read(calendarRepositoryProvider);
-      
+
       // Kategori'den EventType'a çevir
       final eventType = EventType.fromCategory(kategori);
-      
+
       await calendarRepository.createEvent(
         title: title,
         startTime: startTime ?? DateTime.now(),
@@ -359,7 +359,7 @@ class CalendarEventConfirmationDialog extends ConsumerWidget {
             backgroundColor: Colors.green,
           ),
         );
-        
+
         // Event eklendikten sonra callback'i çağır (UI'ı güncellemek için)
         onEventAdded?.call();
       }
@@ -390,6 +390,7 @@ class CalendarEventConfirmationDialog extends ConsumerWidget {
       // Google'a ekle
       await _addToCalendar(context, ref, googleAccount);
       // Outlook'a ekle
+      if (!context.mounted) return;
       await _addToCalendar(context, ref, outlookAccount);
     } catch (e) {
       AppLogger.error(
@@ -404,4 +405,3 @@ class CalendarEventConfirmationDialog extends ConsumerWidget {
     return '${dateTime.day}.${dateTime.month}.${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 }
-

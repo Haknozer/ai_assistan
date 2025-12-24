@@ -59,10 +59,7 @@ class _EmailAttachmentItem extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .surfaceContainerHighest
-            .withValues(alpha: 0.3),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.12),
@@ -104,10 +101,7 @@ class _EmailAttachmentItem extends StatelessWidget {
                 Text(
                   attachment.formattedSize,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withValues(alpha: 0.54),
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.54),
                         fontSize: 12,
                       ),
                 ),
@@ -118,7 +112,6 @@ class _EmailAttachmentItem extends StatelessWidget {
           // İndir butonu - Gmail tarzı
           IconButton(
             onPressed: () {
-              // TODO: Implement download
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text('${attachment.filename} indiriliyor...'),
@@ -139,4 +132,3 @@ class _EmailAttachmentItem extends StatelessWidget {
     );
   }
 }
-

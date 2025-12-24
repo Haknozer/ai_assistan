@@ -6,7 +6,7 @@ class SimpleNotificationService {
   static final SimpleNotificationService _instance = SimpleNotificationService._();
   factory SimpleNotificationService() => _instance;
   SimpleNotificationService._();
-  
+
   /// Bildirim göster (en basit hali)
   static void showNotification({
     required String title,
@@ -20,19 +20,19 @@ class SimpleNotificationService {
       debugPrint('❌ Navigator null - bildirim gösterilemedi');
       return;
     }
-    
+
     // Navigator'un overlay'ini al
     final overlayState = navigatorState.overlay;
     if (overlayState == null) {
       debugPrint('❌ Overlay null - bildirim gösterilemedi');
       return;
     }
-    
+
     debugPrint('🔔 Bildirim gösteriliyor: $title');
-    
+
     // Overlay entry oluştur
     late OverlayEntry overlayEntry;
-    
+
     overlayEntry = OverlayEntry(
       builder: (context) => Positioned(
         top: 80,
@@ -44,11 +44,11 @@ class SimpleNotificationService {
             width: 350,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: backgroundColor.withOpacity(0.95),
+              color: backgroundColor.withValues(alpha: 0.95),
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
+                  color: Colors.black.withValues(alpha: 0.2),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -96,20 +96,20 @@ class SimpleNotificationService {
         ),
       ),
     );
-    
+
     // Overlay'e ekle
     overlayState.insert(overlayEntry);
-    
+
     // 5 saniye sonra otomatik kaldır
     Future.delayed(const Duration(seconds: 5), () {
       if (overlayEntry.mounted) {
         overlayEntry.remove();
       }
     });
-    
+
     debugPrint('✅ Bildirim gösterildi: $title');
   }
-  
+
   /// Görev bildirimi
   static void showTaskNotification({
     required String taskTitle,
@@ -135,7 +135,7 @@ class SimpleNotificationService {
         : emailCount != null && emailCount == 1
             ? '1 yeni e-posta geldi'
             : '$sender\'dan yeni e-posta';
-    
+
     showNotification(
       title: '📧 Yeni E-posta',
       message: message,
@@ -157,4 +157,3 @@ class SimpleNotificationService {
     );
   }
 }
-

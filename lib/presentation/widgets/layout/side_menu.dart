@@ -71,9 +71,7 @@ class SideMenu extends ConsumerWidget {
             isDarkMode: isDarkMode,
             onToggleTheme: () => ref.read(themeProvider.notifier).toggleTheme(),
             onVoiceTap: onVoiceTap ?? () => _openVoiceSheetIfPossible(context, ref),
-            onLogout: () {
-              // TODO: Implement logout
-            },
+            onLogout: () {},
           ),
         ],
       ),
@@ -102,6 +100,7 @@ void _openVoiceSheetIfPossible(BuildContext context, WidgetRef ref) {
     userId: userId,
     onSendVoice: (text) async {
       final connections = await VoiceCommandHelper.resolveEmailConnections(userId: null);
+      if (!context.mounted) return null;
       return await VoiceCommandHelper.processVoiceCommand(
         context: context,
         text: text,

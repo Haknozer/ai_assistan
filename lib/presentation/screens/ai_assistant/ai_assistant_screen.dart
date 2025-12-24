@@ -152,6 +152,7 @@ class _AIAssistantScreenState extends ConsumerState<AIAssistantScreen> {
     try {
       if (!mounted) return null;
       final connections = await VoiceCommandHelper.resolveEmailConnections(userId: null);
+      if (!mounted) return null;
       final assistantText = await VoiceCommandHelper.processVoiceCommand(
         context: context,
         text: text,

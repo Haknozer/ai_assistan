@@ -71,46 +71,47 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
   List<CalendarEvent> _findDuplicateEvents() {
     final duplicates = <CalendarEvent>[widget.event];
     final addedEventKeys = <String>{};
-    
+
     // Mevcut event'in key'lerini oluştur (EventMerger ile aynı mantık)
     final currentEventKey = _getEventKey(widget.event);
     final currentDetailKey = _getEventDetailKey(widget.event);
     addedEventKeys.add('${widget.event.source.name}|$currentEventKey');
-    
+
     debugPrint('🔍 Duplicate arama başladı');
     debugPrint('   - Mevcut event: "${widget.event.title}" (${widget.event.source.name})');
     debugPrint('   - Mevcut event key: $currentEventKey');
     debugPrint('   - Mevcut event detail key: $currentDetailKey');
     debugPrint('   - Tüm event sayısı: ${widget.allEvents.length}');
     debugPrint('   - External ID: ${widget.event.externalId}');
-    
+
     // Önce allEvents listesinde ara (merge edilmiş event'ler arasında)
     for (final otherEvent in widget.allEvents) {
       // Aynı event'i atla (id, source ve externalId aynıysa)
-      if (otherEvent.id == widget.event.id && 
+      if (otherEvent.id == widget.event.id &&
           otherEvent.source == widget.event.source &&
           otherEvent.externalId == widget.event.externalId) {
         continue;
       }
-      
+
       // EventMerger ile aynı key mantığını kullan
       final otherEventKey = _getEventKey(otherEvent);
       final otherDetailKey = _getEventDetailKey(otherEvent);
-      
+
       // Başlık + zaman aynı mı? (EventMerger mantığı)
       final sameEventKey = otherEventKey == currentEventKey;
-      
+
       // Veya detay + zaman aynı mı? (EventMerger mantığı)
       final sameDetailKey = otherDetailKey == currentDetailKey;
-      
+
       if (sameEventKey || sameDetailKey) {
         // Bu event'i daha önce ekledik mi kontrol et (source + key kombinasyonu)
         final eventKeyWithSource = '${otherEvent.source.name}|$otherEventKey';
-        
+
         if (!addedEventKeys.contains(eventKeyWithSource)) {
           duplicates.add(otherEvent);
           addedEventKeys.add(eventKeyWithSource);
-          debugPrint('🔍 Duplicate event bulundu (allEvents içinde): "${otherEvent.title}" (${otherEvent.source.name})');
+          debugPrint(
+              '🔍 Duplicate event bulundu (allEvents içinde): "${otherEvent.title}" (${otherEvent.source.name})');
           debugPrint('   - Event Key eşleşmesi: $sameEventKey');
           debugPrint('   - Detail Key eşleşmesi: $sameDetailKey');
           debugPrint('   - External ID: ${otherEvent.externalId}');
@@ -118,16 +119,16 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
         }
       }
     }
-    
+
     // Eğer allEvents'te duplicate bulunamadıysa, mevcut event'in bilgilerine göre
     // diğer source'dan event'i oluştur (silme işlemi için)
     // Bu durumda merge işlemi duplicate'leri filtrelemiş olabilir
     if (duplicates.length == 1) {
       // Diğer source'u belirle
-      final otherSource = widget.event.source == EventSource.google 
-          ? EventSource.outlook 
+      final otherSource = widget.event.source == EventSource.google
+          ? EventSource.outlook
           : (widget.event.source == EventSource.outlook ? EventSource.google : null);
-      
+
       if (otherSource != null) {
         // Diğer source'dan event oluştur (external ID olmadan, sadece bilgilerle)
         // Bu event'i silme işlemi sırasında API'den bulacağız
@@ -144,25 +145,26 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
           createdAt: widget.event.createdAt,
           updatedAt: widget.event.updatedAt,
         );
-        
+
         duplicates.add(duplicateEvent);
-        debugPrint('🔍 Diğer source\'dan duplicate event oluşturuldu: "${duplicateEvent.title}" (${duplicateEvent.source.name})');
+        debugPrint(
+            '🔍 Diğer source\'dan duplicate event oluşturuldu: "${duplicateEvent.title}" (${duplicateEvent.source.name})');
         debugPrint('   - NOT: Bu event\'in external ID\'si silme işlemi sırasında API\'den bulunacak');
       }
     }
-    
+
     debugPrint('🔍 Toplam ${duplicates.length} duplicate event bulundu (Google ve Outlook dahil)');
     if (duplicates.length > 1) {
       debugPrint('🔍 Duplicate source\'lar: ${duplicates.map((e) => e.source.name).join(", ")}');
     }
     return duplicates;
   }
-  
+
   /// Event için unique key oluştur (title + startTime) - EventMerger ile aynı mantık
   String _getEventKey(CalendarEvent event) {
     // Başlığı normalize et (küçük harf, boşlukları temizle)
     final normalizedTitle = event.title.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
-    
+
     // Start time'ı saat bazında normalize et (dakika ve saniyeyi yok say)
     // Bu sayede timezone farklarından kaynaklanan küçük farkları görmezden geliriz
     final normalizedTime = DateTime(
@@ -171,7 +173,7 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
       event.startTime.day,
       event.startTime.hour,
     );
-    
+
     return '$normalizedTitle|${normalizedTime.toIso8601String()}';
   }
 
@@ -182,15 +184,15 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
     if (cleanedDescription != null && cleanedDescription.isNotEmpty) {
       cleanedDescription = HtmlStripper.cleanIfNeeded(cleanedDescription);
     }
-    
+
     // Detayı normalize et (küçük harf, boşlukları temizle)
     final normalizedDescription = (cleanedDescription ?? '').toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
-    
+
     // Eğer detay boşsa, başlığı kullan
-    final keyContent = normalizedDescription.isEmpty 
-        ? event.title.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ') 
+    final keyContent = normalizedDescription.isEmpty
+        ? event.title.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ')
         : normalizedDescription;
-    
+
     // Start time'ı saat bazında normalize et
     final normalizedTime = DateTime(
       event.startTime.year,
@@ -198,7 +200,7 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
       event.startTime.day,
       event.startTime.hour,
     );
-    
+
     return '$keyContent|${normalizedTime.toIso8601String()}';
   }
 
@@ -231,7 +233,7 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
     try {
       // Duplicate event'leri bul
       final duplicateEvents = _findDuplicateEvents();
-      
+
       // Event'in source'una göre calendar account bul
       final currentUser = ref.read(currentUserProvider);
       if (currentUser == null) {
@@ -241,20 +243,20 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
       final calendarAccountsAsync = ref.read(calendarAccountsProvider(CalendarAccountsParams(
         userId: currentUser.id,
       )));
-      
+
       final calendarAccounts = calendarAccountsAsync.value ?? [];
       if (calendarAccounts.isEmpty) {
         throw Exception('Calendar hesabı bulunamadı');
       }
 
       final repository = ref.read(calendarRepositoryProvider);
-      
+
       // Tüm duplicate event'leri paralel olarak güncelle (hem Google hem Outlook'ta varsa aynı anda)
       final updateFutures = <Future>[];
-      
+
       for (final duplicateEvent in duplicateEvents) {
         CalendarAccount? account;
-        
+
         if (duplicateEvent.source == EventSource.google) {
           account = calendarAccounts.firstWhere(
             (acc) => acc.provider == CalendarProvider.google && acc.isActive,
@@ -281,15 +283,12 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
         final accountProvider = account.provider;
         final accountUserId = account.userId;
         updateFutures.add(
-          repository.updateEvent(
+          repository
+              .updateEvent(
             eventId: eventId,
             title: _titleController.text.trim(),
-            description: _descriptionController.text.trim().isEmpty 
-                ? null 
-                : _descriptionController.text.trim(),
-            location: _locationController.text.trim().isEmpty 
-                ? null 
-                : _locationController.text.trim(),
+            description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
+            location: _locationController.text.trim().isEmpty ? null : _locationController.text.trim(),
             startTime: _startTime,
             endTime: _endTime,
             eventType: _eventType,
@@ -297,7 +296,8 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
             accessToken: account.accessToken!,
             provider: accountProvider,
             userId: accountUserId,
-          ).catchError((e) {
+          )
+              .catchError((e) {
             debugPrint('Event güncelleme hatası ($accountProvider): $e');
             // Bir calendar'da hata olsa bile diğerini güncellemeye devam et
             // Hata durumunda null döndür (Future.wait için)
@@ -312,14 +312,14 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
           }),
         );
       }
-      
+
       // Tüm güncelleme işlemlerini paralel olarak bekle
       await Future.wait(updateFutures);
 
       if (mounted) {
         // Önce callback'i çağır (provider'ı refresh et) - dialog kapanmadan önce
         widget.onEventUpdated?.call();
-        
+
         // Kısa bir gecikme ile dialog'u kapat (provider refresh'in tamamlanması için)
         Future.delayed(const Duration(milliseconds: 100), () {
           if (mounted) {
@@ -355,13 +355,14 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
     // Duplicate event'leri önce bul (kullanıcıya bilgi vermek için)
     final duplicateEvents = _findDuplicateEvents();
     final hasMultipleSources = duplicateEvents.length > 1;
-    
+
     String confirmMessage = 'Bu etkinliği silmek istediğinizden emin misiniz?';
     if (hasMultipleSources) {
       final sources = duplicateEvents.map((e) => e.source == EventSource.google ? 'Google' : 'Outlook').join(' ve ');
-      confirmMessage = 'Bu etkinlik $sources takvimlerinde mevcut. Tüm takvimlerden silmek istediğinizden emin misiniz?';
+      confirmMessage =
+          'Bu etkinlik $sources takvimlerinde mevcut. Tüm takvimlerden silmek istediğinizden emin misiniz?';
     }
-    
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -396,31 +397,39 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
       final calendarAccountsAsync = ref.read(calendarAccountsProvider(CalendarAccountsParams(
         userId: currentUser.id,
       )));
-      
+
       final calendarAccounts = calendarAccountsAsync.value ?? [];
       if (calendarAccounts.isEmpty) {
         throw Exception('Calendar hesabı bulunamadı');
       }
 
       final repository = ref.read(calendarRepositoryProvider);
-      
+
       // Tüm duplicate event'leri paralel olarak sil (hem Google hem Outlook'ta varsa aynı anda)
       final deleteFutures = <Future>[];
       final deletedSources = <String>{}; // Hangi source'lardan silindi (log için)
       final errorMessages = <String>[]; // Hata mesajları
-      
+
       for (final duplicateEvent in duplicateEvents) {
         CalendarAccount? account;
-        
+
         // Account bulma mantığını iyileştir
         try {
           if (duplicateEvent.source == EventSource.google) {
             account = calendarAccounts.firstWhere(
-              (acc) => acc.provider == CalendarProvider.google && acc.isActive && acc.accessToken != null && acc.accessToken!.isNotEmpty,
+              (acc) =>
+                  acc.provider == CalendarProvider.google &&
+                  acc.isActive &&
+                  acc.accessToken != null &&
+                  acc.accessToken!.isNotEmpty,
             );
           } else if (duplicateEvent.source == EventSource.outlook) {
             account = calendarAccounts.firstWhere(
-              (acc) => acc.provider == CalendarProvider.outlook && acc.isActive && acc.accessToken != null && acc.accessToken!.isNotEmpty,
+              (acc) =>
+                  acc.provider == CalendarProvider.outlook &&
+                  acc.isActive &&
+                  acc.accessToken != null &&
+                  acc.accessToken!.isNotEmpty,
             );
           } else {
             // Manuel veya diğer source'lar için atla (sadece Google ve Outlook'tan silebiliriz)
@@ -430,30 +439,32 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
         } catch (e) {
           // Account bulunamadı
           debugPrint('⚠️ ${duplicateEvent.source.name} için aktif account bulunamadı');
-          errorMessages.add('${duplicateEvent.source == EventSource.google ? "Google" : "Outlook"} takvim hesabı bulunamadı');
+          errorMessages
+              .add('${duplicateEvent.source == EventSource.google ? "Google" : "Outlook"} takvim hesabı bulunamadı');
           continue;
         }
 
         // Account bulundu, access token kontrolü yap
         if (account.accessToken == null || account.accessToken!.isEmpty) {
           debugPrint('⚠️ ${duplicateEvent.source.name} için access token bulunamadı');
-          errorMessages.add('${duplicateEvent.source == EventSource.google ? "Google" : "Outlook"} takvim erişim token\'ı bulunamadı');
+          errorMessages.add(
+              '${duplicateEvent.source == EventSource.google ? "Google" : "Outlook"} takvim erişim token\'ı bulunamadı');
           continue;
         }
 
         // Event ID'yi bul (external ID yoksa API'den bul)
         String? eventId = duplicateEvent.externalId;
         final sourceDisplayName = duplicateEvent.source == EventSource.google ? 'Google' : 'Outlook';
-        
+
         if (eventId == null || eventId.isEmpty) {
           // External ID yoksa, API'den event'leri çekip title + startTime'a göre bul
           debugPrint('🔍 External ID yok, API\'den event aranıyor: ${duplicateEvent.title} ($sourceDisplayName)');
-          
+
           try {
             // Event'in zamanına yakın bir aralıkta event'leri çek (±1 gün)
             final searchTimeMin = duplicateEvent.startTime.subtract(const Duration(days: 1));
             final searchTimeMax = duplicateEvent.startTime.add(const Duration(days: 1));
-            
+
             final events = await repository.getEvents(
               calendarId: 'primary',
               timeMin: searchTimeMin,
@@ -462,16 +473,16 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
               provider: account.provider,
               userId: currentUser.id,
             );
-            
+
             // Title + startTime'a göre eşleşen event'i bul
             final normalizedTitle = duplicateEvent.title.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
             CalendarEvent? matchingEvent;
-            
+
             for (final event in events) {
               final eventNormalizedTitle = event.title.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
               final timeDiff = (event.startTime.difference(duplicateEvent.startTime).inHours).abs();
-              
-              if (eventNormalizedTitle == normalizedTitle && 
+
+              if (eventNormalizedTitle == normalizedTitle &&
                   timeDiff <= 1 &&
                   event.startTime.year == duplicateEvent.startTime.year &&
                   event.startTime.month == duplicateEvent.startTime.month &&
@@ -480,7 +491,7 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
                 break;
               }
             }
-            
+
             if (matchingEvent != null && matchingEvent.externalId != null) {
               eventId = matchingEvent.externalId;
               debugPrint('✅ Event bulundu: ${matchingEvent.title} (ID: $eventId)');
@@ -495,22 +506,25 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
             continue;
           }
         }
-        
+
         if (eventId == null || eventId.isEmpty) {
           debugPrint('⚠️ Event ID hala boş: ${duplicateEvent.title} (${duplicateEvent.source.name})');
-          errorMessages.add('${duplicateEvent.source == EventSource.google ? "Google" : "Outlook"} etkinlik ID\'si bulunamadı');
+          errorMessages
+              .add('${duplicateEvent.source == EventSource.google ? "Google" : "Outlook"} etkinlik ID\'si bulunamadı');
           continue;
         }
 
         // Paralel silme için future ekle
         final finalEventId = eventId; // Null safety için
         deleteFutures.add(
-          repository.deleteEvent(
+          repository
+              .deleteEvent(
             eventId: finalEventId,
             calendarId: 'primary',
             accessToken: account.accessToken!,
             provider: account.provider,
-          ).then((_) {
+          )
+              .then((_) {
             deletedSources.add(sourceDisplayName);
             debugPrint('✅ Event silindi: ${duplicateEvent.title} ($sourceDisplayName)');
           }).catchError((e) {
@@ -520,10 +534,10 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
           }),
         );
       }
-      
+
       // Tüm silme işlemlerini paralel olarak bekle
       await Future.wait(deleteFutures, eagerError: false);
-      
+
       if (deletedSources.isNotEmpty) {
         debugPrint('✅ Toplam ${deletedSources.length} calendar\'dan event silindi: ${deletedSources.join(", ")}');
       }
@@ -531,20 +545,20 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
       if (mounted) {
         // Önce callback'i çağır (provider'ı invalidate et) - dialog kapanmadan önce
         widget.onEventDeleted?.call();
-        
+
         // Kısa bir gecikme ile dialog'u kapat (provider refresh'in başlaması için)
         Future.delayed(const Duration(milliseconds: 50), () {
           if (mounted) {
             Navigator.pop(context);
-            
+
             // Başarı/hata mesajı göster
             if (deletedSources.isNotEmpty && errorMessages.isEmpty) {
               // Tüm silme işlemleri başarılı
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(hasMultipleSources 
-                    ? 'Etkinlik tüm takvimlerden silindi (${deletedSources.join(", ")})'
-                    : 'Etkinlik silindi'),
+                  content: Text(hasMultipleSources
+                      ? 'Etkinlik tüm takvimlerden silindi (${deletedSources.join(", ")})'
+                      : 'Etkinlik silindi'),
                   backgroundColor: Colors.green,
                 ),
               );
@@ -552,7 +566,8 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
               // Kısmen başarılı
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Etkinlik ${deletedSources.join(", ")} takvimlerinden silindi. Bazı hatalar: ${errorMessages.join("; ")}'),
+                  content: Text(
+                      'Etkinlik ${deletedSources.join(", ")} takvimlerinden silindi. Bazı hatalar: ${errorMessages.join("; ")}'),
                   backgroundColor: Colors.orange,
                   duration: const Duration(seconds: 5),
                 ),
@@ -596,6 +611,7 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
       lastDate: DateTime(2100),
     );
     if (picked == null) return;
+    if (!mounted) return;
 
     final time = await showTimePicker(
       context: context,
@@ -633,12 +649,14 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
       lastDate: DateTime(2100),
     );
     if (picked == null) return;
+    if (!mounted) return;
 
     final time = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(_endTime ?? _startTime!.add(const Duration(hours: 1))),
     );
     if (time == null) return;
+    if (!mounted) return;
 
     final selectedEndTime = DateTime(
       picked.year,
@@ -649,6 +667,7 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
     );
 
     if (selectedEndTime.isBefore(_startTime!)) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Bitiş zamanı başlangıç zamanından önce olamaz')),
       );
@@ -736,12 +755,14 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
                 children: [
                   if (_isEditing) ...[
                     TextButton(
-                      onPressed: _isSaving ? null : () {
-                        setState(() {
-                          _isEditing = false;
-                          _initializeForm();
-                        });
-                      },
+                      onPressed: _isSaving
+                          ? null
+                          : () {
+                              setState(() {
+                                _isEditing = false;
+                                _initializeForm();
+                              });
+                            },
                       child: const Text('İptal'),
                     ),
                     const SizedBox(width: 8),
@@ -804,7 +825,8 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
         _buildDetailRow(
           icon: Icons.access_time,
           label: 'Zaman',
-          value: '${CalendarUtils.formatDateTime(widget.event.startTime)} - ${CalendarUtils.formatTime(widget.event.endTime)}',
+          value:
+              '${CalendarUtils.formatDateTime(widget.event.startTime)} - ${CalendarUtils.formatTime(widget.event.endTime)}',
         ),
 
         // Süre
@@ -933,9 +955,7 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
               suffixIcon: Icon(Icons.calendar_today),
             ),
             child: Text(
-              _startTime != null
-                  ? DateFormat('dd.MM.yyyy HH:mm').format(_startTime!)
-                  : 'Seçin',
+              _startTime != null ? DateFormat('dd.MM.yyyy HH:mm').format(_startTime!) : 'Seçin',
             ),
           ),
         ),
@@ -951,9 +971,7 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
               suffixIcon: Icon(Icons.calendar_today),
             ),
             child: Text(
-              _endTime != null
-                  ? DateFormat('dd.MM.yyyy HH:mm').format(_endTime!)
-                  : 'Seçin',
+              _endTime != null ? DateFormat('dd.MM.yyyy HH:mm').format(_endTime!) : 'Seçin',
             ),
           ),
         ),
@@ -984,7 +1002,7 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
 
         // Event Type
         DropdownButtonFormField<EventType>(
-          value: _eventType,
+          initialValue: _eventType,
           decoration: const InputDecoration(
             labelText: 'Etkinlik Türü',
             border: OutlineInputBorder(),
@@ -1020,4 +1038,3 @@ class _EventDetailDialogState extends ConsumerState<EventDetailDialog> {
     }
   }
 }
-

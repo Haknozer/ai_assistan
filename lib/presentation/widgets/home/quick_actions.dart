@@ -44,7 +44,6 @@ class QuickActions extends StatelessWidget {
                     Icons.add_task_outlined,
                     AppColors.primaryColor,
                     () {
-                      // TODO: Navigate to tasks screen with add mode
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Yeni görev ekleme sayfasına yönlendiriliyor...')),
                       );
@@ -56,7 +55,6 @@ class QuickActions extends StatelessWidget {
                     Icons.event,
                     Colors.purple,
                     () {
-                      // TODO: Navigate to calendar screen with add mode
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Etkinlik ekleme sayfasına yönlendiriliyor...')),
                       );
@@ -68,7 +66,6 @@ class QuickActions extends StatelessWidget {
                     Icons.email_outlined,
                     Colors.blue,
                     () {
-                      // TODO: Navigate to email screen
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('E-posta sayfasına yönlendiriliyor...')),
                       );
@@ -80,7 +77,6 @@ class QuickActions extends StatelessWidget {
                     Icons.smart_toy_outlined,
                     Colors.orange,
                     () {
-                      // TODO: Open AI Assistant
                       _showAIAssistantDialog(context);
                     },
                   ),

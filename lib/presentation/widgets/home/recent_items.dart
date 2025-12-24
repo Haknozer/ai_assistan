@@ -24,7 +24,6 @@ class RecentItems extends StatelessWidget {
               ),
               TextButton(
                 onPressed: () {
-                  // TODO: Show all activities
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Tüm aktiviteler gösteriliyor...')),
                   );

@@ -15,7 +15,7 @@ class TaskAutoCreationService {
   final TaskRepository _taskRepository = TaskRepository();
 
   /// n8n response'undan görevleri çıkar ve oluştur
-  /// 
+  ///
   /// n8n response formatı örnekleri:
   /// 1. { "tasks": [{ "title": "...", "description": "...", "priority": "high", "due_date": "2024-01-01" }] }
   /// 2. { "task_extraction": { "tasks": [...] } }
@@ -29,7 +29,7 @@ class TaskAutoCreationService {
   }) async {
     try {
       final extractedTasks = _extractTasksFromResponse(n8nResponse);
-      
+
       if (extractedTasks.isEmpty) {
         AppLogger.debug('n8n response\'unda görev bulunamadı', 'TaskAutoCreation');
         return [];
@@ -37,19 +37,18 @@ class TaskAutoCreationService {
 
       // Tüm existing tasks'i bir kez çek (performans ve duplicate kontrolü için)
       final existingTasks = await _taskRepository.getTasksByUserId(userId);
-      
+
       // Duplicate kontrolü için bir Set oluştur (title + dueDate kombinasyonu)
       final existingTaskKeys = <String>{};
       for (final task in existingTasks) {
-        final dueDateStr = task.dueDate != null 
-          ? '${task.dueDate!.year}-${task.dueDate!.month}-${task.dueDate!.day}'
-          : 'no-date';
+        final dueDateStr =
+            task.dueDate != null ? '${task.dueDate!.year}-${task.dueDate!.month}-${task.dueDate!.day}' : 'no-date';
         final key = '${task.title.toLowerCase().trim()}|$dueDateStr';
         existingTaskKeys.add(key);
       }
 
       final createdTasks = <Task>[];
-      
+
       // Senaryo servisi ile görev önceliklendirme
       final scenarioService = TaskScenarioService();
       TaskScenario? scenario;
@@ -77,17 +76,13 @@ class TaskAutoCreationService {
 
           // Due date çıkar (duplicate kontrolü için)
           DateTime? dueDate = scenario?.getDueDate();
-          if (dueDate == null) {
-            dueDate = _extractDueDate(taskData);
-          }
-          final dueDateStr = dueDate != null
-            ? '${dueDate.year}-${dueDate.month}-${dueDate.day}'
-            : 'no-date';
+          dueDate ??= _extractDueDate(taskData);
+          final dueDateStr = dueDate != null ? '${dueDate.year}-${dueDate.month}-${dueDate.day}' : 'no-date';
           final taskKey = '${title.toLowerCase().trim()}|$dueDateStr';
 
           // Duplicate kontrolü
           if (existingTaskKeys.contains(taskKey)) {
-            AppLogger.debug('Duplicate task atlandı: $title (${dueDateStr})', 'TaskAutoCreation');
+            AppLogger.debug('Duplicate task atlandı: $title ($dueDateStr)', 'TaskAutoCreation');
             continue;
           }
 
@@ -98,7 +93,7 @@ class TaskAutoCreationService {
             sourceEmailSubject: sourceEmailSubject,
             scenario: scenario,
           );
-          
+
           if (task != null) {
             // Yeni oluşturulan task'ı existing keys'e ekle (aynı batch içinde duplicate'leri önlemek için)
             existingTaskKeys.add(taskKey);
@@ -129,7 +124,7 @@ class TaskAutoCreationService {
   }
 
   /// Email içeriğinden görev çıkar (AI analizi sonucu)
-  /// 
+  ///
   /// Email subject ve body'sinden görev bilgilerini çıkarır
   Future<Task?> createTaskFromEmail({
     required int userId,
@@ -276,9 +271,7 @@ class TaskAutoCreationService {
 
       // Son tarih çıkar (senaryo varsa senaryodan, yoksa taskData'dan)
       DateTime? dueDate = scenario?.getDueDate();
-      if (dueDate == null) {
-        dueDate = _extractDueDate(taskData);
-      }
+      dueDate ??= _extractDueDate(taskData);
 
       // Email kaynağı bilgisini açıklamaya ekle
       String? finalDescription = description;
@@ -374,10 +367,10 @@ class TaskAutoCreationService {
     }
 
     // Son tarih çıkar (basit pattern matching)
-    DateTime? dueDate = _extractDateFromText(subject + ' ' + body);
+    DateTime? dueDate = _extractDateFromText('$subject $body');
 
     // Açıklama: Body'nin ilk 500 karakteri
-    String? description = body.length > 500 ? body.substring(0, 500) + '...' : body;
+    String? description = body.length > 500 ? '${body.substring(0, 500)}...' : body;
     if (description.isEmpty) {
       description = null;
     }
@@ -563,7 +556,7 @@ class TaskAutoCreationService {
   }) async {
     try {
       final taskEvents = events.where((event) => event.eventType == EventType.task).toList();
-      
+
       if (taskEvents.isEmpty) {
         AppLogger.debug('Calendar event\'lerinde task bulunamadı', 'TaskAutoCreation');
         return [];
@@ -571,27 +564,26 @@ class TaskAutoCreationService {
 
       // Tüm existing tasks'i bir kez çek (performans için)
       final existingTasks = await _taskRepository.getTasksByUserId(userId);
-      
+
       // Duplicate kontrolü için bir Set oluştur (title + dueDate kombinasyonu)
       final existingTaskKeys = <String>{};
       for (final task in existingTasks) {
-        final dueDateStr = task.dueDate != null 
-          ? '${task.dueDate!.year}-${task.dueDate!.month}-${task.dueDate!.day}'
-          : 'no-date';
+        final dueDateStr =
+            task.dueDate != null ? '${task.dueDate!.year}-${task.dueDate!.month}-${task.dueDate!.day}' : 'no-date';
         final key = '${task.title.toLowerCase().trim()}|$dueDateStr';
         existingTaskKeys.add(key);
       }
 
       final createdTasks = <Task>[];
-      
+
       for (final event in taskEvents) {
         try {
           // Duplicate kontrolü - title + dueDate kombinasyonu
           final eventDueDateStr = '${event.startTime.year}-${event.startTime.month}-${event.startTime.day}';
           final eventKey = '${event.title.toLowerCase().trim()}|$eventDueDateStr';
-          
+
           if (existingTaskKeys.contains(eventKey)) {
-            AppLogger.debug('Duplicate task atlandı: ${event.title} (${eventDueDateStr})', 'TaskAutoCreation');
+            AppLogger.debug('Duplicate task atlandı: ${event.title} ($eventDueDateStr)', 'TaskAutoCreation');
             continue;
           }
 
@@ -642,7 +634,7 @@ class TaskAutoCreationService {
     try {
       // n8n response formatı: [[{cevap: [...], tip: "gorev_listesi"}]]
       final events = _extractCalendarEventsFromResponse(n8nResponse);
-      
+
       // Sadece kategori "task" olan event'leri filtrele
       // Kategori kontrolü: "task", "Task", "TASK", "görev", "Görev" gibi varyasyonları kabul et
       final taskEvents = events.where((event) {
@@ -654,8 +646,10 @@ class TaskAutoCreationService {
         // "task" veya "görev" kategorilerini kabul et
         return kategoriLower == 'task' || kategoriLower == 'görev';
       }).toList();
-      
-      AppLogger.debug('n8n response\'unda ${events.length} event bulundu, ${taskEvents.length} tanesi task kategorisinde', 'TaskAutoCreation');
+
+      AppLogger.debug(
+          'n8n response\'unda ${events.length} event bulundu, ${taskEvents.length} tanesi task kategorisinde',
+          'TaskAutoCreation');
 
       if (taskEvents.isEmpty) {
         AppLogger.debug('n8n response\'unda task kategorisinde event bulunamadı', 'TaskAutoCreation');
@@ -664,19 +658,18 @@ class TaskAutoCreationService {
 
       // Tüm existing tasks'i bir kez çek (performans için)
       final existingTasks = await _taskRepository.getTasksByUserId(userId);
-      
+
       // Duplicate kontrolü için bir Set oluştur (title + dueDate kombinasyonu)
       final existingTaskKeys = <String>{};
       for (final task in existingTasks) {
-        final dueDateStr = task.dueDate != null 
-          ? '${task.dueDate!.year}-${task.dueDate!.month}-${task.dueDate!.day}'
-          : 'no-date';
+        final dueDateStr =
+            task.dueDate != null ? '${task.dueDate!.year}-${task.dueDate!.month}-${task.dueDate!.day}' : 'no-date';
         final key = '${task.title.toLowerCase().trim()}|$dueDateStr';
         existingTaskKeys.add(key);
       }
 
       final createdTasks = <Task>[];
-      
+
       for (final eventData in taskEvents) {
         try {
           final baslik = eventData['baslik'] as String? ?? '';
@@ -687,7 +680,7 @@ class TaskAutoCreationService {
           final detay = eventData['detay'] as String?;
           final baslangic = eventData['baslangic'] as String?;
           DateTime? dueDate;
-          
+
           if (baslangic != null && baslangic.isNotEmpty) {
             try {
               dueDate = DateTime.parse(baslangic);
@@ -697,13 +690,11 @@ class TaskAutoCreationService {
           }
 
           // Duplicate kontrolü - title + dueDate kombinasyonu
-          final eventDueDateStr = dueDate != null
-            ? '${dueDate.year}-${dueDate.month}-${dueDate.day}'
-            : 'no-date';
+          final eventDueDateStr = dueDate != null ? '${dueDate.year}-${dueDate.month}-${dueDate.day}' : 'no-date';
           final eventKey = '${baslik.toLowerCase().trim()}|$eventDueDateStr';
-          
+
           if (existingTaskKeys.contains(eventKey)) {
-            AppLogger.debug('Duplicate task atlandı: $baslik (${eventDueDateStr})', 'TaskAutoCreation');
+            AppLogger.debug('Duplicate task atlandı: $baslik ($eventDueDateStr)', 'TaskAutoCreation');
             continue;
           }
 

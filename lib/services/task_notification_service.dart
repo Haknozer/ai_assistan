@@ -6,12 +6,12 @@ import '../models/task.dart';
 /// Not: Windows native bildirimleri devre dışı, sadece in-app overlay kullanılacak
 class TaskNotificationService {
   static TaskNotificationService? _instance;
-  
+
   factory TaskNotificationService() {
     _instance ??= TaskNotificationService._internal();
     return _instance!;
   }
-  
+
   TaskNotificationService._internal();
 
   // Bildirim ID'leri için base değer (görev bildirimleri 1000'den başlar)
@@ -21,7 +21,7 @@ class TaskNotificationService {
   static const int _defaultNotificationMinutesBefore = 5;
 
   // Zamanlanmış bildirimler için hafıza (in-memory scheduling)
-  final Map<int, _ScheduledNotification> _scheduledNotifications = {};
+  final Map<int, ScheduledNotification> _scheduledNotifications = {};
 
   /// Görev için bildirim ID'si oluştur
   int _generateNotificationId(int taskId) {
@@ -72,15 +72,13 @@ class TaskNotificationService {
     try {
       final minutesBefore = await getNotificationMinutesBefore();
       final notificationTime = task.dueDate!.subtract(Duration(minutes: minutesBefore));
-      
+
       // Bildirim zamanı geçmişse, 1 dakika sonrasına zamanla (overlay hazır olsun diye)
       final now = DateTime.now();
-      final scheduledTime = notificationTime.isBefore(now) 
-          ? now.add(const Duration(minutes: 1)) 
-          : notificationTime;
+      final scheduledTime = notificationTime.isBefore(now) ? now.add(const Duration(minutes: 1)) : notificationTime;
 
       final notificationId = _generateNotificationId(task.id!);
-      
+
       // Bildirim içeriği
       String body = 'Son tarih: ${task.formattedDueDate}';
       if (task.description != null && task.description!.isNotEmpty) {
@@ -89,7 +87,7 @@ class TaskNotificationService {
       body += '\nÖncelik: ${task.priority.displayName}';
 
       // Hafızada sakla
-      _scheduledNotifications[notificationId] = _ScheduledNotification(
+      _scheduledNotifications[notificationId] = ScheduledNotification(
         task: task,
         scheduledTime: scheduledTime,
         title: '⏰ ${task.title}',
@@ -120,10 +118,10 @@ class TaskNotificationService {
   /// Görev güncellendiğinde bildirimi yeniden zamanla
   Future<void> rescheduleTaskNotification(Task task) async {
     if (task.id == null) return;
-    
+
     // Önce eski bildirimi iptal et
     await cancelTaskNotification(task.id!);
-    
+
     // Yeni bildirim zamanla
     await scheduleTaskNotification(task);
   }
@@ -131,35 +129,34 @@ class TaskNotificationService {
   /// Tüm bekleyen görevler için bildirimleri yeniden zamanla
   Future<void> rescheduleAllTaskNotifications(List<Task> tasks) async {
     debugPrint('🔄 Tüm görev bildirimleri yeniden zamanlanıyor (in-app)...');
-    
+
     int scheduled = 0;
     for (final task in tasks) {
-      if (task.dueDate != null && 
-          task.status != TaskStatus.completed && 
+      if (task.dueDate != null &&
+          task.status != TaskStatus.completed &&
           task.status != TaskStatus.cancelled &&
           task.dueDate!.isAfter(DateTime.now())) {
         await scheduleTaskNotification(task);
         scheduled++;
       }
     }
-    
+
     debugPrint('✅ $scheduled görev bildirimi zamanlandı (in-app)');
   }
 
   /// Zamanı gelen bildirimleri kontrol et ve döndür
-  List<_ScheduledNotification> checkPendingNotifications() {
+  List<ScheduledNotification> checkPendingNotifications() {
     final now = DateTime.now();
-    final pending = <_ScheduledNotification>[];
-    
+    final pending = <ScheduledNotification>[];
+
     _scheduledNotifications.removeWhere((id, notification) {
-      if (notification.scheduledTime.isBefore(now) || 
-          notification.scheduledTime.isAtSameMomentAs(now)) {
+      if (notification.scheduledTime.isBefore(now) || notification.scheduledTime.isAtSameMomentAs(now)) {
         pending.add(notification);
         return true; // Listeden kaldır
       }
       return false;
     });
-    
+
     return pending;
   }
 
@@ -198,16 +195,14 @@ class TaskNotificationService {
     }
 
     final notificationTime = task.dueDate!.subtract(Duration(minutes: minutesBefore));
-    
+
     // Bildirim zamanı geçmişse, 1 dakika sonrasına zamanla
     final now = DateTime.now();
-    final scheduledTime = notificationTime.isBefore(now)
-        ? now.add(const Duration(minutes: 1))
-        : notificationTime;
+    final scheduledTime = notificationTime.isBefore(now) ? now.add(const Duration(minutes: 1)) : notificationTime;
 
     try {
       final notificationId = _generateNotificationId(task.id!);
-      
+
       String body = '${task.priority.displayName} öncelikli görev\n';
       body += 'Son tarih: ${task.formattedDueDate}';
       if (task.description != null && task.description!.isNotEmpty) {
@@ -215,10 +210,10 @@ class TaskNotificationService {
       }
 
       // Hafızada sakla
-      _scheduledNotifications[notificationId] = _ScheduledNotification(
+      _scheduledNotifications[notificationId] = ScheduledNotification(
         task: task,
         scheduledTime: scheduledTime,
-        title: _getPriorityEmoji(task.priority) + ' ' + task.title,
+        title: '${_getPriorityEmoji(task.priority)} ${task.title}',
         body: body,
       );
 
@@ -246,13 +241,13 @@ class TaskNotificationService {
 }
 
 /// Zamanlanmış bildirim için internal model
-class _ScheduledNotification {
+class ScheduledNotification {
   final Task task;
   final DateTime scheduledTime;
   final String title;
   final String body;
 
-  _ScheduledNotification({
+  ScheduledNotification({
     required this.task,
     required this.scheduledTime,
     required this.title,

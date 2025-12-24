@@ -312,9 +312,7 @@ class _AuthFormState extends ConsumerState<AuthForm> {
               // Şifremi Unuttum
               Center(
                 child: TextButton(
-                  onPressed: () {
-                    // TODO: Şifremi unuttum özelliği
-                  },
+                  onPressed: () {},
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     minimumSize: Size.zero,

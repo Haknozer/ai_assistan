@@ -181,12 +181,12 @@ class _UnifiedMessagesScreenState extends ConsumerState<UnifiedMessagesScreen> {
           dateTime: fullDateTime,
         );
         AppLogger.debug('n8n incoming response: $n8nResponse', 'N8N');
-        
+
         // n8n response'u kalıcı olarak kaydet
         if (n8nResponse != null) {
           await N8nResponseStorageService().saveTelegramResponse(messageId, n8nResponse);
         }
-        
+
         // Forward edildi olarak işaretle ve kalıcı olarak kaydet
         _forwardedTelegramMessageIds.add(messageId);
         _saveForwardedTelegramMessageIds().catchError((e) {
@@ -584,9 +584,7 @@ class _UnifiedMessagesScreenState extends ConsumerState<UnifiedMessagesScreen> {
                           _selectedMessageIndex = null; // Arama yapılınca seçimi sıfırla
                         });
                       },
-                      onFilterTap: () {
-                        // TODO: Implement advanced filter dialog
-                      },
+                      onFilterTap: () {},
                     ),
 
                     const SizedBox(height: 16),

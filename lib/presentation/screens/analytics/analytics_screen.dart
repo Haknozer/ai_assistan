@@ -1,16 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:open_file/open_file.dart';
 import '../../../utils/responsive_utils.dart';
 import '../../widgets/layout/side_menu.dart';
 import '../../../providers/user_provider.dart';
+import '../../../providers/user_setting_provider.dart';
+import '../../../models/user_setting.dart';
+import '../../../core/config/app_config.dart';
 import '../../../features/analytics/analytics_feature.dart';
+import '../../../features/analytics/providers/analytics_provider.dart';
 import '../../widgets/command_palette/command_palette_dialog.dart';
 import '../../../core/router/app_router.dart';
 import '../../widgets/analytics/analytics_page_header.dart';
 import '../../widgets/analytics/stats_grid.dart';
 import '../../widgets/analytics/charts_section.dart';
 import '../../widgets/analytics/weekly_summary_card.dart';
+import '../../../services/pdf_report_service.dart';
 
 /// Analitik ekranı - Veri analizi ve raporlama
 class AnalyticsScreen extends ConsumerStatefulWidget {
@@ -214,14 +220,129 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     context.go('/settings');
   }
 
-  void _downloadPDFReport() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('PDF raporu hazırlanıyor...'),
-        duration: Duration(seconds: 2),
+  Future<void> _downloadPDFReport() async {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('PDF oluşturmak için giriş yapmalısınız'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Loading göster
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
       ),
     );
-    // TODO: Gerçek PDF indirme işlemi
+
+    try {
+      // Repository'den direkt verileri al (provider yerine)
+      final analyticsRepo = ref.read(analyticsRepositoryProvider);
+
+      // Kullanıcıya özel verimlilik hedefi (yoksa global default)
+      final settings = ref.read(currentUserSettingsNotifierProvider);
+      int productivityTarget = AppConfig.productivityTarget;
+      if (settings.value != null && settings.value!.isNotEmpty) {
+        final setting = settings.value!.firstWhere(
+          (s) => s.settingKey == 'productivity_target',
+          orElse: () => UserSetting(
+            userId: currentUser.id!,
+            settingKey: 'productivity_target',
+            settingValue: AppConfig.productivityTarget.toString(),
+            category: SettingCategory.general,
+            updatedAt: DateTime.now(),
+          ),
+        );
+        productivityTarget = setting.getIntValue();
+        if (productivityTarget <= 0) {
+          productivityTarget = AppConfig.productivityTarget;
+        }
+      }
+
+      // Repository'den direkt verileri çek
+      debugPrint('📊 PDF için veriler repository\'den çekiliyor...');
+      final stats = await analyticsRepo.getStatCards(
+        userId: currentUser.id!,
+        productivityTarget: productivityTarget,
+      );
+      final weeklyTasks = await analyticsRepo.getWeeklyTasks(userId: currentUser.id!);
+      final weeklyTasksDetailed = await analyticsRepo.getWeeklyTasksDetailed(userId: currentUser.id!);
+      final emailDistribution = await analyticsRepo.getEmailDistribution(userId: currentUser.id!);
+      final monthlyMeetings = await analyticsRepo.getMonthlyMeetings(userId: currentUser.id!);
+      final priorityTasks = await analyticsRepo.getPriorityTasks(userId: currentUser.id!);
+
+      // Debug: Stats listesini kontrol et
+      debugPrint('📊 PDF oluşturuluyor - Stats sayısı: ${stats.length}');
+      if (stats.isEmpty) {
+        debugPrint('⚠️ Stats listesi boş!');
+      } else {
+        for (var i = 0; i < stats.length; i++) {
+          debugPrint('  Stat $i: ${stats[i].title} - ${stats[i].mainValue}');
+        }
+      }
+
+      // PDF oluştur
+      final pdfService = PDFReportService();
+      final pdfFile = await pdfService.generateAnalyticsPDF(
+        stats: stats,
+        weeklyTasks: weeklyTasks,
+        weeklyTasksDetailed: weeklyTasksDetailed,
+        emailDistribution: emailDistribution,
+        monthlyMeetings: monthlyMeetings,
+        priorityTasks: priorityTasks,
+        userName: currentUser.name,
+        userEmail: currentUser.email,
+      );
+
+      // Dialog'u kapat
+      if (mounted) {
+        Navigator.pop(context);
+      }
+
+      if (pdfFile == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('PDF oluşturulurken bir hata oluştu'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // PDF'i direkt aç (OneNote seçeneği gelmesin)
+      if (mounted) {
+        // PDF'i direkt aç - OneNote seçeneği gelmez, sadece PDF görüntüleyici açılır
+        await OpenFile.open(pdfFile.path);
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('PDF raporu hazırlandı ve açıldı'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      // Dialog'u kapat
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('PDF oluşturulurken hata: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
 

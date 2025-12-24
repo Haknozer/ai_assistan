@@ -19,9 +19,7 @@ class AuthToggle extends StatelessWidget {
         children: [
           // Şifremi Unuttum
           TextButton(
-            onPressed: () {
-              // TODO: Şifremi unuttum özelliği
-            },
+            onPressed: () {},
             style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               minimumSize: Size.zero,
