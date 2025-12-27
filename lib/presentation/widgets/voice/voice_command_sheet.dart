@@ -134,29 +134,8 @@ class _VoiceCommandSheetState extends State<VoiceCommandSheet> {
   Future<void> _startOnOpen() async {
     if (_step != VoiceStep.idle) return;
 
-    // Varsayılan otomatik mesaj (istek üzerine)
-    // İstenen senaryo: "Bugünkü maillerimi oku"
-    const kickoffMessage = 'Bugünkü maillerimi oku';
-    if (widget.onSendVoice != null) {
-      // 1. Düşünüyor moduna geç
-      _setStep(VoiceStep.thinking);
-      try {
-        // 2. Mesajı gönder ve cevabı bekle
-        final reply = await widget.onSendVoice!(kickoffMessage);
-
-        // 3. Cevap varsa konuş
-        if (reply != null && reply.isNotEmpty) {
-          await _speak(reply);
-        }
-      } catch (e) {
-        AppLogger.error('Kickoff message failed', error: e, tag: 'VOICE');
-      }
-      // 4. İşlem bitince idle ol
-      _setStep(VoiceStep.idle);
-    } else {
-      // Callback yoksa normal akış (kayıt başlat)
-      await _toggleRecording();
-    }
+    // Normal akış: kayıt başlat
+    await _toggleRecording();
   }
 
   Future<void> _speak(String text) async {
