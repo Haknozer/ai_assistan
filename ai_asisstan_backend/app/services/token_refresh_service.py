@@ -4,7 +4,7 @@ Gmail ve Outlook için expired token'ları otomatik olarak yeniler
 """
 import httpx
 from typing import Optional, Dict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from app.models.email_account import EmailAccount
 from app.core.config import settings
@@ -129,7 +129,15 @@ class TokenRefreshService:
         # Token expires_at kontrolü
         # Eğer token 5 dakikadan az süre içinde expire olacaksa yenile
         if account.token_expires_at:
-            time_until_expiry = account.token_expires_at - datetime.utcnow()
+            # Timezone-aware karşılaştırma için her ikisini de UTC yap
+            now_utc = datetime.now(timezone.utc)
+            expires_at = account.token_expires_at
+            
+            # Eğer token_expires_at timezone-naive ise, UTC olarak kabul et
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            
+            time_until_expiry = expires_at - now_utc
             
             # Token henüz expire olmamış ve 5 dakikadan fazla süresi var
             if time_until_expiry.total_seconds() > 300:
@@ -151,13 +159,13 @@ class TokenRefreshService:
             
             # Yeni token'ı database'e kaydet
             account.access_token = token_response['access_token']
-            account.token_expires_at = datetime.utcnow() + timedelta(seconds=token_response.get('expires_in', 3600))
+            account.token_expires_at = datetime.now(timezone.utc) + timedelta(seconds=token_response.get('expires_in', 3600))
             
             # Outlook bazen yeni refresh token döner
             if 'refresh_token' in token_response:
                 account.refresh_token = token_response['refresh_token']
             
-            account.updated_at = datetime.utcnow()
+            account.updated_at = datetime.now(timezone.utc)
             account.is_active = True  # Token yenilendiği için account'u aktif yap
             
             db.commit()

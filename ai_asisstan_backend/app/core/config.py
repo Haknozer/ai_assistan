@@ -50,8 +50,8 @@ class Settings(BaseSettings):
     TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
     
     # n8n Webhooks
-    N8N_TELEGRAM_WEBHOOK_URL: str = (os.getenv("N8N_TELEGRAM_WEBHOOK_URL") or "").strip() or "https://hakanozerr.app.n8n.cloud/webhook/7d767402-8f08-47cf-91fa-279679510375"
-    N8N_EMAIL_WEBHOOK_URL: str = (os.getenv("N8N_EMAIL_WEBHOOK_URL") or "").strip() or "https://hakanozerr.app.n8n.cloud/webhook/7d767402-8f08-47cf-91fa-279679510375"
+    N8N_TELEGRAM_WEBHOOK_URL: str = (os.getenv("N8N_TELEGRAM_WEBHOOK_URL") or "").strip() or "https://hakanozer12.app.n8n.cloud/webhook/7d767402-8f08-47cf-91fa-279679510375"
+    N8N_EMAIL_WEBHOOK_URL: str = (os.getenv("N8N_EMAIL_WEBHOOK_URL") or "").strip() or "https://hakanozer12.app.n8n.cloud/webhook/7d767402-8f08-47cf-91fa-279679510375"
     N8N_BASE_URL: str = os.getenv("N8N_BASE_URL", "")
     N8N_MEETING_ANALYSIS_PATH: str = os.getenv("N8N_MEETING_ANALYSIS_PATH", "")
     

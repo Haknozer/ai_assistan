@@ -16,7 +16,7 @@ from app.models.email_schemas import (
 from app.core.redis_client import redis_client
 from app.models.email_account import EmailAccount
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 router = APIRouter()
 
@@ -61,10 +61,9 @@ async def connect_email_account(
             existing_account.refresh_token = request.refresh_token
             existing_account.is_active = True
             existing_account.is_connected = True
-            existing_account.updated_at = datetime.utcnow()
+            existing_account.updated_at = datetime.now(timezone.utc)
             # Token expire time'ı ayarla (genelde 1 saat)
-            from datetime import timedelta
-            existing_account.token_expires_at = datetime.utcnow() + timedelta(hours=1)
+            existing_account.token_expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
             db.commit()
             db.refresh(existing_account)
             
@@ -111,7 +110,6 @@ async def connect_email_account(
             }
         else:
             # Yeni account oluştur
-            from datetime import timedelta
             new_account = EmailAccount(
                 user_id=request.user_id or 1,  # Default user_id, gerçek uygulamada auth'dan alınmalı
                 provider=request.provider,
@@ -121,7 +119,7 @@ async def connect_email_account(
                 is_active=True,
                 is_connected=True,
                 # Token expire time'ı ayarla (genelde 1 saat)
-                token_expires_at=datetime.utcnow() + timedelta(hours=1)
+                token_expires_at=datetime.now(timezone.utc) + timedelta(hours=1)
             )
             
             db.add(new_account)
@@ -206,7 +204,7 @@ async def connect_email_account(
                     print(f"   ℹ️  Email bulunamadı")
                 
                 # Son sync tarihini güncelle
-                new_account.last_sync_at = datetime.utcnow()
+                new_account.last_sync_at = datetime.now(timezone.utc)
                 db.commit()
                 
             except Exception as e:

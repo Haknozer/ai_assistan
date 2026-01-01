@@ -5,22 +5,148 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/config/app_config.dart';
 import '../../core/router/app_router.dart';
+import '../../core/utils/logger.dart';
 import '../../providers/user_provider.dart' as user_providers;
 import '../../providers/location_provider.dart';
+import '../../services/voice/wake_word_service.dart';
 import 'voice/voice_command_sheet.dart';
 import '../../services/voice/voice_command_helper.dart';
 import 'command_palette/command_palette_dialog.dart';
 
-/// Uygulama genelinde klavye kısayolları (desktop/web).
+/// Uygulama genelinde klavye kısayolları (desktop/web) ve "Jarvis" wake word desteği.
 /// Örnek: h -> /home, m -> /messages, t -> /tasks, c -> /calendar,
 /// e -> /email, a -> /analytics, s -> /settings, k -> /command-palette.
-class GlobalHotkeys extends ConsumerWidget {
+/// "Jarvis" dediğinizde sesli asistan otomatik açılır.
+class GlobalHotkeys extends ConsumerStatefulWidget {
   final Widget child;
 
   const GlobalHotkeys({super.key, required this.child});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<GlobalHotkeys> createState() => _GlobalHotkeysState();
+}
+
+class _GlobalHotkeysState extends ConsumerState<GlobalHotkeys> with WidgetsBindingObserver {
+  final WakeWordService _wakeWordService = WakeWordService();
+  bool _wakeWordInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Widget mount edildikten sonra wake word'ü başlat
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initWakeWord();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _wakeWordService.stopListening();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Uygulama arka plana gidince durdur, öne gelince başlat
+    if (state == AppLifecycleState.resumed) {
+      _wakeWordService.startListening();
+    } else if (state == AppLifecycleState.paused) {
+      _wakeWordService.stopListening();
+    }
+  }
+
+  Future<void> _initWakeWord() async {
+    if (_wakeWordInitialized) return;
+
+    try {
+      await _wakeWordService.init(
+        onWakeWordDetected: () {
+          AppLogger.info('Jarvis detected! Opening voice sheet...', 'WAKE_WORD');
+          _openVoiceSheet();
+        },
+      );
+      await _wakeWordService.startListening();
+      _wakeWordInitialized = true;
+      AppLogger.info('Wake word listening active - say "Jarvis"!', 'WAKE_WORD');
+    } catch (e) {
+      AppLogger.error('Failed to initialize wake word', error: e, tag: 'WAKE_WORD');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Jarvis başlatılamadı: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _openVoiceSheet() async {
+    const servicePath = AppConfig.googleApplicationCredentials;
+    if (servicePath.isEmpty) return;
+
+    final supa = ref.read(user_providers.supabaseAuthServiceProvider);
+    final userId = supa.getCurrentUser()?.id;
+    if (userId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Kullanıcı oturumu bulunamadı')),
+        );
+      }
+      return;
+    }
+
+    // Konum ekle
+    final locationService = ref.read(locationServiceProvider);
+    final pos = await locationService.getLastKnownLocation() ?? await locationService.getCurrentLocation();
+
+    if (!mounted) return;
+
+    final router = ref.read(routerProvider);
+    final navContext = router.routerDelegate.navigatorKey.currentContext ?? context;
+    if (!navContext.mounted) return;
+
+    // Wake word dinlemeyi durdur (voice sheet açıkken)
+    await _wakeWordService.stopListening();
+
+    // Re-check mounted after async gap before using context
+    if (!mounted || !navContext.mounted) return;
+
+    await showVoiceCommandSheet(
+      navContext,
+      serviceAccountPath: servicePath,
+      languageCode: AppConfig.gcpSttLanguage,
+      voiceName: AppConfig.gcpTtsVoice,
+      audioEncoding: AppConfig.gcpTtsEncoding,
+      userId: userId,
+      latitude: pos?.latitude,
+      longitude: pos?.longitude,
+      onSendVoice: (text) async {
+        if (!navContext.mounted) return null;
+        final connections = await VoiceCommandHelper.resolveEmailConnections(userId: null);
+        if (!navContext.mounted) return null;
+        return await VoiceCommandHelper.processVoiceCommand(
+          context: navContext,
+          text: text,
+          userId: userId,
+          latitude: pos?.latitude,
+          longitude: pos?.longitude,
+          gmailConnected: connections.gmail,
+          outlookConnected: connections.outlook,
+        );
+      },
+    );
+
+    // Voice sheet kapandıktan sonra wake word dinlemeyi tekrar başlat
+    if (mounted) {
+      await _wakeWordService.startListening();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final router = ref.read(routerProvider);
     final buildContext = context;
 
@@ -85,59 +211,14 @@ class GlobalHotkeys extends ConsumerWidget {
           ),
           _VoiceSheetIntent: CallbackAction<_VoiceSheetIntent>(
             onInvoke: (intent) async {
-              // Text input'ta bile olsa kısayolu çalıştır (paste'i engeller; istenirse devre dışı bırakılabilir)
-              const servicePath = AppConfig.googleApplicationCredentials;
-              if (servicePath.isEmpty) return null;
-
-              final supa = ref.read(user_providers.supabaseAuthServiceProvider);
-              final userId = supa.getCurrentUser()?.id;
-              if (userId == null) {
-                ScaffoldMessenger.of(buildContext).showSnackBar(
-                  const SnackBar(content: Text('Kullanıcı oturumu bulunamadı')),
-                );
-                return null;
-              }
-
-              // Konum ekle (önce last known, yoksa current)
-              final locationService = ref.read(locationServiceProvider);
-              final pos = await locationService.getLastKnownLocation() ?? await locationService.getCurrentLocation();
-
-              if (!buildContext.mounted) return null;
-
-              final navContext = router.routerDelegate.navigatorKey.currentContext ?? buildContext;
-              if (!navContext.mounted) return null;
-
-              await showVoiceCommandSheet(
-                navContext,
-                serviceAccountPath: servicePath,
-                languageCode: AppConfig.gcpSttLanguage,
-                voiceName: AppConfig.gcpTtsVoice,
-                audioEncoding: AppConfig.gcpTtsEncoding,
-                userId: userId,
-                latitude: pos?.latitude,
-                longitude: pos?.longitude,
-                onSendVoice: (text) async {
-                  if (!navContext.mounted) return null;
-                  final connections = await VoiceCommandHelper.resolveEmailConnections(userId: null);
-                  if (!navContext.mounted) return null;
-                  return await VoiceCommandHelper.processVoiceCommand(
-                    context: navContext,
-                    text: text,
-                    userId: userId,
-                    latitude: pos?.latitude,
-                    longitude: pos?.longitude,
-                    gmailConnected: connections.gmail,
-                    outlookConnected: connections.outlook,
-                  );
-                },
-              );
+              await _openVoiceSheet();
               return null;
             },
           ),
         },
         child: Focus(
           autofocus: true,
-          child: child,
+          child: widget.child,
         ),
       ),
     );

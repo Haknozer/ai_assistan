@@ -3,7 +3,7 @@ Email Sync Scheduler - Background email sync servisi
 UI açık değilken bile email'leri çeker
 """
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -155,7 +155,7 @@ class EmailSyncScheduler:
                     processed_count += 1
             
             # Son sync tarihini güncelle
-            account.last_sync_at = datetime.utcnow()
+            account.last_sync_at = datetime.now(timezone.utc)
             db.commit()
             
             print(f"   📊 İşlem özeti: {processed_count} işlendi, {skipped_count} atlandı")
@@ -210,7 +210,7 @@ class EmailSyncScheduler:
                             processed_count += 1
                     
                     # Son sync tarihini güncelle
-                    account.last_sync_at = datetime.utcnow()
+                    account.last_sync_at = datetime.now(timezone.utc)
                     db.commit()
                     
                     print(f"   📊 İşlem özeti (token yenileme sonrası): {processed_count} işlendi, {skipped_count} atlandı")

@@ -13,7 +13,7 @@ class BackendEmailService {
   }) : baseUrl = baseUrl ?? AppConfig.apiBaseUrl;
 
   /// Outlook email'lerini backend'den çek
-  /// 
+  ///
   /// [accessToken] - Microsoft Graph API access token
   /// [category] - Email kategorisi filtresi (null = tüm kategorilerden çek): 'inbox', 'sent', 'spam', 'drafts'
   /// [limit] - Kaç email getirilecek (max 100, kategori null ise tüm klasörlerden)
@@ -94,7 +94,7 @@ class BackendEmailService {
   }
 
   /// Gmail email'lerini backend'den çek
-  /// 
+  ///
   /// [accessToken] - Google OAuth access token
   /// [category] - Email kategorisi filtresi (null = tüm kategorilerden çek): 'inbox', 'sent', 'spam', 'drafts', 'promotions', 'social', 'updates', 'forums'
   /// [limit] - Kaç email getirilecek (max 100, kategori null ise tüm kategorilerden)
@@ -175,7 +175,7 @@ class BackendEmailService {
   }
 
   /// Redis'ten tüm görev çıkarımlarını çek
-  /// 
+  ///
   /// [provider] - Provider filtresi: 'gmail', 'outlook' veya null (tümü)
   /// Belirli bir email için Redis'teki n8n task verisini getir
   Future<Map<String, dynamic>?> getTaskExtraction({
@@ -207,17 +207,18 @@ class BackendEmailService {
       );
 
       debugPrint('📦 Redis yanıtı: Status=${response.statusCode}');
-      debugPrint('📦 Redis yanıt body: ${response.body.substring(0, response.body.length > 500 ? 500 : response.body.length)}');
+      debugPrint(
+          '📦 Redis yanıt body: ${response.body.substring(0, response.body.length > 500 ? 500 : response.body.length)}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         debugPrint('📦 Redis data keys: ${data.keys.toList()}');
         debugPrint('📦 Redis found: ${data['found']}');
-        
+
         if (data['found'] == true && data['data'] != null) {
           final taskData = data['data'] as Map<String, dynamic>;
           debugPrint('📦 Redis taskData keys: ${taskData.keys.toList()}');
-          
+
           // Backend'den gelen format: {email: {...}, task_data: {...}}
           // task_data'yı döndür
           if (taskData.containsKey('task_data')) {
@@ -283,17 +284,15 @@ class BackendEmailService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
-        
+
         // Backend response formatı: {"connected": true, "total": X, "tasks": [...]}
         if (data['connected'] == false) {
           debugPrint('⚠️ Redis bağlantısı yok');
           return [];
         }
-        
-        final tasks = (data['tasks'] as List<dynamic>?)
-            ?.map((e) => e as Map<String, dynamic>)
-            .toList() ?? [];
-        
+
+        final tasks = (data['tasks'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).toList() ?? [];
+
         debugPrint('✅ Redis\'ten ${tasks.length} görev alındı');
         return tasks;
       } else {
@@ -334,16 +333,87 @@ class BackendEmailService {
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
       }
-      
-      return {
-        'connected': false,
-        'error': 'Status check failed: ${response.statusCode}'
-      };
+
+      return {'connected': false, 'error': 'Status check failed: ${response.statusCode}'};
     } catch (e) {
-      return {
-        'connected': false,
-        'error': e.toString()
-      };
+      return {'connected': false, 'error': e.toString()};
+    }
+  }
+
+  /// Redis'ten tarih aralığına göre email ve task verilerini çek
+  ///
+  /// [startDate] - Başlangıç tarihi (ISO 8601 format)
+  /// [endDate] - Bitiş tarihi (ISO 8601 format)
+  /// [provider] - Provider filtresi: 'gmail', 'outlook' veya null (tümü)
+  ///
+  /// Bu metod, sesli asistan "5 gün önceki maillerimi özetle" gibi komutlar için kullanılır
+  Future<List<Map<String, dynamic>>> getEmailsByDateRange({
+    required String startDate,
+    required String endDate,
+    String? provider,
+  }) async {
+    try {
+      // URL oluştur
+      final url = Uri.parse('$baseUrl/api/redis/emails').replace(
+        queryParameters: {
+          'start_date': startDate,
+          'end_date': endDate,
+          if (provider != null) 'provider': provider,
+        },
+      );
+
+      debugPrint('📧 Redis\'ten tarih bazlı email isteği gönderiliyor...');
+      debugPrint('   URL: $url');
+      debugPrint('   Tarih aralığı: $startDate - $endDate');
+      debugPrint('   Provider: ${provider ?? "all"}');
+
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw NetworkException(
+            message: 'Redis isteği zaman aşımına uğradı',
+          );
+        },
+      );
+
+      debugPrint('📧 Redis yanıtı: Status=${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+
+        // Backend response formatı: {"connected": true, "total": X, "emails": [...]}
+        if (data['connected'] == false) {
+          debugPrint('⚠️ Redis bağlantısı yok');
+          return [];
+        }
+
+        final emails = (data['emails'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).toList() ?? [];
+
+        debugPrint('✅ Redis\'ten ${emails.length} email alındı (tarih aralığı)');
+        return emails;
+      } else {
+        final errorBody = response.body;
+        debugPrint('❌ Redis hatası: $errorBody');
+        throw ApiException(
+          message: 'Redis hatası: ${response.statusCode} - $errorBody',
+        );
+      }
+    } on http.ClientException catch (e) {
+      throw NetworkException(
+        message: 'Ağ hatası: ${e.message}',
+        originalError: e,
+      );
+    } catch (e) {
+      if (e is ApiException || e is NetworkException) {
+        rethrow;
+      }
+      debugPrint('❌ Redis tarih bazlı email çekme hatası: $e');
+      return [];
     }
   }
 
@@ -362,21 +432,23 @@ class BackendEmailService {
     try {
       final url = Uri.parse('$baseUrl/api/emails/gmail/send');
 
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
-        body: jsonEncode({
-          'to_emails': toEmails,
-          'subject': subject,
-          if (plainText != null) 'plain_text': plainText,
-          if (htmlContent != null) 'html_content': htmlContent,
-          if (ccEmails != null && ccEmails.isNotEmpty) 'cc_emails': ccEmails,
-          if (bccEmails != null && bccEmails.isNotEmpty) 'bcc_emails': bccEmails,
-        }),
-      ).timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $accessToken',
+            },
+            body: jsonEncode({
+              'to_emails': toEmails,
+              'subject': subject,
+              if (plainText != null) 'plain_text': plainText,
+              if (htmlContent != null) 'html_content': htmlContent,
+              if (ccEmails != null && ccEmails.isNotEmpty) 'cc_emails': ccEmails,
+              if (bccEmails != null && bccEmails.isNotEmpty) 'bcc_emails': bccEmails,
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -461,14 +533,16 @@ class BackendEmailService {
     try {
       final url = Uri.parse('$baseUrl/api/emails/gmail/$messageId/toggle-important');
 
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
-        body: jsonEncode({'is_important': isImportant}),
-      ).timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $accessToken',
+            },
+            body: jsonEncode({'is_important': isImportant}),
+          )
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -525,22 +599,24 @@ class BackendEmailService {
     try {
       final url = Uri.parse('$baseUrl/api/emails/gmail/drafts');
 
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
-        body: jsonEncode({
-          'subject': subject,
-          if (plainText != null) 'plain_text': plainText,
-          if (htmlContent != null) 'html_content': htmlContent,
-          if (toEmails != null && toEmails.isNotEmpty) 'to_emails': toEmails,
-          if (ccEmails != null && ccEmails.isNotEmpty) 'cc_emails': ccEmails,
-          if (bccEmails != null && bccEmails.isNotEmpty) 'bcc_emails': bccEmails,
-          if (draftId != null) 'draft_id': draftId,
-        }),
-      ).timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $accessToken',
+            },
+            body: jsonEncode({
+              'subject': subject,
+              if (plainText != null) 'plain_text': plainText,
+              if (htmlContent != null) 'html_content': htmlContent,
+              if (toEmails != null && toEmails.isNotEmpty) 'to_emails': toEmails,
+              if (ccEmails != null && ccEmails.isNotEmpty) 'cc_emails': ccEmails,
+              if (bccEmails != null && bccEmails.isNotEmpty) 'bcc_emails': bccEmails,
+              if (draftId != null) 'draft_id': draftId,
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -571,21 +647,23 @@ class BackendEmailService {
     try {
       final url = Uri.parse('$baseUrl/api/emails/outlook/send');
 
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
-        body: jsonEncode({
-          'to_emails': toEmails,
-          'subject': subject,
-          if (plainText != null) 'plain_text': plainText,
-          if (htmlContent != null) 'html_content': htmlContent,
-          if (ccEmails != null && ccEmails.isNotEmpty) 'cc_emails': ccEmails,
-          if (bccEmails != null && bccEmails.isNotEmpty) 'bcc_emails': bccEmails,
-        }),
-      ).timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $accessToken',
+            },
+            body: jsonEncode({
+              'to_emails': toEmails,
+              'subject': subject,
+              if (plainText != null) 'plain_text': plainText,
+              if (htmlContent != null) 'html_content': htmlContent,
+              if (ccEmails != null && ccEmails.isNotEmpty) 'cc_emails': ccEmails,
+              if (bccEmails != null && bccEmails.isNotEmpty) 'bcc_emails': bccEmails,
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -670,14 +748,16 @@ class BackendEmailService {
     try {
       final url = Uri.parse('$baseUrl/api/emails/outlook/$messageId/toggle-important');
 
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
-        body: jsonEncode({'is_important': isImportant}),
-      ).timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $accessToken',
+            },
+            body: jsonEncode({'is_important': isImportant}),
+          )
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -721,10 +801,10 @@ class BackendEmailService {
   }
 
   /// Yeni email var mı kontrol et (polling için optimize edilmiş)
-  /// 
+  ///
   /// [provider] - Provider filtresi: 'gmail' veya 'outlook' (null = tümü)
   /// [lastCheck] - Son kontrol zamanı (ISO format)
-  /// 
+  ///
   /// Returns:
   /// {
   ///   "has_new_emails": true,
@@ -780,19 +860,21 @@ class BackendEmailService {
     try {
       final url = Uri.parse('$baseUrl/api/emails/accounts/connect');
 
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'provider': provider,
-          'email': email,
-          'access_token': accessToken,
-          if (refreshToken != null) 'refresh_token': refreshToken,
-          if (userId != null) 'user_id': userId,
-        }),
-      ).timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'provider': provider,
+              'email': email,
+              'access_token': accessToken,
+              if (refreshToken != null) 'refresh_token': refreshToken,
+              if (userId != null) 'user_id': userId,
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -825,22 +907,24 @@ class BackendEmailService {
     try {
       final url = Uri.parse('$baseUrl/api/emails/outlook/drafts');
 
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
-        body: jsonEncode({
-          'subject': subject,
-          if (plainText != null) 'plain_text': plainText,
-          if (htmlContent != null) 'html_content': htmlContent,
-          if (toEmails != null && toEmails.isNotEmpty) 'to_emails': toEmails,
-          if (ccEmails != null && ccEmails.isNotEmpty) 'cc_emails': ccEmails,
-          if (bccEmails != null && bccEmails.isNotEmpty) 'bcc_emails': bccEmails,
-          if (draftId != null) 'draft_id': draftId,
-        }),
-      ).timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $accessToken',
+            },
+            body: jsonEncode({
+              'subject': subject,
+              if (plainText != null) 'plain_text': plainText,
+              if (htmlContent != null) 'html_content': htmlContent,
+              if (toEmails != null && toEmails.isNotEmpty) 'to_emails': toEmails,
+              if (ccEmails != null && ccEmails.isNotEmpty) 'cc_emails': ccEmails,
+              if (bccEmails != null && bccEmails.isNotEmpty) 'bcc_emails': bccEmails,
+              if (draftId != null) 'draft_id': draftId,
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -871,9 +955,7 @@ class BackendEmailResponse {
 
   factory BackendEmailResponse.fromJson(Map<String, dynamic> json) {
     return BackendEmailResponse(
-      emails: (json['emails'] as List<dynamic>)
-          .map((e) => BackendEmail.fromJson(e as Map<String, dynamic>))
-          .toList(),
+      emails: (json['emails'] as List<dynamic>).map((e) => BackendEmail.fromJson(e as Map<String, dynamic>)).toList(),
       total: json['total'] as int,
       category: json['category'] as String,
     );
@@ -938,4 +1020,3 @@ class BackendEmail {
     };
   }
 }
-

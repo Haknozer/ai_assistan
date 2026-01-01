@@ -45,6 +45,49 @@ async def get_all_tasks(
     }
 
 
+@router.get("/emails")
+async def get_emails_by_date_range(
+    start_date: str = Query(..., description="Başlangıç tarihi (ISO 8601 format: 2025-12-25T00:00:00.000Z)"),
+    end_date: str = Query(..., description="Bitiş tarihi (ISO 8601 format: 2025-12-25T23:59:59.999Z)"),
+    provider: Optional[str] = Query(None, description="Provider filtresi: 'gmail' veya 'outlook'")
+):
+    """
+    Redis'ten tarih aralığına göre email ve task verilerini getir
+    
+    Bu endpoint, sesli asistan "5 gün önceki maillerimi özetle" gibi komutlar için kullanılır.
+    
+    **Örnek:**
+    ```bash
+    # Belirli tarih aralığındaki tüm emailleri getir
+    curl "http://localhost:3000/api/redis/emails?start_date=2025-12-25T00:00:00.000Z&end_date=2025-12-25T23:59:59.999Z"
+    
+    # Sadece Gmail emailleri
+    curl "http://localhost:3000/api/redis/emails?start_date=2025-12-25T00:00:00.000Z&end_date=2025-12-25T23:59:59.999Z&provider=gmail"
+    ```
+    """
+    if not redis_client.is_connected():
+        return {
+            "error": "Redis bağlantısı yok",
+            "connected": False,
+            "emails": []
+        }
+    
+    emails = redis_client.get_emails_by_date_range(
+        start_date=start_date,
+        end_date=end_date,
+        provider=provider
+    )
+    
+    return {
+        "connected": True,
+        "start_date": start_date,
+        "end_date": end_date,
+        "provider_filter": provider or "all",
+        "total": len(emails),
+        "emails": emails
+    }
+
+
 @router.get("/tasks/{provider}/{email_id}")
 async def get_task_by_email(
     provider: str,

@@ -172,6 +172,85 @@ class RedisClient:
             print(f"❌ Redis'ten tüm görevleri alma hatası: {e}")
             return []
     
+    def get_emails_by_date_range(
+        self,
+        start_date: str,
+        end_date: str,
+        provider: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Redis'ten tarih aralığına göre email ve task verilerini al
+        
+        Args:
+            start_date: Başlangıç tarihi (ISO 8601 format: 2025-12-25T00:00:00.000Z)
+            end_date: Bitiş tarihi (ISO 8601 format: 2025-12-25T23:59:59.999Z)
+            provider: Provider filtresi (None ise tüm provider'lar)
+            
+        Returns:
+            Tarih aralığına uyan email ve task verileri listesi
+        """
+        if not self.is_connected():
+            return []
+        
+        try:
+            from datetime import datetime
+            
+            # Tarih parse et
+            start_dt = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+            end_dt = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+            
+            pattern = f"email_tasks:{provider}:*" if provider else "email_tasks:*:*"
+            keys = self.client.keys(pattern)
+            
+            results = []
+            for key in keys:
+                value = self.client.get(key)
+                if value:
+                    try:
+                        data = json.loads(value)
+                        email_data = data.get("email", {})
+                        
+                        # Email tarihini al
+                        received_date_str = email_data.get("received_date", "")
+                        if not received_date_str:
+                            continue
+                        
+                        # Tarih parse et
+                        try:
+                            if isinstance(received_date_str, str):
+                                email_dt = datetime.fromisoformat(received_date_str.replace("Z", "+00:00"))
+                            else:
+                                continue
+                        except (ValueError, TypeError):
+                            continue
+                        
+                        # Tarih filtresi uygula
+                        if start_dt <= email_dt <= end_dt:
+                            results.append({
+                                "email_id": data.get("email_id", ""),
+                                "provider": data.get("provider", ""),
+                                "email": email_data,
+                                "task_data": data.get("task_data", {}),
+                                "received_date": received_date_str
+                            })
+                    except json.JSONDecodeError:
+                        continue
+            
+            # Tarihe göre sırala (yeniden eskiye)
+            results.sort(key=lambda x: x.get("received_date", ""), reverse=True)
+            
+            print(f"📧 Tarih aralığı sorgusu: {start_date} - {end_date}")
+            print(f"   Provider: {provider or 'all'}")
+            print(f"   Bulunan email sayısı: {len(results)}")
+            
+            return results
+            
+        except Exception as e:
+            print(f"❌ Redis tarih bazlı email alma hatası: {e}")
+            import traceback
+            print(traceback.format_exc())
+            return []
+    
     def get_all_emails(
         self,
         provider: str

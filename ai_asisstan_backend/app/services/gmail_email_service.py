@@ -3,7 +3,7 @@ Gmail Email Servisi - Google Gmail API entegrasyonu
 """
 import httpx
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from app.models.email_schemas import Email, EmailCategory
 from app.core.config import settings
@@ -132,7 +132,7 @@ class GmailEmailService:
         
         # Tarih parse
         date_str = get_header("Date")
-        received_date = datetime.utcnow()
+        received_date = datetime.now(timezone.utc)
         if date_str:
             try:
                 # Gmail date formatını parse et

@@ -26,7 +26,7 @@ services:
       - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/aiassistan-2db62b3832c8.json
       
       # n8n
-      - N8N_EMAIL_WEBHOOK_URL=${N8N_EMAIL_WEBHOOK_URL:-https://hakanozerr.app.n8n.cloud/webhook/7d767402-8f08-47cf-91fa-279679510375}
+      - N8N_EMAIL_WEBHOOK_URL=${N8N_EMAIL_WEBHOOK_URL:-https://hakanozer12.app.n8n.cloud/webhook/7d767402-8f08-47cf-91fa-279679510375}
       
       # OAuth (Google, Microsoft)
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}

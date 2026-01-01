@@ -1,0 +1,1084 @@
+{
+  "name": "Jarvis",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bb831b87-a172-418d-b3e9-7d12b7192d90",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1040,
+        464
+      ],
+      "id": "c13aaa21-93b5-4381-a965-d66f9ca6d9f2",
+      "name": "Webhook",
+      "webhookId": "bb831b87-a172-418d-b3e9-7d12b7192d90"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ $json.body.text }}"
+            }
+          ]
+        },
+        "options": {
+          "systemMessage": "=Sen çok katmanlı düşünen bir \"Niyet Sınıflandırma Uzmanı\"sın.\nGörevin, kullanıcının mesajını analiz edip doğru kategoriye yönlendirmektir.\n\nGİRDİ: Kullanıcı mesajı.\nÇIKTI: JSON formatı.\n\n🛑 ANALİZ MANTIĞI VE ÖNCELİK SIRASI (Burası Çok Önemli):\n\n1. AŞAMA: UYGULAMA İÇİ NAVİGASYON (En Yüksek Öncelik 🚀)\n   - Kullanıcı uygulama içinde bir sayfaya gitmek, bir ekranı açmak istiyor mu?\n   - Anahtar Eylemler: \"Git\", \"Aç\", \"Göster\", \"Yönlendir\", \"Dön\".\n   - Anahtar Hedefler: \"Ayarlar\", \"Profil\", \"Hesabım\", \"Ana Sayfa\", \"Takvim Sayfası\", \"Bildirimler\".\n   - ÖRNEK: \"Ayarlara git\", \"Profilimi aç\", \"Ana sayfaya dön\" -> \"app_navigation\".\n\n2. AŞAMA: E-POSTA KONTROLÜ (Yüksek Öncelik 📧)\n   - Kullanıcı \"Maillerimi oku\", \"Gelen kutusuna bak\", \"Önemli mail var mı\", \"Mailleri özetle\" diyorsa -> \"read_email\".\n   - ÖRNEK: \"Bugün gelen mailleri özetle\" -> \"read_email\".\n   - ÖRNEK: \"Gelen kutumda ne var?\" -> \"read_email\".\n\n3. AŞAMA: DANIŞMANLIK / ÖNERİ KONTROLÜ (Orta Öncelik 🌟)\n   - Kullanıcı bir konuda \"Tavsiye\", \"Öneri\", \"Fikir\", \"Nasıl yapılır\", \"Ne yapmalıyım\" diye soruyor mu?\n   - Cümlenin içinde \"Toplantı\" geçse bile, soru \"Nasıl?\" ise -> \"general_chat\".\n   - ÖRNEK: \"Toplantıda neler konuşmalıyım?\" -> general_chat.\n\n4. AŞAMA: TAKVİM / PROGRAM KONTROLÜ\n   - Kullanıcı \"Ne zaman\", \"Saat kaçta\", \"Hangi gün\", \"Var mı\", \"Boş muyum\" (zaman anlamında) diye soruyor mu?\n   - ÖRNEK: \"Yarınki toplantı ne zaman?\" -> get_calendar.\n\n5. AŞAMA: GENEL SOHBET\n   - Selamlaşma, hal hatır sorma veya yukarıdakilere uymayan durumlar.\n\n✅ ÖRNEK SENARYOLAR (Bunları Baz Al):\n- \"Ayarlar sayfasına git\" -> { \"intent\": \"app_navigation\" }\n- \"Gelen maillerimi oku\" -> { \"intent\": \"read_email\", \"date_reference\": \"today\" }\n- \"Dün gelen mail var mı\" -> { \"intent\": \"read_email\", \"date_reference\": \"yesterday\" }\n- \"Code review toplantısında neler yapmalıyım\" -> { \"intent\": \"general_chat\" }\n- \"Code review toplantısı saat kaçta\" -> { \"intent\": \"get_calendar\" }\n- \"Yarın boş muyum\" -> { \"intent\": \"get_calendar\", \"date_reference\": \"tomorrow\" }\n- \"Selam naber\" -> { \"intent\": \"general_chat\" }\n\nHEDEF ÇIKTI FORMATI:\n{\n  \"intent\": \"general_chat\",  // \"get_calendar\", \"app_navigation\" veya \"read_email\"\n  \"date_reference\": null     // \"today\", \"tomorrow\", \"yesterday\" veya null\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        -832,
+        464
+      ],
+      "id": "77479226-45f3-4464-a053-ec7a3ab00240",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "cSQzn6NF2hnFLutZ",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "get_calendar",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "16392d8b-acac-4085-975e-48a6b102ab07"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "get_calendar"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "ef96ec7a-3d20-4699-9734-b7279b6f5992",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "general_chat",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "general_chat"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "3d131bcf-13a3-4cfb-abfa-1910197fbd16",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "app_navigation",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "app_navigation"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "5da8a6b1-ec9e-41b4-af5a-c5d0d345aee8",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "read_email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        -272,
+        464
+      ],
+      "id": "ffa1fee6-5cb7-423e-8cd3-d5a0d8a420d9",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "hkanoer@gmail.com",
+          "mode": "list",
+          "cachedResultName": "hkanoer@gmail.com"
+        },
+        "returnAll": true,
+        "timeMin": "={{ $('Tarih Hesaplayıcı').first().json.start_date }}",
+        "timeMax": "={{ $('Tarih Hesaplayıcı').first().json.end_date }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        160,
+        208
+      ],
+      "id": "ea7e6695-5b09-469d-a1f5-00494d01667c",
+      "name": "Get many events",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "79KWLYi5b6ZDqiOk",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        368,
+        208
+      ],
+      "id": "ba069a7e-2f37-4c71-9106-c0504d0c94eb",
+      "name": "Merge",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Merge düğümünden gelen tüm karışık verileri al\nconst gelenVeriler = $input.all();\n\n// Depoları hazırla\nlet temizEtkinlikListesi = {};\nlet havaDurumuVerisi = null;\n\ngelenVeriler.forEach(item => {\n  const veri = item.json;\n\n  // --- A) HAVA DURUMU KONTROLÜ ---\n  // OpenWeatherMap verisi genellikle 'list' ve 'city' içerir\n  if (veri.list && veri.city) {\n    havaDurumuVerisi = {\n        sehir: veri.city.name,\n        tahminler: veri.list.slice(0, 8) // Sadece önümüzdeki 24 saati al (8 x 3 saat)\n    };\n  }\n  \n  // --- B) TAKVİM ETKİNLİĞİ KONTROLÜ ---\n  // Google (summary) veya Outlook (subject)\n  else if (veri.summary || veri.subject) {\n      \n      const baslik = veri.summary || veri.subject || \"İsimsiz\";\n      // Tarih formatlarını yakala\n      let hamZaman = veri.start?.dateTime || veri.start?.date || veri.start;\n\n      if (hamZaman) {\n        // Dakikasına kadar alıp anahtar yap (Tekilleştirme için)\n        // \"2025-12-08T16:30:00.0000\" -> \"2025-12-08T16:30\"\n        const zamanAnahtari = (typeof hamZaman === 'string') ? hamZaman.substring(0, 16) : \"Bilinmiyor\";\n        \n        if (!temizEtkinlikListesi[zamanAnahtari]) {\n          temizEtkinlikListesi[zamanAnahtari] = {\n            baslik: baslik,\n            zaman: hamZaman,\n            kaynak: veri.htmlLink ? \"Google\" : (veri.webLink ? \"Outlook\" : \"Diğer\"),\n            // Online toplantı mı diye ipucu ekleyelim\n            detay: veri.description || veri.bodyPreview || \"\",\n            lokasyon: veri.location?.displayName || veri.location || \"\"\n          };\n        } else {\n          // Çakışma varsa kaynağı güncelle\n          if (!temizEtkinlikListesi[zamanAnahtari].kaynak.includes(veri.htmlLink ? \"Google\" : \"Outlook\")) {\n             temizEtkinlikListesi[zamanAnahtari].kaynak += \" & Diğer\";\n          }\n        }\n      }\n  }\n});\n\n// 3. Hepsini tek paket yapıp Gemini'ye gönder\nreturn [\n  {\n    json: {\n      takvim: Object.values(temizEtkinlikListesi),\n      hava_durumu: havaDurumuVerisi || \"Hava durumu verisi çekilemedi.\"\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        224
+      ],
+      "id": "a3524d9e-b71a-4359-bfda-82a7404f09e4",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ JSON.stringify($json) }}"
+            }
+          ]
+        },
+        "options": {
+          "systemMessage": "=Sen \"Bağlam Farkındalığı\" (Context Aware) yüksek, proaktif bir kişisel asistansın.\nSana iki veri seti verilecek:\n1. 📅 TAKVİM (Etkinlikler)\n2. 🌦️ HAVA DURUMU (Saatlik Tahminler)\n\nGÖREVİN:\nKullanıcının programını özetle ve SADECE GEREKLİ DURUMLARDA hava durumu uyarısı yap.\n\n🧠 ANALİZ MANTIĞI (Adım Adım Uygula):\n\n1. ETKİNLİK TÜRÜNÜ TESPİT ET:\n   - Etkinlik detaylarında \"Google Meet\", \"Zoom\", \"Teams\", \"Online\", \"Webinar\", \"Discord\" veya bir URL linki var mı?\n   - EVET İSE -> Bu bir \"Online Toplantıdır\". 🏠 Hava durumu uyarısı VERME. Sadece saati ve konuyu söyle.\n   - HAYIR İSE -> Bu \"Fiziksel/Dışarıda\" bir etkinliktir. 🏃‍♂️\n\n2. HAVA DURUMUNU KONTROL ET (Sadece Fiziksel Etkinlikler İçin):\n   - Etkinliğin saatine denk gelen hava durumuna bak.\n   - Eğer hava kötüyse (Yağmur, Kar, Fırtına, Çok Soğuk) veya dikkat gerektiriyorsa (Çok Sıcak) uyarı ekle.\n   - Hava normalse (Parçalı bulutlu, ılık vb.) ekstra bir şey söylemene gerek yok.\n\n🛑 KIRMIZI ÇİZGİLER:\n- ASLA etkinlik uydurma. Sadece JSON'da olanı oku.\n- Saatleri söylerken tarihi at (Sadece 14:30 de).\n- Tonun samimi, kısa ve net olsun.\n\nÖRNEK ÇIKTILAR:\n- \"Saat 10:00 - Haftalık Ekip Toplantısı (Online). 💻\"\n- \"Saat 14:00 - Müşteri Ziyareti. ⚠️ O saatte sağanak yağış var, çıkarken şemsiyeni ve yağmurluğunu almayı unutma! ☔\"\n- \"Saat 19:00 - Akşam Yemeği. Hava biraz serinleyecek (12°C), üzerine bir ceket al. 🧥\"\n\nEğer kullanıcı 'Yarın' diyorsa, hava durumu listesindeki YARINA AİT tarihli verilere bak. veya başka bir tarih veriyorsa o tarihe ait hava durumuna bak hava durumu yok ise hava durumu ile ilgili herhangi bir öneride bulunma\n\nLİSTE BOŞSA:\n\"Bugün takvimin bomboş, keyfine bak! 🌟\""
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        880,
+        224
+      ],
+      "id": "9f9b553a-8b38-4acb-bbde-398eb4a3b1b0",
+      "name": "Message a model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "cSQzn6NF2hnFLutZ",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1504,
+        544
+      ],
+      "id": "64c0a065-5941-4c69-9135-aad009b2b1f0",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Gemini'nin karmaşık çıktısının içindeki \"text\" kısmını buluyoruz\nconst root = $input.item.json;\nlet rawText = \"\";\n\nif (root.content && root.content.parts && root.content.parts[0]) {\n   rawText = root.content.parts[0].text;\n} else if (root.text) {\n   rawText = root.text;\n} else if (root.output) {\n   rawText = root.output;\n}\n\n// 2. Markdown işaretlerini (```json ve ```) temizliyoruz\nconst cleanText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();\n\ntry {\n  // 3. Temiz metni gerçek JSON objesine çeviriyoruz\n  const jsonData = JSON.parse(cleanText);\n  return jsonData;\n} catch (e) {\n  // Hata olursa varsayılan olarak \"sohbet\" moduna atalım\n  return { intent: \"general_chat\", error: \"JSON okunamadı\" };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        464
+      ],
+      "id": "ec083d24-6ba6-417c-b327-1cd59f124e9a",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "returnAll": true,
+        "filters": {
+          "custom": "=start/dateTime ge '{{ $('Tarih Hesaplayıcı').first().json.start_date }}' and start/dateTime le '{{ $('Tarih Hesaplayıcı').first().json.end_date }}'"
+        }
+      },
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        160,
+        48
+      ],
+      "id": "65d18589-8722-47f7-8c35-c19f41425402",
+      "name": "Get many events1",
+      "webhookId": "3a0bebf0-0bb8-4e19-a5e8-2a3ca5cf31fb",
+      "alwaysOutputData": true,
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "6tIUsqmbq3uerYe4",
+          "name": "Microsoft Outlook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Calendar dan Görevleri Alıyor Ve Kullanıcıyı Bilgilendiriyor",
+        "height": 512,
+        "width": 1328,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        0,
+        0
+      ],
+      "typeVersion": 1,
+      "id": "2f0b0368-0b82-4f31-9214-105e84b55cf2",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ $('Webhook').first().json.body.text }}"
+            }
+          ]
+        },
+        "options": {
+          "systemMessage": "=Sen \"Kişisel Verimlilik ve Strateji Danışmanısın\".\nAmacın sohbet etmek değil; kullanıcıya profesyonel vizyon, strateji ve net eylem planları sunmaktır.\n\n🧠 HAFIZA VE BAĞLAM:\nAşağıda bu kullanıcıyla yaptığın son konuşmalar yer alıyor.\nCevap verirken bu geçmişi mutlaka dikkate al. (Örneğin kullanıcı daha önce projesinden bahsettiyse, tekrar sorma, kaldığı yerden devam et).\n\n📜 SOHBET GEÇMİŞİ:\n--------------------------------\n{{ $json.gecmis_baglam }}\n--------------------------------\n\nKURALLAR:\n1. CİDDİ VE ODAKLI OL: \"Naber\" gibi sorulara kısa nezaket cümlesi kur ve hemen işe dön.\n2. BAĞLAM FARKINDALIĞI: Geçmiş konuşmalardaki bilgileri kullanarak nokta atışı yap. (Örn: \"Geçen bahsettiğin X projesi için şunları yapalım...\").\n3. ÇÖZÜM ODAKLI OL: \"X işini nasıl yaparım?\" denirse, felsefe yapma, adım adım \"Eylem Planı\" (Action Plan) çıkar.\n4. FORMAT: Cevaplarını okunabilir maddeler (bullet points), kalın başlıklar (**Başlık**) ile süsle.\n5. KISA TUT: Destan yazma, uygulanabilir hap bilgiler ver.\n\nÖRNEK SENARYO:\nKullanıcı: \"Yazılım ekibiyle toplantı yapacağım, neler konuşmalıyım?\"\nSen:\n\"**Yazılım Ekibi Toplantı Ajandası Önerisi:**\n1. **Sprint Durumu:** Geçen hafta neler bitti?\n2. **Blocker'lar:** Ekibi yavaşlatan teknik sorunlar var mı?\n3. **Kod Kalitesi:** Review bekleyen PR var mı?\nÖnce bu 3 konuyu netleştirmeni öneririm.\""
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        400,
+        832
+      ],
+      "id": "470c9102-20b6-42d5-9050-82923a7bca2b",
+      "name": "Message a model2",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "cSQzn6NF2hnFLutZ",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Danışman Gemini'den gelen metni güvenli bir şekilde alıyoruz.\n// (Düğüm isminin 'Google Gemini Chat' olduğunu varsayıyorum, değilse parantez içini düzelt)\n// En garantisi: $input.all() kullanmaktır.\n\nconst gelenVeri = $input.first().json;\n\n// Gemini'nin cevabını buluyoruz (text veya content.parts[0].text)\nlet cevapMetni = \"\";\n\nif (gelenVeri.content && gelenVeri.content.parts) {\n    cevapMetni = gelenVeri.content.parts[0].text;\n} else if (gelenVeri.text) {\n    cevapMetni = gelenVeri.text;\n} else if (gelenVeri.output) {\n    cevapMetni = gelenVeri.output;\n}\n\n// 2. Temiz bir JSON olarak paketleyip döndürüyoruz\nreturn {\n    cevap: cevapMetni,\n    tip: \"oneri\",\n    rota: \"null\"\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1008,
+        832
+      ],
+      "id": "5f8436fb-986b-4818-bcf6-555bc0b48556",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "operation": "5DayForecast",
+        "locationSelection": "coordinates",
+        "latitude": "={{ $('Webhook').item.json.body.lat }}",
+        "longitude": "={{ $('Webhook').item.json.body.lon }}",
+        "language": "en"
+      },
+      "type": "n8n-nodes-base.openWeatherMap",
+      "typeVersion": 1,
+      "position": [
+        160,
+        368
+      ],
+      "id": "9d464ddf-4c70-43c6-85a4-ab1c03675870",
+      "name": "OpenWeatherMap",
+      "credentials": {
+        "openWeatherMapApi": {
+          "id": "DNJDKXXrn1Y20uyy",
+          "name": "OpenWeatherMap account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        544,
+        224
+      ],
+      "id": "889fe5ed-1a92-4df2-9c84-55be57f38a43",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "content": "## Öneri Modeli",
+        "height": 320,
+        "width": 1104
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        0,
+        736
+      ],
+      "typeVersion": 1,
+      "id": "ff945d51-e61a-48b2-b983-872f8cf3bc90",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Düğüm ismine bakmadan, direkt önceki adımdan gelen veriyi alıyoruz.\n// \"Referenced node doesn't exist\" hatası burada çözülüyor.\nconst gelenVeri = $input.first().json;\n\n// 2. Gemini'den gelen 'date_reference' bilgisini al (Yoksa 'today' varsay)\nconst referans = gelenVeri.date_reference || \"today\"; \n\n// 3. Şu anki zamanı al\nconst simdi = new Date();\nlet baslangic = new Date(simdi);\nlet bitis = new Date(simdi);\n\n// 4. Referansa göre tarihleri ayarla\nif (referans.includes(\"tomorrow\") || referans.includes(\"yarın\")) {\n    // YARIN\n    baslangic.setDate(simdi.getDate() + 1);\n    baslangic.setHours(0,0,0,0);\n    \n    bitis.setDate(simdi.getDate() + 1);\n    bitis.setHours(23,59,59,999);\n\n} else if (referans.includes(\"week\") || referans.includes(\"hafta\")) {\n    // BU HAFTA\n    baslangic.setHours(0,0,0,0);\n    bitis.setDate(simdi.getDate() + 7);\n    bitis.setHours(23,59,59,999);\n\n} else {\n    // BUGÜN (Varsayılan)\n    baslangic.setHours(0,0,0,0);\n    bitis.setHours(23,59,59,999);\n}\n\n// 5. Tarihleri ISO formatına çevirip döndür\nreturn {\n    start_date: baslangic.toISOString(),\n    end_date: bitis.toISOString(),\n    referans: referans\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        208
+      ],
+      "id": "003528c4-7eb8-4a92-b758-3f80f1445aec",
+      "name": "Tarih Hesaplayıcı"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "chat_history",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Webhook').item.json.body.user_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        0,
+        832
+      ],
+      "id": "33623444-b90d-4e58-bca7-f2f487fb99f7",
+      "name": "Geçmişi Getir",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "I4atINRKtpQY7t13",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Supabase'den gelen veriyi al\nlet history = $input.all();\n\n// 2. GARANTİ SIRALAMA: Tarihe göre (En yeniden -> Eskiye)\ntry {\n    history.sort((a, b) => {\n        const dateA = new Date(a.json.created_at || new Date());\n        const dateB = new Date(b.json.created_at || new Date());\n        return dateB - dateA;\n    });\n} catch (e) {\n    // Tarih formatı bozuksa sıralamayı pas geç\n}\n\n// 3. Sadece son 6 mesajı al\nhistory = history.slice(0, 6);\n\n// 4. Sohbet akışına uygun olsun diye ters çevir (Eskiden -> Yeniye)\nhistory.reverse();\n\nlet contextText = \"\";\n\nif (history.length === 0) {\n    contextText = \"Henüz bir konuşma geçmişi yok.\";\n} else {\n    history.forEach(item => {\n        const chat = item.json;\n        const roleName = chat.role === 'user' ? \"KULLANICI\" : \"ASİSTAN\";\n        const mesajIcerigi = chat.message || \"\";\n        contextText += `${roleName}: ${mesajIcerigi}\\n`;\n    });\n}\n\n// --- 5. HATA DÜZELTME KISMI (GÜVENLİ ERİŞİM) --- 🛡️\n\nlet webhookBody = {};\n\n// 'try-catch' ile Webhook verisini güvenli bir şekilde çekmeye çalışıyoruz\ntry {\n    // Düğüm adın \"Webhook\" ise burası çalışır. Değilse hata vermez, boş geçer.\n    // Eğer Webhook düğümünün adı farklıysa (Örn: \"Webhook Trigger\") parantez içini değiştir!\n    if ($('Webhook') && $('Webhook').first()) {\n        webhookBody = $('Webhook').first().json.body || {};\n    }\n} catch (error) {\n    console.log(\"Webhook verisi okunamadı, varsayılanlar kullanılacak.\");\n}\n\n// Artık 'webhookBody' boş olsa bile kod patlamaz\nconst yeniSoru = webhookBody.text || webhookBody.soru || \"Soru yok\";\nconst userId = webhookBody.user_id || \"test_user\"; \n\nreturn {\n    gecmis_baglam: contextText,\n    yeni_soru: yeniSoru,\n    user_id: userId \n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        832
+      ],
+      "id": "16350164-2a36-4ae6-b123-da1b15596422",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {
+        "tableId": "chat_history",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $('Webhook').first().json.body.user_id }}"
+            },
+            {
+              "fieldId": "role",
+              "fieldValue": "bot"
+            },
+            {
+              "fieldId": "message",
+              "fieldValue": "={{ $json.content.parts[0].text }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        800,
+        912
+      ],
+      "id": "e6d84a76-9e95-4a06-98a4-19deadbfa16c",
+      "name": "Bot",
+      "credentials": {
+        "supabaseApi": {
+          "id": "I4atINRKtpQY7t13",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "chat_history",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $('Webhook').first().json.body.user_id }}"
+            },
+            {
+              "fieldId": "role",
+              "fieldValue": "user"
+            },
+            {
+              "fieldId": "message",
+              "fieldValue": "={{ $('Webhook').first().json.body.text }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        800,
+        736
+      ],
+      "id": "bf062976-3b0e-40c2-b18d-c8fc8bb4165b",
+      "name": "User",
+      "credentials": {
+        "supabaseApi": {
+          "id": "I4atINRKtpQY7t13",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Çalışması İçin Gereken Tokenler\n** Google Calendar API Google https://cloud.google.com\n** Outlook Calendar https://portal.azure.com\n** Gemini Model aistudio.google.com\n** Hava Durumu https://openweathermap.org\n** Supabase https://supabase.com",
+        "height": 256,
+        "width": 464
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1040,
+        144
+      ],
+      "typeVersion": 1,
+      "id": "831513ea-0fd5-4a8c-9212-c3db8c82d6bc",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Gemini'den gelen ham veriyi al\n// (Eğer düğüm adı 'Gemini Chat' değilse, $input.all() kullanabilirsin)\nconst geminiData = $input.first().json;\n\n// 2. Metni güvenli bir şekilde çıkar\nlet cevapMetni = \"\";\n\nif (geminiData.content && geminiData.content.parts && geminiData.content.parts[0]) {\n    cevapMetni = geminiData.content.parts[0].text;\n} else if (geminiData.text) {\n    cevapMetni = geminiData.text; // Bazen model text olarak dönebilir\n} else {\n    cevapMetni = \"Bir hata oluştu, cevap okunamadı.\";\n}\n\n// 3. Standart Formatta Döndür\nreturn {\n    \"cevap\": cevapMetni,\n    \"tip\": \"bot_mesaji\", // Flutter'da buna göre ikon gösterebilirsin (Örn: Takvim ikonu)\n    \"rota\": \"null\",\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1232,
+        224
+      ],
+      "id": "f048c670-57f4-4f30-ad9c-4758ff89f1b3",
+      "name": "Code in JavaScript4"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ $('Webhook').item.json.body.text }}"
+            }
+          ]
+        },
+        "options": {
+          "systemMessage": "=Sen bir Uygulama Navigasyon Yöneticisisin.\n\nGörevin, kullanıcının isteğini aşağıdaki \"Mevcut Sayfalar Listesi\" ile eşleştirmektir.\n\n📱 MEVCUT SAYFALAR VE ROTALARI:\n- Ayarlar / Konfigürasyon / Tercihler / Gizlilik / Güvenlik -> \"/settings\"\n- Profil / Hesabım / Kullanıcı bilgileri -> \"/profile\"\n- Takvim / Ajanda / Etkinlikler / Randevular -> \"/calendar\"\n- Ana Sayfa / Home / Dashboard -> \"/home\"\n- Bildirimler / Notification merkezi -> \"/notifications\"\n- Mesajlar / Birleşik Mesajlar / Unified Inbox -> \"/messages\"\n- E-Posta / Email -> \"/email\"\n- Analitik / Analytics / Raporlar -> \"/analytics\"\n- AI Asistan / Yapay Zeka Asistanı -> \"/ai-assistant\"\n\nKURALLAR:\n1. Kullanıcının isteğini en uygun tek rota ile eşleştir.\n2. Eğer istek listede yoksa rota olarak \"null\" döndür.\n3. Cevap metni kısa ve onaylayıcı olsun (ör: \"Tamam, ayarları açıyorum.\").\n4. Sadece JSON döndür; başka açıklama ekleme.\n\nÇIKTI FORMATı (JSON):\n{\n  \"cevap\": \"Ayarlar sayfasına yönlendiriyorum. ⚙️\",\n  \"rota\": \"/settings\"\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        0,
+        1168
+      ],
+      "id": "8127aaad-501b-4f9c-8b21-416bc9d92bb9",
+      "name": "Message a model3",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "cSQzn6NF2hnFLutZ",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Gemini'den gelen metni al\n// (Gemini bazen ```json ... ``` etiketiyle gönderir, onları temizliyoruz)\nconst geminiRawText = $input.first().json.content.parts[0].text;\nconst temizJsonString = geminiRawText.replace(/```json|```/g, '').trim();\n\n// 2. Metni Gerçek JSON Objesine Çevir\nlet navigasyonVerisi = {};\ntry {\n    navigasyonVerisi = JSON.parse(temizJsonString);\n} catch (e) {\n    // Gemini saçmalarsa varsayılan değer\n    navigasyonVerisi = { \n        \"cevap\": \"İstediğin sayfayı tam anlayamadım, ana sayfaya dönelim.\", \n        \"rota\": \"/home\" \n    };\n}\n\n// 3. Flutter İçin Standart Paketi Hazırla\nreturn {\n    \"cevap\": navigasyonVerisi.cevap,\n    \"tip\": \"navigasyon\",  // Bu sabit kalmalı, Flutter bunu kontrol ediyor\n    \"rota\": navigasyonVerisi.rota // Burası artık DİNAMİK! (/settings, /profile vs.)\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1008,
+        1168
+      ],
+      "id": "8d4252dc-0395-4a05-b886-2b2094afe474",
+      "name": "Code in JavaScript5"
+    },
+    {
+      "parameters": {
+        "content": "## Sayfa Navigator",
+        "height": 240,
+        "width": 1104
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        0,
+        1104
+      ],
+      "typeVersion": 1,
+      "id": "15d1dc5a-3b44-4e83-8810-14ebed81f03e",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Önceki Gemini adımından gelen tarih referansını al\n// (Webhook -> Gemini -> Switch -> Bu Düğüm)\n// $input.first() yerine direkt kökten (Gemini Intent) verisini almak daha güvenlidir.\n// Eğer Gemini düğümünün adı \"Niyet Analizi\" ise: $('Niyet Analizi').first().json...\n// Ama biz genel $json üzerinden gidelim:\nconst gelenVeri = $input.first().json; \nconst referans = gelenVeri.date_reference || \"today\"; // Varsayılan: Bugün\n\n// 2. Tarih Hesaplama\nconst simdi = new Date();\nlet baslangic = new Date(simdi);\nlet bitis = new Date(simdi);\n\n// Saatleri sıfırla (Günün başlangıcı ve sonu)\nbaslangic.setHours(0,0,0,0);\nbitis.setHours(23,59,59,999);\n\nlet cevapMetni = \"Bugünkü maillerini kontrol ediyorum...\";\n\nif (referans.includes(\"yesterday\") || referans.includes(\"dün\")) {\n    // DÜN\n    baslangic.setDate(simdi.getDate() - 1);\n    bitis.setDate(simdi.getDate() - 1);\n    cevapMetni = \"Dünkü maillerini getiriyorum...\";\n} \nelse if (referans.includes(\"tomorrow\") || referans.includes(\"yarın\")) {\n    // YARIN (Mail için mantıksız ama takvim için olabilir, yine de kalsın)\n    baslangic.setDate(simdi.getDate() + 1);\n    bitis.setDate(simdi.getDate() + 1);\n    cevapMetni = \"Yarınki planlara bakıyorum...\";\n}\nelse if (referans.includes(\"week\") || referans.includes(\"hafta\")) {\n    // BU HAFTA (Son 7 gün)\n    baslangic.setDate(simdi.getDate() - 7);\n    cevapMetni = \"Son bir haftadaki maillerine bakıyorum...\";\n}\n\n// 3. FLUTTER İÇİN ÇIKTI PAKETİ\nreturn {\n    \"cevap\": cevapMetni,      // Asistan bunu sesli söyleyecek\n    \"tip\": \"mailleri_ozetle\", // Flutter bu komutu görünce harekete geçecek!\n    \"filtre\": {\n        // Flutter'ın DateTime.parse() ile okuyacağı ISO formatlar\n        \"baslangic_tarihi\": baslangic.toISOString(), \n        \"bitis_tarihi\": bitis.toISOString(),\n        \"referans\": referans\n    }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        544
+      ],
+      "id": "7800b6f4-0878-42ca-9d0a-4f1b376eaa9d",
+      "name": "Tarih Hesaplayıcı Mail"
+    },
+    {
+      "parameters": {
+        "content": "## Mailleri özetleme",
+        "width": 560
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        0,
+        528
+      ],
+      "typeVersion": 1,
+      "id": "f9147834-09d4-4a2e-affd-dff9aa34d672",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "be5cf629-98b2-4a8a-8c6f-61ca8acea3ff",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        1824,
+        144
+      ],
+      "id": "80ffbe0b-7245-4273-8c9b-83e56e857f29",
+      "name": "Webhook1",
+      "webhookId": "be5cf629-98b2-4a8a-8c6f-61ca8acea3ff"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "="
+            }
+          ]
+        },
+        "options": {
+          "systemMessage": "=Sen Hakan'ın kişisel asistanısın.\nŞu an elinde Hakan'ın gerçek e-postalarından oluşan bir liste var.\nGörevin, kullanıcının komutuna göre bu listeyi filtrelemek ve konuşma metni hazırlamaktır.\n\n🛑 KIRMIZI ÇİZGİ: ASLA VERİLERDE OLMAYAN BİR ŞEY UYDURMA. Sadece aşağıdaki \"GELEN MAİL LİSTESİ\" içinde yazanları kullan. Eğer listede Deniz, Netflix, Kerem yoksa, onlardan bahsetme!\n\nGİRDİLER:\nKullanıcı Komutu: {{ $json.temiz_komut }}\nGELEN MAİL LİSTESİ: \n{{ $json.temiz_veriler }}\n\n🧠 FİLTRELEME MANTIĞI:\n1. Komutu analiz et (\"Özet geç\", \"Huawei maili\", \"Staj sonucu\" vb.)\n2. Listeden buna uyanları seç.\n3. Seçtiklerinin \"ozet\" kısımlarını birleştirerek AKICI bir hikaye anlat.\n\n🎙️ KONUŞMA STİLİ:\n- Samimi ol. \"Selam Hakan...\" diye başla.\n- Mailleri birbirine bağla (\"Bir de şöyle bir şey var...\", \"Son olarak...\").\n- Eğer aranan konuda mail yoksa dürüstçe \"Baktım ama bulamadım\" de.\n\nÇIKTI FORMATI (Sadece JSON):\n{\n   \"okunacak_metin\": \"...\"\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        2368,
+        144
+      ],
+      "id": "7f4d132e-6512-454c-93e3-8818dc63393b",
+      "name": "Konusma Düzenleyici",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "cSQzn6NF2hnFLutZ",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2928,
+        144
+      ],
+      "id": "a5a4fdc2-4c2d-4c55-a6ea-14f4cbff574e",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gelen karmaşık veriyi al\nconst body = $input.item.json.body;\nconst komut = body.kullanici_komutu || \"Özet geç\";\nconst mailler = body.emails || []; // Senin gönderdiğin liste 'emails' içinde\n\n// AI için basitleştirilmiş liste hazırla\nconst temizListe = mailler.map(mail => {\n    const data = mail.data || {};\n    \n    // Konu (Summary) bulma\n    let konu = data.summary || \"Konu Yok\";\n    if (data.cevap && data.cevap.length > 0) konu = data.cevap[0].baslik;\n\n    // Özet Metni (Voice Script) bulma - En önemli kısım burası!\n    let ozet = data.voice_script || data.sesli_okuma || \"İçerik yok.\";\n\n    return {\n        konu: konu,\n        ozet: ozet\n    };\n});\n\n// Çıktı olarak sadece komutu ve temiz listeyi veriyoruz\nreturn {\n    json: {\n        temiz_komut: komut,\n        temiz_veriler: JSON.stringify(temizListe) // String olarak gönderiyoruz ki Prompt içine tam otursun\n    }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2096,
+        144
+      ],
+      "id": "56fbd620-6597-42e8-b1db-469772ac19c1",
+      "name": "Code in JavaScript6"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Gemini'den gelen ham metni bul\nconst root = $input.item.json;\nlet rawText = \"\";\n\n// Gemini'nin farklı çıktı formatlarına karşı önlem\nif (root.content && root.content.parts && root.content.parts[0]) {\n    rawText = root.content.parts[0].text;\n} else if (root.text) {\n    rawText = root.text;\n} else if (root.output) {\n    rawText = root.output;\n} else {\n    // Veri yoksa hata dönmemesi için\n    return { json: { okunacak_metin: \"Maalesef şu an cevap oluşturulamadı.\" } };\n}\n\n// 2. Markdown (```json) temizliği yap\nconst cleanText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();\n\n// 3. JSON'a çevir ve gönder\ntry {\n    const parsedData = JSON.parse(cleanText);\n    \n    // Eğer başarılıysa temiz JSON dön\n    return { json: parsedData };\n\n} catch (e) {\n    // Eğer AI bozuk JSON ürettiyse, metni olduğu gibi düz yazı olarak gönder\n    // Böylece Flutter hata vermez, en azından metni okur.\n    return { \n        json: { \n            okunacak_metin: cleanText \n        } \n    };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2720,
+        144
+      ],
+      "id": "d773d870-0df4-4b77-8249-de24ad05aecd",
+      "name": "Code in JavaScript7"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "OpenWeatherMap",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Tarih Hesaplayıcı",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Geçmişi Getir",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Message a model3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tarih Hesaplayıcı Mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many events": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Message a model1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript4",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "User",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Bot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many events1": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model2": {
+      "main": [
+        [
+          {
+            "node": "Bot",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "User",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenWeatherMap": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tarih Hesaplayıcı": {
+      "main": [
+        [
+          {
+            "node": "Get many events1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get many events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Geçmişi Getir": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "Message a model2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript4": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model3": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript5": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tarih Hesaplayıcı Mail": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Konusma Düzenleyici": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript6": {
+      "main": [
+        [
+          {
+            "node": "Konusma Düzenleyici",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript7": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "158efa16-2d7c-4460-b653-9e9a05024993",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "cf4f4b07fc1336c24ac1e43d0aead202b9869eb46310de8e3e9e0a1e31b0ce62"
+  },
+  "id": "GJXUJ91SbP1jc3pL",
+  "tags": []
+}

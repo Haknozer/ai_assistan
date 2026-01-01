@@ -1,0 +1,746 @@
+{
+  "name": "Görev",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "7d767402-8f08-47cf-91fa-279679510375",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1344,
+        416
+      ],
+      "id": "f5fa7c53-b852-4fea-a24f-deb12001bfc0",
+      "name": "Webhook",
+      "webhookId": "7d767402-8f08-47cf-91fa-279679510375"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Gönderen: {{ $json.body.from || $json.body.from_name }}{{ $json.body.from_email ? \" (\" + $json.body.from_email + \")\" : \"\" }}\nKonu: {{ $json.body.subject || \"(Konu yok)\" }}\nİçerik: {{ $json.body.body || $json.body.plain_text || $json.body.html_content }}\nBizim gönderdiğimiz: {{ $json.body.is_outgoing }}"
+            }
+          ]
+        },
+        "options": {
+          "systemMessage": "=Sen Hakan'ın en yetenekli, samimi ve dikkatli kişisel asistanısın.\nGörevin, gelen metni analiz edip SADECE aşağıdaki yapıda bir JSON nesnesi üretmektir.\n\nŞu anki Referans Zamanı: {{ $now.setZone('Europe/Istanbul').toString() }}\n\n🎯 TEMEL MANTIK:\nHakan'ın zaman ayırması gereken HER ŞEY (Toplantı, Ödev, Yemek, Hatırlatma) takvime girmelidir. Sadece \"Bilgilendirme\" amaçlı, aksiyon gerektirmeyen mailler takvim dışı kalmalıdır.\n\n🛑 \"is_event\" KARAR MEKANİZMASI (ÇOK ÖNEMLİ):\n- TRUE: Eğer Hakan'ın yapması gereken bir iş, gitmesi gereken bir yer veya katılması gereken bir toplantı varsa. (Takvime eklenir).\n- FALSE: Eğer mailde hiçbir aksiyon yoksa, sadece \"Başvurunuz alındı\", \"Kargo yola çıktı\" gibi bir bilgi veriyorsa. (Takvime eklenmez, sadece okunur).\n\n🏷️ KATEGORİLER (\"category\"):\n(Sadece is_event: true ise anlamlıdır)\n- \"meeting\": Birden fazla katılımcılı görüşme, ders, toplantı.\n- \"task\": Bireysel yapılacak işler (Ödev kontrolü, Rapor yazma, Mail atma).\n- \"social\": Eğlence, yemek, kutlama.\n\n🎙️ VOICE SCRIPT (KONUŞMA) KURALLARI:\n- Samimi, arkadaşça ve akıcı bir dille tek paragraf yaz.\n- \"is_event: false\" olsa bile içeriği özetle (\"Codeway'den mail gelmiş, başvurunu almışlar, beklemedeyiz\").\n- Görev varsa motive et (\"Hadi şu ödevleri aradan çıkaralım\").\n- Tarihleri doğal söyle (\"Yarın sabah\", \"Haftasonu\").\n\n📋 ÇIKTI ŞEMASI ÖRNEKLERİ:\n\nSENARYO 1 (Aksiyon Var - Takvime Girecek):\n{\n  \"voice_script\": \"Selam Hakan! Onur Hoca mail atmış, Bulut Bilişim ödevlerinde eksikler varmış. Yarın sabah ilk iş öğrencilerin ödevlerini kontrol etmemiz lazım, son günmüş aman dikkat.\",\n  \"tasks\": [\n    {\n      \"is_event\": true,  <-- (Çünkü Hakan'ın bunu yapması lazım, takvime girmeli)\n      \"category\": \"task\",\n      \"summary\": \"Bulut Bilişim Ödev Kontrolü\",\n      \"description\": \"Eksik ödevleri kontrol et, son gün.\",\n      \"start_time\": \"2025-12-16T09:00:00\",\n      \"end_time\": \"2025-12-16T10:00:00\",\n      \"display_text\": \"Yarın sabah ödev kontrolü\"\n    }\n  ]\n}\n\nSENARYO 2 (Sadece Bilgi - Takvime Girmeyecek):\n{\n  \"voice_script\": \"Selam Hakan, Codeway'den bir bilgilendirme gelmiş. Staj başvurunu almışlar, değerlendirip döneceklermiş. Şu an yapmamız gereken bir şey yok, haberin olsun diye söyledim.\",\n  \"tasks\": [\n    {\n      \"is_event\": false, <-- (Zaman ayrılacak bir iş yok, sadece bilgi)\n      \"category\": \"task\",\n      \"summary\": \"Başvuru Bilgilendirmesi\",\n      \"description\": \"Başvuru alındı maili.\",\n      \"start_time\": null,\n      \"end_time\": null,\n      \"display_text\": \"Başvuru alındı\"\n    }\n  ]\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        -1120,
+        416
+      ],
+      "id": "8ade725c-3a29-4254-acaa-855eede8dd75",
+      "name": "Message a model",
+      "retryOnFail": true,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "cSQzn6NF2hnFLutZ",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "hkanoer@gmail.com",
+          "mode": "list",
+          "cachedResultName": "hkanoer@gmail.com"
+        },
+        "start": "={{ $json.gorev_verisi.start_time }}",
+        "end": "={{ $json.gorev_verisi.end_time }}",
+        "additionalFields": {
+          "color": "={{  $json.gorev_verisi.category === 'meeting' ? '11' : ($json.gorev_verisi.category === 'social' ? '5' : '9') }}",
+          "description": "={{ $json.gorev_verisi.description }}",
+          "summary": "={{ $json.gorev_verisi.summary }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        832,
+        752
+      ],
+      "id": "dea1a6e8-674c-4989-bd8a-83a567b8246b",
+      "name": "Create an event",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "79KWLYi5b6ZDqiOk",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Veriyi Al (Yapay Zeka Çıktısı)\nconst root = $input.item.json;\nlet rawText = \"\";\n\n// AI yanıtını bulmaya çalış\nif (root.content && root.content.parts && root.content.parts[0]) {\n   rawText = root.content.parts[0].text;\n} else if (root.text) {\n   rawText = root.text;\n} else if (root.response && root.response.text) {\n   rawText = root.response.text;\n} else {\n   // AI yanıtı yoksa bile akış bozulmasın, boş dönelim.\n   rawText = \"{}\"; \n}\n\n// --- YENİ EKLENEN KISIMLAR BAŞLANGIÇ ---\n\n// A. Mail Kategorisini Al (Webhook'tan gelen veri)\n// Eğer veri gelmezse varsayılan olarak \"general\" ata.\nconst mailCategory = root.category || \"general\";\n\n// B. Giden Mail Kontrolü (is_outgoing)\n// root.owner_email: Senin mail adresin (Python'dan gönderdiğimiz)\n// root.from: Maili gönderen kişi\nconst ownerEmail = root.owner_email || \"hkanoer@gmail.com\"; // Eğer owner_email yoksa bunu baz al\nconst sender = root.from || \"\";\n\n// --- YENİ EKLENEN KISIMLAR BİTİŞ ---\n\n\n// 2. Temizle ve Parse Et\nconst cleanText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();\n\ntry {\n  let parsedData = {};\n  // Eğer AI boş döndüyse hata vermesin diye kontrol\n  if (cleanText && cleanText !== \"{}\") {\n      parsedData = JSON.parse(cleanText);\n  }\n  \n  let tasks = [];\n  let voiceScript = parsedData.voice_script || \"\";\n\n  // Görevleri listeye çevir\n  if (parsedData.tasks && Array.isArray(parsedData.tasks)) {\n      tasks = parsedData.tasks;\n  } else if (Array.isArray(parsedData)) {\n      tasks = parsedData;\n  }\n\n  // 🔥 SENARYO 1: GÖREV YOKSA (Sadece Bilgilendirme)\n  if (tasks.length === 0) {\n      return [\n          {\n              json: {\n                  has_tasks: false,\n                  voice_script: voiceScript,\n                  summary: \"Bilgilendirme\", // UI bozulmasın diye\n              }\n          }\n      ];\n  }\n\n  // 🔥 SENARYO 2: GÖREV VARSA (Parçala ve Dağıt)\n  return tasks.map(task => {\n      return {\n          json: {\n              ...task, // AI'dan gelen task detayları (summary, date vs.)\n              has_tasks: true,\n              voice_script: voiceScript,\n          }\n      };\n  });\n\n} catch (error) {\n  // JSON patlarsa akışı durdurma, hata objesi dön\n  return [{ \n      json: { \n          voice_script: \"Veri işlenirken hata oluştu: \" + error.message, \n          has_tasks: false,\n      } \n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -816,
+        416
+      ],
+      "id": "bd461bae-60df-4041-8c3a-3ea72229856e",
+      "name": "JSON Temizleyici"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1696,
+        448
+      ],
+      "id": "af8acbd8-3c5f-4b34-ae09-59a7dc695fc7",
+      "name": "Respond to Webhook1",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "content": "## Gelen Mesajlardan Görev Çıkarımı\n\n\n",
+        "height": 176,
+        "width": 688
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1344,
+        368
+      ],
+      "typeVersion": 1,
+      "id": "0d2044f2-5b9e-4b2a-bb74-35734118e1a4",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "## Google Calendar Etkinlik Ekleme",
+        "height": 240,
+        "width": 944,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -16,
+        688
+      ],
+      "typeVersion": 1,
+      "id": "b9d2ee01-7843-4e9c-9dce-3c5348a55725",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "mode": "id",
+          "value": "hkanoer@gmail.com",
+          "__regex": "(^[a-zA-Z0-9.!#$%&’*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\\.[a-zA-Z0-9-]+)*)"
+        },
+        "limit": 1,
+        "timeMin": "={{ DateTime.fromISO($json.start_time).minus({ hours: 1 }) }}",
+        "timeMax": "={{ DateTime.fromISO($json.start_time).minus({ hours: 1 }).plus({ minutes: 1 }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        -16,
+        768
+      ],
+      "id": "accbc107-c403-45e8-bdb5-e163dc35309c",
+      "name": "Get many events",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "79KWLYi5b6ZDqiOk",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "fromAllCalendars": false,
+        "calendarId": {
+          "__rl": true,
+          "value": "AQMkADAwATNiZmYAZC0wYTdmLWMwOGUtMDACLTAwCgBGAAAD-ETO0wDvLE_C16G54CoXdAcAw31HT9Md10KWdMkSSbXT5wAAAgEGAAAAw31HT9Md10KWdMkSSbXT5wAB3LuJhwAAAA==",
+          "mode": "list",
+          "cachedResultName": "Calendar"
+        },
+        "returnAll": true,
+        "output": "raw",
+        "filters": {
+          "custom": "=start/dateTime ge '{{ DateTime.fromISO($json.start_time).minus({ hours: 1 }).toISO() }}' and start/dateTime le '{{ DateTime.fromISO($json.start_time).plus({ minutes: 1 }).toISO() }}'"
+        }
+      },
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        80
+      ],
+      "id": "e29cae28-6aad-4ee3-bfe7-3224ca9e8d91",
+      "name": "Get many events1",
+      "webhookId": "033e629e-8a86-44ed-a937-60087034417d",
+      "alwaysOutputData": true,
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "6tIUsqmbq3uerYe4",
+          "name": "Microsoft Outlook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Outlook Calendar Etkinlik Ekleme",
+        "height": 240,
+        "width": 928,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        0,
+        0
+      ],
+      "typeVersion": 1,
+      "id": "4214f522-68f6-4ff7-96db-c529ced92fa2",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "create",
+        "calendarId": {
+          "__rl": true,
+          "value": "AQMkADAwATNiZmYAZC0wYTdmLWMwOGUtMDACLTAwCgBGAAAD-ETO0wDvLE_C16G54CoXdAcAw31HT9Md10KWdMkSSbXT5wAAAgEGAAAAw31HT9Md10KWdMkSSbXT5wAB3LuJhwAAAA==",
+          "mode": "list",
+          "cachedResultName": "Calendar"
+        },
+        "subject": "={{ $json.gorev_verisi.summary }}",
+        "startDateTime": "={{ DateTime.fromISO($json.gorev_verisi.start_time).setZone('Europe/Istanbul').toISO() }}",
+        "endDateTime": "={{ DateTime.fromISO($json.gorev_verisi.end_time).setZone('Europe/Istanbul').toISO() }}",
+        "additionalFields": {
+          "categories": "={{ [ ($json.gorev_verisi.category || 'task').charAt(0).toUpperCase() + ($json.gorev_verisi.category || 'task').slice(1) ] }}",
+          "body": "={{ $json.gorev_verisi.description || \"Detay Yok\"}}"
+        }
+      },
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        832,
+        96
+      ],
+      "id": "8887ba60-4fc9-400d-9a87-75f75d3261c1",
+      "name": "Create an event1",
+      "webhookId": "b5b3dd64-ae3f-437e-a8c1-ff8abb85bece",
+      "executeOnce": false,
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "6tIUsqmbq3uerYe4",
+          "name": "Microsoft Outlook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "Belirlenen saat te etkinlik var ise\nkullanıcıya iki kez aynı bildirim göndermesin\nengellemek için yapıldı",
+        "height": 240,
+        "width": 1120
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        128,
+        352
+      ],
+      "typeVersion": 1,
+      "id": "0525c8d0-25c1-4b7c-b473-89b30d54cad9",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1008,
+        368
+      ],
+      "id": "2fb95114-24d1-489f-bb12-1092c207393f",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ====================================================================\n// AYARLAR\n// ====================================================================\nlet mergeDugumAdi = 'Merge';\nconst kaynakDugumAdi = 'JSON Temizleyici'; // <-- KATEGORİ VE SES KAYNAĞI\n\n// Merge ismini otomatik düzelt\ntry { if ($('merg') && $('merg').first()) mergeDugumAdi = 'merg'; } catch(e) {}\n\n// ====================================================================\n// 1. ÖNCE KAYNAK VERİLERİ (JSON TEMİZLEYİCİ) ÇEK\n// ====================================================================\nlet kaynakVeriler = [];\ntry {\n    kaynakVeriler = $(kaynakDugumAdi).all().map(item => item.json);\n} catch(e) {\n    kaynakVeriler = [];\n}\n\n// ====================================================================\n// 🔥 KRİTİK KONTROL: EĞER GÖREV YOKSA HEMEN BİTİR\n// ====================================================================\n// Kaynak veriye bakıyoruz. Eğer \"has_tasks: false\" ise veya veri boşsa\n// Merge düğümünü beklemeden direkt sesli metni dönüyoruz.\nif (kaynakVeriler.length > 0) {\n    const kaynak = kaynakVeriler[0];\n    \n    // Görev yok bayrağı var mı?\n    if (kaynak.has_tasks === false) {\n        return [\n            {\n                json: {\n                    cevap: [], // Görev listesi boş\n                    sesli_okuma: kaynak.voice_script || kaynak.sesli_okuma || \"Bilgilendirme mesajı alındı.\",\n                    tip: \"bilgilendirme\" // Tip değişti\n                }\n            }\n        ];\n    }\n}\n\n// ====================================================================\n// 2. MERGE SONUÇLARINI ÇEK (Google/Outlook Çıktıları)\n// (Sadece görev varsa burası çalışır)\n// ====================================================================\nconst mergeResults = [];\nlet runIndex = 0;\nlet loopDevam = true;\n\nwhile (loopDevam) {\n    try {\n        const veriler = $(mergeDugumAdi).all(0, runIndex);\n        if (veriler.length === 0) loopDevam = false;\n        else { mergeResults.push(...veriler); runIndex++; }\n    } catch (error) { loopDevam = false; }\n}\n\n// ====================================================================\n// 3. RAPORU OLUŞTUR\n// ====================================================================\nconst gorevHaritasi = {};\nconst siraliBasliklar = []; \n\nmergeResults.forEach(item => {\n    const veri = item.json;\n    \n    // Başlık bul\n    let baslik = veri.baslik || veri.summary || veri.subject;\n    if (!baslik && veri.gorev_verisi) baslik = veri.gorev_verisi.summary;\n    if (!baslik && veri.talep_edilen_gorev) baslik = veri.talep_edilen_gorev.baslik;\n    if (!baslik && veri.id) baslik = \"İsimsiz Etkinlik\";\n    \n    if (!baslik) return;\n\n    if (!gorevHaritasi[baslik]) {\n        gorevHaritasi[baslik] = {\n            baslik: baslik,\n            platformlar: [],\n            durum: \"success\",\n            hata: null,\n            kategori: \"task\", // Geçici\n            baslangic: null,\n            bitis: null,\n            detay: null\n        };\n        siraliBasliklar.push(baslik);\n    }\n\n    const kayit = gorevHaritasi[baslik];\n\n    // Detayları doldur\n    let startT = veri.start?.dateTime || veri.start?.date || veri.saat;\n    if (!startT && veri.gorev_verisi) startT = veri.gorev_verisi.start_time;\n    if (startT) kayit.baslangic = startT;\n\n    let endT = veri.end?.dateTime || veri.end?.date || veri.bitis;\n    if (!endT && veri.gorev_verisi) endT = veri.gorev_verisi.end_time;\n    if (endT) kayit.bitis = endT;\n\n    let desc = veri.description || veri.bodyPreview || veri.detay;\n    if (!desc && veri.gorev_verisi) desc = veri.gorev_verisi.description;\n    if (desc && (!kayit.detay || desc.length > kayit.detay.length)) kayit.detay = desc;\n\n    // Platform ve Durum\n    if (veri.htmlLink) kayit.platformlar.push(\"Google\");\n    else if (veri[\"@odata.context\"] || (veri.id && !veri.htmlLink)) kayit.platformlar.push(\"Outlook\");\n    else if (veri.durum === 'dolu' || String(veri[\"müsait \"]) === \"false\" || veri.karar_temiz === false) {\n        kayit.durum = \"error\";\n        kayit.hata = veri.sebep || \"Saat uygun değil\";\n    }\n});\n\n// Listeyi Hazırla\nconst finalGorevListesi = [];\n\nsiraliBasliklar.forEach(baslik => {\n    const gorev = gorevHaritasi[baslik];\n    \n    let kullaniciMesaji = \"\";\n    if (gorev.durum === \"error\") {\n        let sebep = Array.isArray(gorev.hata) ? gorev.hata.join(\", \") : gorev.hata;\n        kullaniciMesaji = `⚠️ EKLENEMEDİ: ${sebep}`;\n    } else {\n        const platformlar = [...new Set(gorev.platformlar)].join(\" ve \");\n        kullaniciMesaji = `${platformlar} takvimine başarıyla eklendi.`;\n    }\n\n    finalGorevListesi.push({\n        \"baslik\": gorev.baslik,\n        \"kategori\": \"task\", \n        \"baslangic\": gorev.baslangic,\n        \"bitis\": gorev.bitis,\n        \"detay\": gorev.detay || \"\",\n        \"durum\": gorev.durum,\n        \"kullanici_mesaji\": kullaniciMesaji\n    });\n});\n\n// ====================================================================\n// 4. ADIM: KATEGORİ ENJEKSİYONU (Sıralı Eşleştirme)\n// ====================================================================\nfinalGorevListesi.forEach((gorev, index) => {\n    if (kaynakVeriler[index]) {\n        const dogruKategori = kaynakVeriler[index].category || kaynakVeriler[index].kategori;\n        if (dogruKategori) gorev.kategori = dogruKategori;\n    }\n});\n\n// ====================================================================\n// 5. ADIM: SESLİ METNİ BUL VE ÇIKTIYA EKLE\n// ====================================================================\nlet sesliMetin = \"İşlem tamamlandı.\"; // Varsayılan\n\n// Kaynak verilerin İLK elemanından sesi al\nif (kaynakVeriler.length > 0) {\n    const kaynak = kaynakVeriler[0];\n    if (kaynak.voice_script) sesliMetin = kaynak.voice_script;\n    else if (kaynak.sesli_okuma) sesliMetin = kaynak.sesli_okuma;\n}\n\n// ====================================================================\n// 6. ÇIKTI\n// ====================================================================\nreturn [\n    {\n        json: {\n            cevap: finalGorevListesi,\n            sesli_okuma: sesliMetin,\n            tip: \"gorev_listesi\"\n        }\n    }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1376,
+        448
+      ],
+      "id": "d8b9933c-c727-43fd-88aa-836b335f358b",
+      "name": "Code in JavaScript1",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Merge node'undan gelen sonuçları al (Google ve Outlook tarama sonuçları)\nconst results = $input.all();\n\nlet googleDolu = false;\nlet outlookDolu = false;\nlet bulunanEtkinlikler = [];\n\n// 2. Çakışma Kontrolü\nresults.forEach(item => {\n  const veri = item.json;\n  if (veri.id) {\n    if (veri.htmlLink) {\n      googleDolu = true;\n      bulunanEtkinlikler.push(`Google: ${veri.summary}`);\n    } else if (veri.webLink || veri['@odata.etag']) {\n      outlookDolu = true;\n      bulunanEtkinlikler.push(`Outlook: ${veri.subject}`);\n    }\n  }\n});\n\n// 3. REFERANS VERİSİNİ AL (Gemini / JSON Temizleyici)\nlet geminiDetay = {};\ntry {\n  const anaVeri = $('JSON Temizleyici').first().json;\n  if (anaVeri.ham_veri && anaVeri.ham_veri[0]) {\n      geminiDetay = anaVeri.ham_veri[0];\n  }\n} catch (e) {\n  // Hata olursa boş obje kalsın\n}\n\n// --- 4. YENİ EKLENEN KISIM: GOREV DONGU VERİSİNİ AL ---\nlet gorevDonguVerisi = {};\ntry {\n  // 'Gorev Dongu' düğümünden o anki veriyi çeker.\n  // .first() komutu \"eşleştirme hatası\" almadan veriyi getirir.\n  gorevDonguVerisi = $('Gorev Dongu').item.json;\n} catch (e) {\n  gorevDonguVerisi = { hata: \"Gorev Dongu verisi çekilemedi\" };\n}\n// -------------------------------------------------------\n\n// 5. Karar Ver\nconst yolTemiz = !googleDolu && !outlookDolu;\n\n// 6. ÇIKTIYI HAZIRLA\nreturn [\n  {\n    json: {\n      karar_temiz: yolTemiz,\n      \n      // Kullanıcıya gidecek mesaj\n      mesaj: yolTemiz ? \"Müsait\" : `⚠️ Çakışma Var: ${bulunanEtkinlikler.join(\", \")}`,\n      \n      // Çakışan etkinliklerin listesi\n      cakisma_detay: bulunanEtkinlikler,\n      \n      // Görev detayları (Gemini'den gelen)\n      talep_edilen_gorev: {\n          baslik: geminiDetay.summary || \"Bilinmiyor\",\n          kullanici_mesaji: geminiDetay.display_text || \"\",\n          saat: geminiDetay.start_time || \"\",\n          detay: geminiDetay.description || \"\"\n      },\n\n      // --- BURAYI EKLEDİM: GOREV DONGU ÇIKTISI ---\n      // Artık bir sonraki adımda $json.gorev_verisi... diyerek\n      // Loop içindeki tüm verilere ulaşabilirsiniz.\n      gorev_verisi: gorevDonguVerisi\n      // -------------------------------------------\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        432
+      ],
+      "id": "4c597894-c53e-49cf-84da-2861296c7011",
+      "name": "Calendarda Etkinlik Var mı?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9ee33434-de65-44ec-9dac-ed9e4618aac9",
+              "leftValue": "={{ $json.is_event }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -160,
+        416
+      ],
+      "id": "f5c6b767-984f-4fbd-9de1-6303a2d80dc0",
+      "name": "Mesajda Görev Var mı?",
+      "executeOnce": false
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        128,
+        432
+      ],
+      "id": "1f76ce18-6efd-45bf-ae0a-d08c9eb3b305",
+      "name": "Calendar Merge"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8ccd344a-f38b-418e-927b-bfe2e27d2cd5",
+              "leftValue": "={{ $json.karar_temiz }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        432,
+        432
+      ],
+      "id": "aab7e83f-eb12-45cb-bced-1dde81ea9b6d",
+      "name": "if"
+    },
+    {
+      "parameters": {
+        "content": "## Gerekli Tokenler\n** Google API KEY aistudio.google.com/\n** Google Calendar https://console.cloud.google.com/\n** Outlook Calendar https://portal.azure.com/",
+        "width": 400
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1072,
+        80
+      ],
+      "typeVersion": 1,
+      "id": "063bb0c0-adae-4ec5-bd27-5fb57dddf2c2",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fa7b1620-1573-4677-9d6a-481d8bf14471",
+              "name": "müsait ",
+              "value": "false",
+              "type": "string"
+            },
+            {
+              "id": "6337f51a-78fc-4541-810c-a8a53acef90c",
+              "name": "baslik",
+              "value": "={{ $json.gorev_verisi.summary }}",
+              "type": "string"
+            },
+            {
+              "id": "7294bed1-1314-46ca-aada-352a2ab47c3c",
+              "name": "saat",
+              "value": "={{ $json.gorev_verisi.start_time }}",
+              "type": "string"
+            },
+            {
+              "id": "dee91752-5c9f-4a8a-941f-80c6f1a630fd",
+              "name": "sebep",
+              "value": "={{ $json.cakisma_detay }}",
+              "type": "array"
+            },
+            {
+              "id": "5fd24425-a9f8-4a66-b3c5-b690c2a76051",
+              "name": "category",
+              "value": "={{ $json.gorev_verisi.category }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        720,
+        448
+      ],
+      "id": "37df0090-03be-493a-8a2f-c2eae72c8833",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1152,
+        464
+      ],
+      "id": "cf6a6ee2-4602-4f3e-97bd-1985699b020b",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": "={{ $json }}"
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -496,
+        416
+      ],
+      "id": "ae10f8fa-5884-4ebd-b338-5d6246f290dc",
+      "name": "Gorev Dongu"
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "hakanozerr.app.n8n.cloud",
+            "user-agent": "python-httpx/0.27.2",
+            "content-length": "815",
+            "accept": "*/*",
+            "accept-encoding": "gzip, br",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "2a09:bac5:58b3:2682::3d6:2e",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "TR",
+            "cf-ray": "9af8770b94c62ba0-IST",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/json",
+            "x-forwarded-for": "2a09:bac5:58b3:2682::3d6:2e, 104.23.180.167",
+            "x-forwarded-host": "hakanozerr.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-61-6d55649f6f-tt4xc",
+            "x-is-trusted": "yes",
+            "x-real-ip": "2a09:bac5:58b3:2682::3d6:2e"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "email_id": "19b2c7e64bb0a7c5",
+            "subject": "🚀 Pazarlamaya İlgi Duyuyorsan, Bu Mail Senin İçin! İş Bankası Proschool Marketing Class Ücretsiz Sertifika Programına Hemen Başvur!👇",
+            "from": "\"Toptalent.co\" <info@euromsg.net>",
+            "to": "hkanoer@gmail.com",
+            "body": "Ücretsiz Başvurmak İçin Hemen Tıkla👇 İzinsiz Gönderim Bildir Üyelikten Ayrıl Bu e-postayı görüntüleyemiyorsanız tıklayın 🚀 Pazarlamaya İlgi Duyuyorsan, Bu Mail Senin İçin! İş Bankası ProSchool",
+            "received_date": "2025-12-17T16:10:05+03:00",
+            "is_read": false,
+            "category": "promotions",
+            "has_attachments": false,
+            "provider": "gmail",
+            "is_outgoing": false
+          },
+          "webhookUrl": "https://hakanozerr.app.n8n.cloud/webhook/7d767402-8f08-47cf-91fa-279679510375",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "JSON Temizleyici",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JSON Temizleyici": {
+      "main": [
+        [
+          {
+            "node": "Gorev Dongu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many events": {
+      "main": [
+        [
+          {
+            "node": "Calendar Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Create an event": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Get many events1": {
+      "main": [
+        [
+          {
+            "node": "Calendar Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create an event1": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calendarda Etkinlik Var mı?": {
+      "main": [
+        [
+          {
+            "node": "if",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mesajda Görev Var mı?": {
+      "main": [
+        [
+          {
+            "node": "Get many events",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get many events1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calendar Merge": {
+      "main": [
+        [
+          {
+            "node": "Calendarda Etkinlik Var mı?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if": {
+      "main": [
+        [
+          {
+            "node": "Create an event",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create an event1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Gorev Dongu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gorev Dongu": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mesajda Görev Var mı?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f236558b-7113-484e-b4ec-7c2b0b4ca3f3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "cf4f4b07fc1336c24ac1e43d0aead202b9869eb46310de8e3e9e0a1e31b0ce62"
+  },
+  "id": "wh9xMivK1uCmuOuC",
+  "tags": []
+}

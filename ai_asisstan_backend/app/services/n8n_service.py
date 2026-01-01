@@ -11,20 +11,43 @@ from app.core.redis_client import redis_client
 
 def check_email_already_processed(email_id: str, provider: str) -> bool:
     """
-    Email'in daha önce işlenip işlenmediğini kontrol et (Redis'te var mı?)
+    Email'in daha önce işlenip işlenmediğini kontrol et (Redis'te geçerli veri var mı?)
     
     Args:
         email_id: Email ID
         provider: Email provider ("gmail" veya "outlook")
         
     Returns:
-        True ise email zaten işlenmiş, False ise yeni email
+        True ise email zaten işlenmiş VE geçerli veri var, False ise yeni email veya boş veri
     """
     if not redis_client.is_connected():
         return False  # Redis yoksa her zaman yeni email olarak işle
     
     existing_data = redis_client.get_task_extraction(email_id=email_id, provider=provider)
-    return existing_data is not None
+    
+    if existing_data is None:
+        return False  # Redis'te yok, yeni email
+    
+    # Redis'te var ama içerik boş mu kontrol et
+    task_data = existing_data.get("task_data", {})
+    
+    # Eğer task_data boş, None veya sadece boş bir dict ise, tekrar işle
+    if not task_data:
+        print(f"⚠️  Redis'te email var ama task_data boş: email_tasks:{provider}:{email_id}")
+        print(f"   📤 Email tekrar n8n'e gönderilecek")
+        return False
+    
+    # task_data varsa ama "cevap" alanı boş ise de tekrar işle
+    if isinstance(task_data, dict):
+        cevap = task_data.get("cevap")
+        # cevap boş liste, None veya boş string ise
+        if cevap is None or (isinstance(cevap, list) and len(cevap) == 0) or (isinstance(cevap, str) and not cevap.strip()):
+            print(f"⚠️  Redis'te email var ama 'cevap' alanı boş: email_tasks:{provider}:{email_id}")
+            print(f"   📤 Email tekrar n8n'e gönderilecek")
+            return False
+    
+    # Geçerli veri var, atlayabiliriz
+    return True
 
 
 class N8nService:
@@ -35,7 +58,7 @@ class N8nService:
         # Boş string kontrolü yap - eğer boş veya None ise default URL kullan
         webhook_url = settings.N8N_EMAIL_WEBHOOK_URL
         if not webhook_url or not webhook_url.strip():
-            webhook_url = "https://hakanozerr.app.n8n.cloud/webhook/7d767402-8f08-47cf-91fa-279679510375"
+            webhook_url = "https://hakanozer12.app.n8n.cloud/webhook/7d767402-8f08-47cf-91fa-279679510375"
         self.webhook_url = webhook_url
         # Debug: Webhook URL'i yazdır
         print(f"🔗 n8n Webhook URL: {self.webhook_url}")
@@ -165,6 +188,26 @@ class N8nService:
                         else:
                             # Boş veya farklı format
                             task_data = response_data
+                        
+                        # YENİ: n8n'den boş response geldiyse Redis'e kaydetme
+                        # Bu sayede bir sonraki sync'te tekrar n8n'e gönderilecek
+                        is_task_data_empty = False
+                        if not task_data:
+                            is_task_data_empty = True
+                        elif isinstance(task_data, dict):
+                            cevap = task_data.get("cevap")
+                            if cevap is None or (isinstance(cevap, list) and len(cevap) == 0) or (isinstance(cevap, str) and not cevap.strip()):
+                                is_task_data_empty = True
+                        
+                        if is_task_data_empty:
+                            print("\n" + "="*80)
+                            print("⚠️  n8n'den BOŞ response geldi - Redis'e KAYDEDİLMEYECEK")
+                            print("="*80)
+                            print(f"   Email ID: {email.id}")
+                            print(f"   Provider: {provider}")
+                            print(f"   ⏭️  Bir sonraki sync'te tekrar n8n'e gönderilecek")
+                            print("="*80 + "\n")
+                            return None
                         
                         # Email verisini hazırla (Redis'e kaydetmek için)
                         email_data = {

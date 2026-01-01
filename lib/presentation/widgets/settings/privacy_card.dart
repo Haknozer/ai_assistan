@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/user_provider.dart';
 import '../../../providers/user_setting_provider.dart';
 import '../../../models/user_setting.dart';
-import '../../../services/n8n_cleanup_service.dart';
-import '../../../core/utils/error_handler.dart';
 
 /// Gizlilik ve güvenlik kartı widget'ı
 class PrivacyCard extends ConsumerWidget {
@@ -54,10 +52,6 @@ class PrivacyCard extends ConsumerWidget {
 
             // Bulut Senkronizasyonu
             _buildCloudSyncSection(context, ref, currentUser != null, isCloudSyncEnabled),
-
-            // TEST MODU: n8n Verilerini Temizle (Proje bitince kaldırılacak)
-            const SizedBox(height: 24),
-            _buildN8nCleanupSection(context),
           ],
         ),
       ),
@@ -244,155 +238,5 @@ class PrivacyCard extends ConsumerWidget {
         ),
       ],
     );
-  }
-
-  /// TEST MODU: n8n Verilerini Temizle Bölümü (Proje bitince kaldırılacak)
-  Widget _buildN8nCleanupSection(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.orange.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Colors.orange.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.bug_report_outlined,
-                color: Colors.orange,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'TEST MODU',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.orange,
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'n8n Verilerini Temizle',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Tüm n8n forward tracking ve AI önerilerini temizler. Bu işlem geri alınamaz.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-                ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _showCleanupDialog(context),
-                  icon: const Icon(Icons.delete_outline, size: 18),
-                  label: const Text('Tümünü Temizle'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.orange,
-                    side: BorderSide(color: Colors.orange.withValues(alpha: 0.5)),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _showCleanupDialog(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.orange),
-            SizedBox(width: 8),
-            Text('Temizleme Onayı'),
-          ],
-        ),
-        content: const Text(
-          'Tüm n8n verilerini temizlemek istediğinize emin misiniz?\n\n'
-          'Bu işlem şunları temizler:\n'
-          '• Forward edilen mesaj/email ID\'leri\n'
-          '• n8n\'den dönen AI önerileri\n\n'
-          'Bu işlem geri alınamaz ve tüm mesajlar tekrar n8n\'e gönderilecektir.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('İptal'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Temizle'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    try {
-      // Loading göster
-      if (context.mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (ctx) => const Center(
-            child: CircularProgressIndicator(),
-          ),
-        );
-      }
-
-      // Temizleme işlemi
-      await N8nCleanupService().clearAllN8nData();
-
-      // Loading'i kapat
-      if (context.mounted) {
-        Navigator.of(context).pop();
-      }
-
-      // Başarı mesajı
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('n8n verileri başarıyla temizlendi'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-    } catch (e) {
-      // Loading'i kapat
-      if (context.mounted) {
-        Navigator.of(context).pop();
-      }
-
-      // Hata mesajı
-      if (context.mounted) {
-        ErrorHandler.handleError(
-          context,
-          e,
-          tag: 'N8N Cleanup',
-        );
-      }
-    }
   }
 }

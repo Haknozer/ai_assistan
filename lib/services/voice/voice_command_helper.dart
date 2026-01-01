@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:ai_asisstan/core/utils/logger.dart';
 import 'package:go_router/go_router.dart';
 import '../chatbot_service.dart';
+import '../backend_email_service.dart';
 import '../../providers/email_account_provider.dart';
 import '../../models/email_account.dart';
 import '../n8n_response_storage_service.dart';
@@ -60,8 +61,8 @@ class VoiceCommandHelper {
           route = map['rota']?.toString();
 
           // ÖZEL DURUM: "mailleri_ozetle" için chatbot'un 'cevap' metnini
-          // TTS'te KULLANMIYORUZ. Sadece tarih filtresine göre local mailleri
-          // bulup, email summary webhook'undan dönen okunacak_metin'i okuyoruz.
+          // TTS'te KULLANMIYORUZ. Tarih filtresine göre Redis'ten mailleri
+          // çekip, email summary webhook'undan dönen okunacak_metin'i okuyoruz.
           if (type == 'mailleri_ozetle' && map['filtre'] is Map<String, dynamic>) {
             final filtre = map['filtre'] as Map<String, dynamic>;
             final baslangicTarihi = filtre['baslangic_tarihi']?.toString();
@@ -69,35 +70,55 @@ class VoiceCommandHelper {
 
             if (baslangicTarihi != null && bitisTarihi != null) {
               try {
-                final startUtc = DateTime.parse(baslangicTarihi).toUtc();
-                final endUtc = DateTime.parse(bitisTarihi).toUtc();
+                AppLogger.debug('Email özeti için tarih aralığı: $baslangicTarihi - $bitisTarihi', 'VOICE');
 
-                AppLogger.debug('Email özeti için tarih aralığı: $startUtc - $endUtc', 'VOICE');
+                // YENİ: Redis API'den tarih aralığındaki emailleri çek
+                final backendService = BackendEmailService();
+                final emailsFromRedis = await backendService.getEmailsByDateRange(
+                  startDate: baslangicTarihi,
+                  endDate: bitisTarihi,
+                );
 
-                // Local'deki email response'larını çek
-                final emailResponses =
-                    await N8nResponseStorageService().getEmailResponsesByDateRange(startUtc: startUtc, endUtc: endUtc);
+                AppLogger.debug('Redis\'ten bulunan email sayısı: ${emailsFromRedis.length}', 'VOICE');
 
-                AppLogger.debug('Bulunan email response sayısı: ${emailResponses.length}', 'VOICE');
-
-                if (emailResponses.isNotEmpty) {
-                  // Yeni: Email response listesini ve kullanıcının orijinal komutunu
-                  // n8n voice summary webhook'una gönder
+                if (emailsFromRedis.isNotEmpty) {
+                  // Email verilerini n8n email summary webhook'una gönder
                   final summaryText = await N8nForwarderService().getEmailSummaryForVoice(
-                    emailResponses,
+                    emailsFromRedis,
                     commandText: text,
                   );
 
                   // ÖNEMLİ: Kullanıcının isteği gereği, sadece webhook'tan dönen
-                  // okunacak_metin kullanılacak. Lokal fallback ÖZETLER
-                  // (sesli_okuma / extractAiSuggestions) HİÇBİR ZAMAN okunmayacak.
+                  // okunacak_metin kullanılacak.
                   if (summaryText != null && summaryText.isNotEmpty) {
                     answer = summaryText;
                   } else {
                     answer = 'Email özeti getirilemedi.';
                   }
                 } else {
-                  answer = 'Bu tarih aralığında kayıtlı email bulunamadı.';
+                  // Redis'te bu tarih aralığında email yoksa, lokal storage'a fallback
+                  AppLogger.debug('Redis\'te email bulunamadı, lokal storage kontrol ediliyor...', 'VOICE');
+
+                  final startUtc = DateTime.parse(baslangicTarihi).toUtc();
+                  final endUtc = DateTime.parse(bitisTarihi).toUtc();
+
+                  final localEmailResponses = await N8nResponseStorageService()
+                      .getEmailResponsesByDateRange(startUtc: startUtc, endUtc: endUtc);
+
+                  if (localEmailResponses.isNotEmpty) {
+                    final summaryText = await N8nForwarderService().getEmailSummaryForVoice(
+                      localEmailResponses,
+                      commandText: text,
+                    );
+
+                    if (summaryText != null && summaryText.isNotEmpty) {
+                      answer = summaryText;
+                    } else {
+                      answer = 'Email özeti getirilemedi.';
+                    }
+                  } else {
+                    answer = 'Bu tarih aralığında kayıtlı email bulunamadı.';
+                  }
                 }
               } catch (e) {
                 AppLogger.error('Email özeti çekilirken hata', tag: 'VOICE', error: e);
